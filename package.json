@@ -7,12 +7,14 @@
     "node": ">=24.21.0 <25"
   },
   "scripts": {
+    "dev": "pnpm -r --parallel --if-present dev",
     "dev:frontend": "pnpm --dir frontend dev",
-    "dev:backend": "pnpm --dir backend start:dev",
+    "dev:backend": "pnpm --dir backend dev",
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm -r --if-present test && pnpm --dir backend test:e2e",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "format": "pnpm -r --if-present format"
   }
 }

@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // I00 excludes automatically generated agent instruction files.
+  agentRules: false,
 };
 
 export default nextConfig;

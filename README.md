@@ -1,14 +1,14 @@
 # LumiCal
 
 A university software engineering project for personalized twelve-month memory
-calendars. This repository currently contains the **I00 team-ready foundation**.
+calendars. This repository contains the **I00 team-ready and I01 database foundations**.
 The temporary frontend page and technical health endpoint support setup only.
 
 ## Requirements and installation
 
 - Node **24.21.0** (see [.nvmrc](.nvmrc)); select this version before running pnpm.
 - pnpm **11.22.0**, pinned in `packageManager`.
-- Docker with Compose v2 for the optional container workflow.
+- Docker with Compose v2 for PostgreSQL and the complete verification gate.
 
 ```sh
 npm install --global pnpm@11.22.0
@@ -40,7 +40,8 @@ pnpm dev:backend     # http://localhost:3001/api/v1/health
 pnpm dev             # both servers concurrently; Ctrl+C stops them
 ```
 
-Defaults work without environment files. For overrides, copy
+Liveness and the setup page work without environment files; database readiness
+requires configured, migrated PostgreSQL. Copy
 `frontend/.env.example` to `frontend/.env.local` and `backend/.env.example` to
 `backend/.env`. Next loads its env file; the backend `dev` script uses Node's
 native env-file support. Restart after changing environment values. If changing
@@ -52,17 +53,45 @@ An unreachable or invalid backend response becomes a controlled, uncached 502.
 
 ## Docker
 
+Copy root `.env.example` to `.env` and replace each password placeholder with a
+different randomly generated hexadecimal string (for example, run
+`node -e "console.log(require('node:crypto').randomBytes(24).toString('hex'))"`
+three times). These are local secrets; never commit them. Hexadecimal passwords
+avoid URL-encoding pitfalls in Compose connection URLs.
+
 ```sh
 docker compose up --build -d
 docker compose down
 ```
 
 Defaults expose frontend on 3000 and backend on 3001. Copy root `.env.example`
-to `.env` and set `FRONTEND_PORT=3100`, `BACKEND_PORT=3101` to override host ports.
+to `.env` and set `FRONTEND_PORT=3100`, `BACKEND_PORT=3101` and `POSTGRES_PORT=5434`
+to override host ports. PostgreSQL binds only to loopback. The `lumical` Compose
+project owns its database volume; `down` retains it. Initialization creates
+separate bootstrap, migration and runtime roles; a one-off migration service
+must succeed before the backend starts. Changing passwords in `.env` does not
+change roles in an existing volume: rotate them explicitly through the bootstrap
+role. Never delete a shared/dev volume as a migration strategy.
 Container ports stay fixed; Next reaches Nest at `http://backend:3001`.
 These are production-style containers; use `pnpm dev` for normal coding.
 Run Compose from this repository and manage only its project; never prune or
 stop unrelated Docker projects.
+
+For host development, start only PostgreSQL and copy the matching runtime and
+migration URLs into `backend/.env` (including the chosen PostgreSQL host port):
+
+```sh
+docker compose up -d --wait postgres
+pnpm --dir backend db:migrate
+pnpm --dir backend build
+pnpm --dir backend db:seed
+pnpm dev
+```
+
+`GET /api/v1/health/live` reports process liveness; `/health/ready` reports 200
+only when the configured runtime role can access the required schema, otherwise
+503. The existing `/api/v1/health` remains the I00 frontend's liveness proof.
+See [backend implementation notes](backend/README.md) for persistence boundaries.
 
 ## Verification
 
@@ -73,13 +102,18 @@ pnpm lint
 pnpm test                     # frontend + backend unit tests and Nest e2e
 pnpm --dir backend test:e2e    # e2e alone
 pnpm build
-pnpm verify                   # typecheck -> lint -> test -> build; CI contract
+pnpm test:db                   # disposable real PostgreSQL, migrations and integrity
+pnpm test:docker               # builds Compose images, tests readiness/outage, cleans its own project
+pnpm verify                   # typecheck -> lint -> test -> build -> test:db; CI contract
 ```
 
 Package scripts remain available via `pnpm --dir frontend ...` and
 `pnpm --dir backend ...`; frontend watch tests use `pnpm --dir frontend test:watch`.
 GitHub Actions installs the pinned tools and frozen lockfile, checks peers and
-runs `pnpm verify`. Never disable checks to get a green build.
+runs `pnpm verify`; its Docker job runs `pnpm test:docker`. Both database scripts
+generate ephemeral credentials and unique resource names, then check ownership
+before cleanup. They never use a developer's database URL or volume. Never
+disable checks to get a green build.
 
 ## Team workflow and authorities
 
@@ -98,6 +132,6 @@ run verification and obtain teammate PR review before merging. Authorities
 remain frozen; propose coordinated authority changes through review.
 Never commit real `.env` files, secrets, participant content or build output.
 
-Intentional deferrals: **DB/Prisma = I01**, **auth = I02**,
+Intentional deferrals: **auth = I02**,
 **AR technology spike = I03**. Product UI, full Design System, provider
 integrations and deployment are outside this foundation task.

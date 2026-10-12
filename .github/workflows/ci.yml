@@ -55,8 +55,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build backend image
-        run: docker build -f backend/Dockerfile -t lumical-backend:ci .
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
 
-      - name: Build frontend image
-        run: docker build -f frontend/Dockerfile -t lumical-frontend:ci .
+      - name: Install pnpm and dependencies
+        run: |
+          npm install --global pnpm@11.22.0
+          pnpm install --frozen-lockfile
+
+      - name: Build images and smoke isolated PostgreSQL stack
+        run: pnpm test:docker

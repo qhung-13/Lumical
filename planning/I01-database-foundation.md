@@ -4,7 +4,7 @@
 
 Initialize PostgreSQL/Prisma and reviewed initial P0 model/constraint migrations.
 
-Initial item status: **TODO**. No implementation evidence exists for this item in the current repository; tasks start TODO. Dependencies are gates, not claims of implemented artifacts.
+Current item status: **IN_REVIEW**. I01 implementation and local quality evidence are available on `feature/I01-database-foundation`; LEAD and independent teammate approval remain outstanding. Dependencies and authority references remain unchanged. No task is marked DONE.
 
 ## Milestone
 
@@ -80,7 +80,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: LEAD
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I00](I00-repository-project-foundation.md) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: No independent task within this item is named; eligible external tracks remain listed in Dependencies.
 
@@ -90,12 +90,12 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Expected areas/files/modules:** Backend persistence design and dependency review artifacts. These are implementation areas, not a prescription of new filenames.
 
-**Implementation notes:** Resolve the timing clarification before installation; do not redesign business semantics.
+**Implementation notes:** The explicit I01 implementation request authorizes tooling selection/installation in this execution. PostgreSQL 17.11, Prisma 7.10.0 and pg 8.23.1 are pinned; framework versions are unchanged. Business semantics are unchanged; teammate tooling/privilege review remains pending.
 
 **Acceptance criteria:**
 
-- [ ] Each critical protection maps to BR/INV authority.
-- [ ] ORM-supported and migration-only constraints are distinguished.
+- [x] Each critical protection maps to BR/INV authority.
+- [x] ORM-supported and migration-only constraints are distinguished.
 - [ ] Versions and least-privilege strategy receive teammate review.
 
 **Tests required:** Review migration/locking capabilities and define blank/upgrade/invariant scenarios.
@@ -112,7 +112,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: MEMBER_4
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I01-P01](I01-database-foundation.md#i01-p01) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: [I03-P01](I03-early-ar-technology-spike.md#i03-p01); [I03-P02](I03-early-ar-technology-spike.md#i03-p02) once each task's prerequisites are accepted.
 
@@ -122,13 +122,13 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Expected areas/files/modules:** Backend config/platform; future database-only local/test tooling. These are implementation areas, not a prescription of new filenames.
 
-**Implementation notes:** This is future I01 work, not a change to current Docker. Never target another project or participant database.
+**Implementation notes:** Compose now owns isolated PostgreSQL resources and separate migration/runtime roles. Disposable tests use unique names, random credentials, loopback ports and ownership-checked cleanup. Never target another project or participant database.
 
 **Acceptance criteria:**
 
-- [ ] Fresh test DB initializes through migrations.
-- [ ] Runtime principal cannot change schema.
-- [ ] Cleanup is confined to disposable LumiCal resources.
+- [x] Fresh test DB initializes through migrations.
+- [x] Runtime principal cannot change schema.
+- [x] Cleanup is confined to disposable LumiCal resources.
 
 **Tests required:** Empty database setup, role privilege negatives and isolated cleanup checks.
 
@@ -144,7 +144,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: LEAD
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I01-P01](I01-database-foundation.md#i01-p01); [I01-P02](I01-database-foundation.md#i01-p02) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: [I03-P02](I03-early-ar-technology-spike.md#i03-p02) once each task's prerequisites are accepted.
 
@@ -158,9 +158,9 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Acceptance criteria:**
 
-- [ ] Owner and normalized email protections exist.
-- [ ] Month uniqueness/range and valid references are enforced.
-- [ ] Current media/artifact references preserve ownership and immutable bytes.
+- [x] Owner and normalized email protections exist.
+- [x] Month uniqueness/range and valid references are enforced.
+- [x] Current media/artifact references preserve ownership and immutable bytes.
 
 **Tests required:** Real PostgreSQL FK/unique/range and rollback tests; application count checks planned.
 
@@ -176,7 +176,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: LEAD
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I01-P03](I01-database-foundation.md#i01-p03) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: [I03-P03](I03-early-ar-technology-spike.md#i03-p03) once each task's prerequisites are accepted.
 
@@ -190,9 +190,9 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Acceptance criteria:**
 
-- [ ] Snapshots have explicit relational references.
-- [ ] Settlement uniqueness binds Order/attempt/capture.
-- [ ] Historical references prohibit normal cascade deletion.
+- [x] Snapshots have explicit relational references.
+- [x] Settlement uniqueness binds Order/attempt/capture.
+- [x] Historical references prohibit normal cascade deletion.
 
 **Tests required:** Real PostgreSQL money/relationship/uniqueness/rollback tests.
 
@@ -208,7 +208,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: MEMBER_3
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I01-P04](I01-database-foundation.md#i01-p04) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: [I03-P03](I03-early-ar-technology-spike.md#i03-p03) once each task's prerequisites are accepted.
 
@@ -222,9 +222,9 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Acceptance criteria:**
 
-- [ ] One current share generation is protected.
-- [ ] Job/inbox/intent identities are durable.
-- [ ] Transaction collaborators share one context.
+- [x] One current share generation is protected.
+- [x] Job/inbox/intent identities are durable.
+- [x] Transaction collaborators share one context.
 
 **Tests required:** Real PostgreSQL generation/intent uniqueness, rollback and safe serialization fixtures.
 
@@ -240,7 +240,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: MEMBER_2
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I01-P03](I01-database-foundation.md#i01-p03); [I01-P04](I01-database-foundation.md#i01-p04); [I01-P05](I01-database-foundation.md#i01-p05) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: No independent task within this item is named; eligible external tracks remain listed in Dependencies.
 
@@ -254,9 +254,9 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Acceptance criteria:**
 
-- [ ] Repeated seed has a stable result.
-- [ ] Two-owner fixtures support privacy negatives.
-- [ ] Synthetic evidence cannot be mistaken for genuine provider acceptance.
+- [x] Repeated seed has a stable result.
+- [x] Two-owner fixtures support privacy negatives.
+- [x] Synthetic evidence cannot be mistaken for genuine provider acceptance.
 
 **Tests required:** Repeat-seed checks and fixture ownership/readiness assertions.
 
@@ -272,7 +272,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: MEMBER_4
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I01-P02](I01-database-foundation.md#i01-p02); [I01-P03](I01-database-foundation.md#i01-p03); [I01-P04](I01-database-foundation.md#i01-p04); [I01-P05](I01-database-foundation.md#i01-p05); [I01-P06](I01-database-foundation.md#i01-p06); [I01-P08](I01-database-foundation.md#i01-p08) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: No independent task within this item is named; eligible external tracks remain listed in Dependencies.
 
@@ -286,9 +286,9 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Acceptance criteria:**
 
-- [ ] Blank and upgrade histories pass.
-- [ ] Key constraints and rollback are exercised.
-- [ ] Migration and runtime roles remain separate.
+- [x] Blank and upgrade histories pass.
+- [x] Key constraints and rollback are exercised.
+- [x] Migration and runtime roles remain separate.
 
 **Tests required:** Disposable PostgreSQL integration and concurrency suite, plus static gates.
 
@@ -304,7 +304,7 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 - Owner: MEMBER_4
 - Reviewer: LEAD
-- Status: TODO
+- Status: IN_REVIEW
 - Depends on: [I01-P02](I01-database-foundation.md#i01-p02); [I01-P05](I01-database-foundation.md#i01-p05) Inherited item hard gates: [I00](I00-repository-project-foundation.md)
 - Can run in parallel with: [I01-P06](I01-database-foundation.md#i01-p06) once each task's prerequisites are accepted.
 
@@ -318,9 +318,9 @@ PostgreSQL in dev/test/demo; Prisma only in backend infrastructure. Use reviewed
 
 **Acceptance criteria:**
 
-- [ ] Liveness reports process status without private details.
-- [ ] Readiness returns 503 for missing/unavailable essential persistence/config.
-- [ ] Configuration fails safely and health fields match API_CONTRACT.
+- [x] Liveness reports process status without private details.
+- [x] Readiness returns 503 for missing/unavailable essential persistence/config.
+- [x] Configuration fails safely and health fields match API_CONTRACT.
 
 **Tests required:** Supertest liveness/readiness, unavailable test-DB/config and no-secret response tests.
 
@@ -336,9 +336,9 @@ A Pxx normally maps to one small MR. Tests for its behavior belong in that MR; a
 
 ## Ixx Acceptance Criteria
 
-- [ ] Blank/upgrade migration tests, exact-money/FK/unique protections and least-privilege roles.
+- [x] Blank/upgrade migration tests, exact-money/FK/unique protections and least-privilege roles.
 - [ ] All in-scope Pxx acceptance criteria and integration scenarios are satisfied and evidenced.
-- [ ] Required typecheck, lint, tests and build pass; affected API/DB/provider/device/UI checks pass at the correct layer.
+- [x] Required typecheck, lint, tests and build pass; affected API/DB/provider/device/UI checks pass at the correct layer.
 - [ ] No unapproved scope, secret, dependency-boundary or historical-data change; LEAD and an independent reviewer approve where required.
 
 ## Demo Evidence
@@ -349,6 +349,41 @@ Use safe synthetic content and redacted evidence. Fake adapters accelerate deter
 
 ## Risks / Watch-outs
 
-Database-specific conditional indexes/locking may exceed Prisma model syntax; verify pinned support before coding. Initial P0 schema must not accidentally include reset/notification/wish/social tables. Tool-pinning timing is flagged in I00.
+Conditional uniqueness, checks, restricted grants and finalized-content row guards are explicit SQL alongside the Prisma schema. Cross-row child counts, authorization, provider evidence, readiness and lifecycle transitions remain later application responsibilities. P1/P2 entities are absent. I00's outstanding DS/i18n common gate remains outstanding; this implementation does not claim I00 acceptance.
 
-Authority ambiguity is reported as **AUTHORITY CLARIFICATION REQUIRED** and pauses only the affected decision. This planning task changes no authority, application, dependency or runtime file.
+Authority ambiguity is reported as **AUTHORITY CLARIFICATION REQUIRED** and pauses only the affected decision. This execution changes only the authorized I01 foundation and its verification/documentation; frozen authority files remain byte-identical.
+
+## Execution Evidence — 2026-10-12
+
+Implementation followed P01 → P02 → P03 → P04 → P05 → P06 → P08 → P07 on one feature branch. The four reviewed SQL increments preserve current-work, commerce-history, access/execution and privilege boundaries, with atomic PostgreSQL migration transactions. Implementation mappings and future application obligations are in [backend/README.md](../backend/README.md), not a second authority.
+
+| Task | Status | Concrete evidence |
+| --- | --- | --- |
+| I01-P01 | IN_REVIEW | Pinned compatible tools; BR/INV mapping separates Prisma, SQL and application protections. Teammate review pending. |
+| I01-P02 | IN_REVIEW | Disposable PostgreSQL 17.11; blank/repeated setup; runtime schema mutation denied; owned cleanup passes. |
+| I01-P03 | IN_REVIEW | Current P0 schema, owner composite FKs, normalized email, Month range/unique, civil-date and finalized-content negative tests. |
+| I01-P04 | IN_REVIEW | Relational immutable snapshots, exact BIGINT USD, quantity/zero adjustments/total checks, settlement uniqueness and historical-reference deletion tests. |
+| I01-P05 | IN_REVIEW | Scoped share generation/leases, inspection/audit, idempotency, verified inbox/job identities and shared transaction context; real rollback and synchronized checkout race pass. |
+| I01-P06 | IN_REVIEW | Repeated Prisma runtime seed yields identical disabled synthetic owners/catalog; Pending/Ready media/artifact factories are TEST ONLY. |
+| I01-P07 | IN_REVIEW | Three isolated databases prove blank/repeat/upgrade paths; Prisma diff reports no difference. Local full quality gate passes. |
+| I01-P08 | IN_REVIEW | Live 200; ready 200/503 with exact safe bodies for missing/invalid/unreachable DB; actual Compose PostgreSQL outage proves ready 503/live 200. I00 proxy compatibility passes. |
+
+Executed PASS: `pnpm install --frozen-lockfile`, `pnpm peers check`, root typecheck/lint/test/build through `pnpm verify`, 8 backend unit tests, 1 frontend unit test, 4 backend e2e tests, real PostgreSQL integration, blank/repeated/upgrade migration, least-privilege negatives, seed repeatability, live/ready/no-secret checks and production Docker smoke. Jest open-handle diagnosis also passed without reported handles. CI is configured to run the database gate and full Compose smoke; hosted CI has not been executed because nothing was pushed.
+
+All 17 authority files match the pre-execution SHA256 baseline. Prisma and database types stay backend infrastructure-owned; no frontend DB dependency, P1/P2 entity, authentication/business workflow or provider integration was introduced. Test containers and the smoke project's database volume/network were removed; unrelated Docker resources were left intact. HEAD remains `2c3637d`; no commit, push or merge was performed.
+
+Acceptance checkmarks record demonstrated technical evidence, not human approval. LEAD and independent teammate review are still required before DONE or dependent contract acceptance. The inherited I00 common-gate clarification remains visible in the overview.
+
+## Review Fix Evidence — 2026-10-13
+
+The three required review findings are implemented and ready for re-review. I01 and all Pxx remain **IN_REVIEW**; no human approval or DONE status is claimed.
+
+| Finding | Implementation | Executed regression evidence |
+| --- | --- | --- |
+| Nested independent transactions | Async-local context joins nested `run` calls to the existing Prisma transaction. Only the outer boundary commits/rolls back; no nested savepoints. Finished inherited contexts fail without root-client fallback. | Real PostgreSQL: outer and nested writes both disappear on rollback; successful nested writes commit together; synchronized concurrent chains have distinct contexts and independent outcomes; foreign/finished contexts and delayed descendants are rejected. |
+| Premature PostgreSQL health | Compose authenticates `lumical_runtime` over final TCP at 127.0.0.1 and checks schema USAGE/migration ownership. Host setup waits with `docker compose up -d --wait postgres`. | Fresh Compose startup holds the real role initializer behind a signal barrier. The Unix socket is ready while TCP health stays non-healthy, roles are absent, and migration/backend containers remain unstarted. Release permits initialization → health → migrations → backend; migration exit 0, ready 200, frontend proxy 200. |
+| Missing runtime SELECT readiness | `SELECT 1 FROM lumical.users LIMIT 0` checks actual schema/table read access without fetching private rows, alongside the existing required-table metadata check. | Real PostgreSQL: normal grants return ready 200; revoked users SELECT or schema USAGE returns ready 503 with exact `{ready:false}` and live 200; grants are restored in `finally` and readiness returns 200 again. Actual database outage also returns ready 503/live 200. |
+
+Final executed PASS: frozen install, peers, root typecheck, lint, unit/e2e tests, both production builds, `pnpm verify`, the complete PostgreSQL integration suite (also run directly with `pnpm test:db`), all new regression cases, `pnpm test:docker` and `git diff --check`. The initial new smoke barrier failed because Compose consumed an unescaped test variable; its escaping was corrected and the complete smoke run then passed. The existing Jest worker-shutdown warning remains non-fatal; no test was disabled or changed to conceal it.
+
+The fix pass changes only transaction/readiness infrastructure, related PostgreSQL/Compose regression tests, startup configuration and the existing developer/evidence documentation. Schema, migrations, dependencies, frozen authority, frontend and I02+ scope remain unchanged. All 17 authority files still match the original SHA256 baseline. Disposable containers, network/volumes and temporary override files are cleaned within their owned run/project scope. Hosted CI and human re-review remain pending; no commit/push/merge was performed.

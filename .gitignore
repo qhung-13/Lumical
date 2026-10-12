@@ -19,6 +19,9 @@ build/
 # TypeScript
 *.tsbuildinfo
 
+# Generated backend infrastructure (regenerated from the root lockfile)
+backend/src/platform/database/infrastructure/generated/
+
 # Tests / coverage
 coverage/
 .nyc_output/

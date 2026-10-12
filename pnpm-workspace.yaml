@@ -1,0 +1,6 @@
+packages:
+  - frontend
+  - backend
+allowBuilds:
+  '@parcel/watcher': true
+  unrs-resolver: true

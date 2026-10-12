@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      BACKEND_URL: http://backend:3001
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"

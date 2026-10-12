@@ -8,6 +8,7 @@
     "node": ">=24.21.0 <25"
   },
   "scripts": {
+    "dev": "node --env-file-if-exists=.env ./node_modules/@nestjs/cli/bin/nest.js start --watch",
     "build": "nest build",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

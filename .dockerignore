@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Dependencies
+node_modules
+**/node_modules
+
+# Build output
+.next
+**/.next
+dist
+**/dist
+coverage
+**/coverage
+
+# Local environment
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+playwright-report
+test-results
+
+# Misc
+*.tmp
+*.temp

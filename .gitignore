@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Next.js
+.next/
+out/
+
+# NestJS / Node builds
+dist/
+build/
+
+# TypeScript
+*.tsbuildinfo
+
+# Tests / coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tool caches
+.turbo/
+.cache/
+.eslintcache/
+
+# Local databases / accidental SQLite files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# IDE / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Deployment / local platform state
+.vercel/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~

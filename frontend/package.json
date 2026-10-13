@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.104.2",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -26,6 +27,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.0",
     "jsdom": "27.4.0",
+    "openapi-typescript": "7.13.0",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   }

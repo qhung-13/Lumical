@@ -93,6 +93,35 @@ only when the configured runtime role can access the required schema, otherwise
 503. The existing `/api/v1/health` remains the I00 frontend's liveness proof.
 See [backend implementation notes](backend/README.md) for persistence boundaries.
 
+## Identity development (I02)
+
+Copy the backend/frontend environment examples into their ignored local files.
+Generate `IDENTITY_SECRET_KEY` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`.
+Use the backend example's `NODE_ENV=development`, `IDENTITY_COOKIE_MODE=loopback`
+and exact `IDENTITY_ALLOWED_ORIGINS=http://localhost:3000`; frontend development
+uses `ACCOUNT_COOKIE_NAME=lumical_session_dev` for server bootstrap. Keep the
+same host spelling in the browser and allowlist. Then run `pnpm dev` and visit
+`/register`, `/login` or `/account`. Password recovery is not implemented.
+
+Development rewrites route `/api/*` directly to Nest. Compose builds a separate
+HTTP gateway which routes `/api/*` to Nest and other paths to Next; it preserves
+Origin, CSRF and Set-Cookie without implementing business authentication. Its
+frontend port is loopback-only. Compose uses production Secure cookies and
+requires HTTPS termination preserving client socket addresses at the gateway for
+a deployed browser journey. A further HTTP proxy that replaces every source with
+its own socket address is not the supported source-isolation topology. Compose
+trusts only its fixed `LUMICAL_GATEWAY_IP`; direct development trusts no proxy.
+Set `IDENTITY_ALLOWED_ORIGINS` to that exact HTTPS origin; HTTP loopback
+cookie mode is rejected in production. The exposed loopback backend port is for
+local diagnostics and should stay private in deployed topology.
+
+`pnpm contract:generate` builds Nest OpenAPI and derives frontend types.
+`pnpm contract:check` detects drift. `pnpm test:identity` runs durable-session,
+security and controlled-race checks in disposable PostgreSQL. `pnpm verify`
+includes both I01/I02 database suites, contract checks and gateway routing tests.
+Admin roles are assigned only by an authorized operator using a separately
+controlled database connection; there is no role-assignment HTTP endpoint.
+
 ## Verification
 
 ```sh

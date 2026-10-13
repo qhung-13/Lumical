@@ -47,11 +47,18 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://lumical_runtime:${RUNTIME_DB_PASSWORD:?Set runtime password}@postgres:5432/${POSTGRES_DB:-lumical_dev}?schema=lumical
+      IDENTITY_SECRET_KEY: ${IDENTITY_SECRET_KEY:?Generate a 32-byte identity key}
+      IDENTITY_ALLOWED_ORIGINS: ${IDENTITY_ALLOWED_ORIGINS:?Set the exact HTTPS frontend origin}
+      IDENTITY_COOKIE_MODE: https
+      IDENTITY_TRUSTED_PROXY_IPS: ${LUMICAL_GATEWAY_IP:-172.30.240.2}
+      IDENTITY_AUTH_ATTEMPTS: ${IDENTITY_AUTH_ATTEMPTS:-10}
+      IDENTITY_AUTH_WINDOW_SECONDS: ${IDENTITY_AUTH_WINDOW_SECONDS:-600}
+      IDENTITY_AUTH_BUCKETS: ${IDENTITY_AUTH_BUCKETS:-10000}
     depends_on:
       migrate:
         condition: service_completed_successfully
     ports:
-      - "${BACKEND_PORT:-3001}:3001"
+      - "127.0.0.1:${BACKEND_PORT:-3001}:3001"
 
   frontend:
     build:
@@ -62,8 +69,30 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
       BACKEND_URL: http://backend:3001
+  gateway:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+    environment:
+      BACKEND_URL: http://backend:3001
+      FRONTEND_URL: http://frontend:3000
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    networks:
+      default:
+        ipv4_address: ${LUMICAL_GATEWAY_IP:-172.30.240.2}
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${LUMICAL_NETWORK_SUBNET:-172.30.240.0/24}
+          ip_range: ${LUMICAL_DYNAMIC_IP_RANGE:-172.30.240.128/25}
 
 volumes:
   postgres_data:

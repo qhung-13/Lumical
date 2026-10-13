@@ -6,7 +6,7 @@
 
 Hierarchy: **M0–M5 milestone → canonical Ixx implementation item → Ixx-Pxx implementation task**. Pxx is the normal assignment/MR unit, with exactly one primary owner and LEAD as final reviewer. Milestone groups organize the plan; they are not additional sequential barriers over the ROADMAP dependency graph.
 
-This pack is planning only: no application, dependency, schema, Docker/runtime, authority, commit or push changes. Future work described in a Pxx needs its ordinary reviewed implementation ticket; no code is authorized by document generation. No dates, durations or academic rubric are invented.
+The original pack creation was planning only. Future work described in a Pxx needs its ordinary reviewed implementation ticket; no code is authorized by document generation. The explicitly requested I01 execution and evidence are recorded below. No dates, durations or academic rubric are invented.
 
 ## Repository Evidence and Initial Status
 
@@ -15,6 +15,8 @@ Baseline inspected on **2026-10-12**, branch `docs/team-implementation-plan`, cl
 **I00 technical foundation is merged; full ROADMAP I00 acceptance is not established.** `frontend/src/design-system/` and `i18n/` contain placeholders; the page is temporary and CSS explicitly defers the approved DS. ROADMAP §3 also requires VI/EN/theme shells and a public/form/dialog/Admin DS slice common gate. Therefore I00 is **IN_PROGRESS**, with only I00-P01–P03 **DONE**. Scope clarification blocks new P04/P06 work until explicitly resolved; none of I01–I20 is falsely DONE. I18 is DEFERRED.
 
 Historical DONE entries reflect repository/history and the earlier I00 evidence, not tests rerun during this planning task. Role assignments express accountability for the plan; they do not attribute earlier commits to people whose names are unknown.
+
+**I01 execution update — 2026-10-12:** I01 and P01–P08 are now **IN_REVIEW** on `feature/I01-database-foundation`, following the explicit I01 implementation request. PostgreSQL 17.11/Prisma 7.10.0 persistence, separate migration/runtime roles, 30 P0 models, immutable history, synthetic seeds, transaction contexts and live/ready health are implemented. Frozen install, peers, root `pnpm verify`, real blank/repeat/upgrade PostgreSQL integration and full Docker/database outage smoke passed locally. [I01 evidence](I01-database-foundation.md#execution-evidence--2026-10-12) records the technical checks and remaining human approval. Frozen authority bytes are unchanged; no commit/push was made. I00's outstanding DS/i18n common gate and all other item statuses/dependencies remain unchanged; I01 implementation is not approval for dependent feature expansion.
 
 ## Team Ownership
 
@@ -42,10 +44,10 @@ Primary Pxx counts: LEAD **25**, MEMBER_2 **29**, MEMBER_3 **31**, MEMBER_4 **41
 
 Names are the exact canonical ROADMAP names. Ixx primary owner coordinates integration; Pxx owners do implementation.
 
-| Ixx | Name | Milestone | Primary owner | Supporting members | Reviewer | Hard dependencies / admission | Priority | Initial status |
+| Ixx | Name | Milestone | Primary owner | Supporting members | Reviewer | Hard dependencies / admission | Priority | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | [I00](I00-repository-project-foundation.md) | Repository / Project Foundation | M0 | LEAD | MEMBER_2, MEMBER_4, MEMBER_3 | LEAD | R04 accepted; I00 clarification | P0 | IN_PROGRESS |
-| [I01](I01-database-foundation.md) | Database Foundation | M1 | LEAD | MEMBER_2, MEMBER_3, MEMBER_4 | LEAD | I00 | P0 | TODO |
+| [I01](I01-database-foundation.md) | Database Foundation | M1 | LEAD | MEMBER_2, MEMBER_3, MEMBER_4 | LEAD | I00 | P0 | IN_REVIEW |
 | [I02](I02-identity-and-sessions.md) | Identity & Sessions | M1 | LEAD | MEMBER_2, MEMBER_3, MEMBER_4 | LEAD | I01 | P0 | TODO |
 | [I03](I03-early-ar-technology-spike.md) | Early AR Technology Spike | M1 | MEMBER_3 | LEAD, MEMBER_4 | LEAD | I00 | P0 | TODO |
 | [I04](I04-template-catalog-and-admin-templates.md) | Template Catalog + Admin Templates | M2 | MEMBER_2 | MEMBER_4, MEMBER_3, LEAD | LEAD | I01; I02 | P0 | TODO |
@@ -189,13 +191,13 @@ Use [DEV_WORKFLOW §22](../docs/DEV_WORKFLOW.md#22-definition-of-done) and [TEST
 ## Planning Risks and Authority Clarifications
 
 1. **AUTHORITY CLARIFICATION REQUIRED — I00 acceptance scope.** The merged narrowly scoped foundation deliberately deferred DS implementation, while ROADMAP I00 still names a DS public/form/dialog/Admin common gate and VI/EN/theme shells. LEAD coordinates the proper authority-owner confirmation of how this gap is closed; planning neither waives nor moves that gate. I00-P04/P06 are BLOCKED until clarified; no later integrated item becomes READY automatically.
-2. **AUTHORITY CLARIFICATION REQUIRED — tooling-pinning timing.** ADR-002, BACKEND_STANDARDS §15, DATABASE §24 and TESTING_STRATEGY §1 mention pinning/CLI/tool selection at I00, while the merged foundation explicitly deferred DB/Prisma to I01 and installed only the initial test baseline. LEAD must reconcile the intended timing before the affected installation/initial migration. No version is invented and no dependency is changed here.
-3. **Technical alignment at I01:** existing `/api/v1/health` proves the I00 hop; API_CONTRACT specifies `/health/live` and `/health/ready`. I01-P08 plans the approved liveness/persistence-readiness contract and LEAD-reviewed compatibility. The Next health-only handler does not establish the business API reverse proxy; I02-P02 explicitly owns that security-sensitive transport setup.
+2. **Tooling-pinning timing — execution update.** The original plan flagged I00 pinning references against deferred I01 installation. The explicit I01 implementation request authorized this tooling execution; compatible versions are now pinned and tested. Teammate review of versions/schema/privileges remains pending; authority files and I00 acceptance are unchanged.
+3. **Technical alignment at I01:** `/api/v1/health/live` and `/health/ready` now match API_CONTRACT and pass real PostgreSQL/outage checks. The existing `/api/v1/health` compatibility route preserves the I00 frontend proof and is submitted for LEAD review. The Next health-only handler does not establish the business API reverse proxy; I02-P02 explicitly owns that security-sensitive transport setup.
 4. **External acceptance gates:** I03 must find viable real mobile recognition/privacy/licensing; I06 must prove actual configured Cloudinary originals/derivatives are private; I10 must prove actual sandbox USD/account binding. Failed evidence blocks the affected item, not a scope rewrite.
 5. **Retention policy confirmation:** BR-PRV-004/005 gives the 30-day post-assessment cleanup default; confirm any institution exception before real participant content. Use synthetic data meanwhile; no assessment date or cleanup schedule is invented.
 6. **P1/P2 control:** I17 is required supporting work after coherent P0 and may be deferred only by explicit Product Scope approval. No such deferral or P2 admission is present; all I18 tasks stay DEFERRED/OPTIONAL.
 
-## Planning Pack Validation
+## Original Planning Pack Validation
 
 - Exactly 21 canonical I00–I20 files plus this overview; 126 sequential, unique Pxx tasks, each with one owner and LEAD reviewer.
 - Task fields, three acceptance checks per task, initial statuses, links/task anchors and stated prerequisite/parallel relationships validated; no task dependency cycle found.

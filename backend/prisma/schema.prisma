@@ -1,0 +1,724 @@
+// I01 persistence only. BR/INV protections and future application boundaries are mapped in backend/README.md.
+// Money uses BIGINT to cover the API's full safe integer range; API projections must convert only checked values.
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/platform/database/infrastructure/generated"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["lumical"]
+}
+
+enum AccountRole {
+  USER
+  ADMIN
+
+  @@map("account_role")
+  @@schema("lumical")
+}
+
+enum AccountStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("account_status")
+  @@schema("lumical")
+}
+
+enum TemplateAvailability {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+
+  @@map("template_availability")
+  @@schema("lumical")
+}
+
+enum ProjectStatus {
+  WORKING
+  ARCHIVED
+
+  @@map("project_status")
+  @@schema("lumical")
+}
+
+enum MediaCategory {
+  IMAGE
+  VIDEO
+  AUDIO
+
+  @@map("media_category")
+  @@schema("lumical")
+}
+
+enum MediaStatus {
+  PENDING
+  READY
+  UNAVAILABLE
+
+  @@map("media_status")
+  @@schema("lumical")
+}
+
+enum ARReadiness {
+  NOT_CONFIGURED
+  PREPARING
+  READY
+  UNAVAILABLE
+
+  @@map("a_r_readiness")
+  @@schema("lumical")
+}
+
+enum OrderStatus {
+  PLACED
+  CANCELLED
+  CLOSED
+
+  @@map("order_status")
+  @@schema("lumical")
+}
+
+enum PaymentStatus {
+  INITIATED
+  AWAITING_APPROVAL
+  VERIFYING
+  COMPLETED
+  CANCELLED
+  FAILED
+
+  @@map("payment_status")
+  @@schema("lumical")
+}
+
+enum FulfillmentStatus {
+  WAITING_FOR_PAYMENT
+  PREPARING
+  DEMO_COMPLETE
+  STOPPED
+
+  @@map("fulfillment_status")
+  @@schema("lumical")
+}
+
+enum ShareStatus {
+  ACTIVE
+  REVOKED
+  SUSPENDED
+
+  @@map("share_status")
+  @@schema("lumical")
+}
+
+model User {
+  id                       String               @id @default(uuid()) @db.Uuid
+  normalizedEmail          String               @unique @map("normalized_email") @db.VarChar(254)
+  passwordHash             String               @map("password_hash")
+  role                     AccountRole          @default(USER)
+  status                   AccountStatus        @default(ACTIVE)
+  version                  Int                  @default(1)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session_user             Session[]            @relation("Session_user")
+  calendarProject_owner    CalendarProject[]    @relation("CalendarProject_owner")
+  mediaAsset_owner         MediaAsset[]         @relation("MediaAsset_owner")
+  fulfillmentEvent_actor   FulfillmentEvent[]   @relation("FulfillmentEvent_actor")
+  adminContentAccess_admin AdminContentAccess[] @relation("AdminContentAccess_admin")
+  adminAuditEvent_actor    AdminAuditEvent[]    @relation("AdminAuditEvent_actor")
+  idempotencyRecord_actor  IdempotencyRecord[]  @relation("IdempotencyRecord_actor")
+
+  @@map("users")
+  @@schema("lumical")
+}
+
+model Session {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  sessionDigest     String    @unique @map("session_digest")
+  csrfDigest        String    @map("csrf_digest")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastActivityAt    DateTime  @map("last_activity_at") @db.Timestamptz(3)
+  idleExpiresAt     DateTime  @map("idle_expires_at") @db.Timestamptz(3)
+  absoluteExpiresAt DateTime  @map("absolute_expires_at") @db.Timestamptz(3)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(3)
+  user              User      @relation("Session_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId])
+  @@index([absoluteExpiresAt])
+  @@map("sessions")
+  @@schema("lumical")
+}
+
+model Template {
+  id                         String               @id @default(uuid()) @db.Uuid
+  availability               TemplateAvailability @default(INACTIVE)
+  currentPublishedRevisionId String?              @map("current_published_revision_id") @db.Uuid
+  version                    Int                  @default(1)
+  createdAt                  DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  templateRevision_template  TemplateRevision[]   @relation("TemplateRevision_template")
+  publishedRevision          TemplateRevision?    @relation("Template_publishedRevision", fields: [currentPublishedRevisionId, id], references: [id, templateId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([availability])
+  @@map("templates")
+  @@schema("lumical")
+}
+
+model TemplateRevision {
+  id                                    String                 @id @default(uuid()) @db.Uuid
+  templateId                            String                 @map("template_id") @db.Uuid
+  revision                              Int
+  nameVi                                String                 @map("name_vi")
+  nameEn                                String                 @map("name_en")
+  descriptionVi                         String                 @map("description_vi")
+  descriptionEn                         String                 @map("description_en")
+  layoutDefinition                      Json                   @map("layout_definition")
+  stylePresets                          Json                   @map("style_presets")
+  unitPriceMinor                        BigInt                 @map("unit_price_minor")
+  currency                              String                 @default("USD") @db.Char(3)
+  publishedAt                           DateTime               @map("published_at") @db.Timestamptz(3)
+  createdAt                             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  template                              Template               @relation("TemplateRevision_template", fields: [templateId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  template_publishedRevision            Template[]             @relation("Template_publishedRevision")
+  calendarProject_templateRevision      CalendarProject[]      @relation("CalendarProject_templateRevision")
+  orderCalendarVersion_templateRevision OrderCalendarVersion[] @relation("OrderCalendarVersion_templateRevision")
+
+  @@unique([templateId, revision])
+  @@unique([id, templateId])
+  @@map("template_revisions")
+  @@schema("lumical")
+}
+
+model CalendarProject {
+  id                          String               @id @default(uuid()) @db.Uuid
+  ownerId                     String               @map("owner_id") @db.Uuid
+  templateRevisionId          String               @map("template_revision_id") @db.Uuid
+  status                      ProjectStatus        @default(WORKING)
+  title                       String               @db.VarChar(80)
+  year                        Int                  @db.SmallInt
+  recipientName               String               @map("recipient_name") @db.VarChar(80)
+  baselineNameVi              String               @map("baseline_name_vi")
+  baselineNameEn              String               @map("baseline_name_en")
+  baselineStyle               Json                 @map("baseline_style")
+  stylePresetId               String               @map("style_preset_id")
+  unitPriceMinor              BigInt               @map("unit_price_minor")
+  currency                    String               @default("USD") @db.Char(3)
+  version                     Int                  @default(1)
+  createdAt                   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  owner                       User                 @relation("CalendarProject_owner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  templateRevision            TemplateRevision     @relation("CalendarProject_templateRevision", fields: [templateRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  calendarMonth_project       CalendarMonth[]      @relation("CalendarMonth_project")
+  projectMonthMedia_project   ProjectMonthMedia[]  @relation("ProjectMonthMedia_project")
+  specialDate_project         SpecialDate[]        @relation("SpecialDate_project")
+  aRTargetArtifact_project    ARTargetArtifact[]   @relation("ARTargetArtifact_project")
+  projectARExperience_project ProjectARExperience? @relation("ProjectARExperience_project")
+  checkoutIntent_project      CheckoutIntent[]     @relation("CheckoutIntent_project")
+  order_project               Order[]              @relation("Order_project")
+
+  @@unique([id, ownerId])
+  @@index([ownerId, status, updatedAt, id])
+  @@index([templateRevisionId])
+  @@map("calendar_projects")
+  @@schema("lumical")
+}
+
+model CalendarMonth {
+  id                      String              @id @default(uuid()) @db.Uuid
+  projectId               String              @map("project_id") @db.Uuid
+  monthNumber             Int                 @map("month_number") @db.SmallInt
+  caption                 String?             @db.VarChar(300)
+  project                 CalendarProject     @relation("CalendarMonth_project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  projectMonthMedia_month ProjectMonthMedia[] @relation("ProjectMonthMedia_month")
+
+  @@unique([projectId, monthNumber])
+  @@unique([id, projectId])
+  @@map("calendar_months")
+  @@schema("lumical")
+}
+
+model MediaAsset {
+  id                        String                @id @default(uuid()) @db.Uuid
+  ownerId                   String                @map("owner_id") @db.Uuid
+  category                  MediaCategory
+  status                    MediaStatus           @default(PENDING)
+  uploadIntentId            String                @unique @map("upload_intent_id") @db.Uuid
+  storageReference          String?               @unique @map("storage_reference")
+  contentVersion            Int                   @default(1) @map("content_version")
+  verifiedBytes             Int?                  @map("verified_bytes")
+  durationMs                Int?                  @map("duration_ms")
+  contentType               String?               @map("content_type")
+  verifiedAt                DateTime?             @map("verified_at") @db.Timestamptz(3)
+  createdAt                 DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  owner                     User                  @relation("MediaAsset_owner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  projectMonthMedia_asset   ProjectMonthMedia[]   @relation("ProjectMonthMedia_asset")
+  projectARExperience_asset ProjectARExperience[] @relation("ProjectARExperience_asset")
+  orderMediaReference_asset OrderMediaReference[] @relation("OrderMediaReference_asset")
+
+  @@unique([id, ownerId])
+  @@index([ownerId, status, createdAt, id])
+  @@map("media_assets")
+  @@schema("lumical")
+}
+
+model ProjectMonthMedia {
+  id        String          @id @default(uuid()) @db.Uuid
+  projectId String          @map("project_id") @db.Uuid
+  ownerId   String          @map("owner_id") @db.Uuid
+  monthId   String          @map("month_id") @db.Uuid
+  assetId   String          @map("asset_id") @db.Uuid
+  position  Int             @db.SmallInt
+  crop      Json?
+  altText   String          @map("alt_text")
+  project   CalendarProject @relation("ProjectMonthMedia_project", fields: [projectId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  month     CalendarMonth   @relation("ProjectMonthMedia_month", fields: [monthId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: Restrict)
+  asset     MediaAsset      @relation("ProjectMonthMedia_asset", fields: [assetId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([monthId, position])
+  @@index([projectId, ownerId])
+  @@index([assetId, ownerId])
+  @@map("project_month_media")
+  @@schema("lumical")
+}
+
+model SpecialDate {
+  id        String          @id @default(uuid()) @db.Uuid
+  projectId String          @map("project_id") @db.Uuid
+  eventDate DateTime        @map("event_date") @db.Date
+  title     String          @db.VarChar(80)
+  note      String?         @db.VarChar(300)
+  project   CalendarProject @relation("SpecialDate_project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([projectId, eventDate, id])
+  @@map("special_dates")
+  @@schema("lumical")
+}
+
+model ARTargetArtifact {
+  id                           String                @id @default(uuid()) @db.Uuid
+  projectId                    String                @map("project_id") @db.Uuid
+  ownerId                      String                @map("owner_id") @db.Uuid
+  sourceRevision               Int                   @map("source_revision")
+  targetId                     String                @unique @default(uuid()) @map("target_id") @db.Uuid
+  status                       ARReadiness           @default(PREPARING)
+  artifactReference            String?               @unique @map("artifact_reference")
+  adapterMetadata              Json?                 @map("adapter_metadata")
+  preparedAt                   DateTime?             @map("prepared_at") @db.Timestamptz(3)
+  createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  project                      CalendarProject       @relation("ARTargetArtifact_project", fields: [projectId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  projectARExperience_artifact ProjectARExperience[] @relation("ProjectARExperience_artifact")
+  orderARSnapshot_artifact     OrderARSnapshot[]     @relation("OrderARSnapshot_artifact")
+
+  @@unique([id, projectId, ownerId])
+  @@index([projectId, sourceRevision])
+  @@map("ar_target_artifacts")
+  @@schema("lumical")
+}
+
+model ProjectARExperience {
+  id                String            @id @default(uuid()) @db.Uuid
+  projectId         String            @unique @map("project_id") @db.Uuid
+  ownerId           String            @map("owner_id") @db.Uuid
+  monthNumber       Int               @map("month_number") @db.SmallInt
+  revealAssetId     String            @map("reveal_asset_id") @db.Uuid
+  readableText      String            @map("readable_text")
+  sourceRevision    Int               @map("source_revision")
+  preparationStatus ARReadiness       @default(NOT_CONFIGURED) @map("preparation_status")
+  targetArtifactId  String?           @map("target_artifact_id") @db.Uuid
+  project           CalendarProject   @relation("ProjectARExperience_project", fields: [projectId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  asset             MediaAsset        @relation("ProjectARExperience_asset", fields: [revealAssetId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  artifact          ARTargetArtifact? @relation("ProjectARExperience_artifact", fields: [targetArtifactId, projectId, ownerId], references: [id, projectId, ownerId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([projectId, ownerId])
+  @@index([revealAssetId, ownerId])
+  @@map("project_ar_experiences")
+  @@schema("lumical")
+}
+
+model CheckoutIntent {
+  id               String          @id @default(uuid()) @db.Uuid
+  ownerId          String          @map("owner_id") @db.Uuid
+  projectId        String          @map("project_id") @db.Uuid
+  projectRevision  Int             @map("project_revision")
+  requestDigest    String          @map("request_digest")
+  canonicalRequest Json            @map("canonical_request")
+  releasedAt       DateTime?       @map("released_at") @db.Timestamptz(3)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  project          CalendarProject @relation("CheckoutIntent_project", fields: [projectId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  order_intent     Order?          @relation("Order_intent")
+
+  @@unique([id, ownerId, projectId])
+  @@index([projectId, ownerId])
+  @@map("checkout_intents")
+  @@schema("lumical")
+}
+
+model Order {
+  id                         String                @id @default(uuid()) @db.Uuid
+  ownerId                    String                @map("owner_id") @db.Uuid
+  projectId                  String                @map("project_id") @db.Uuid
+  checkoutIntentId           String                @unique @map("checkout_intent_id") @db.Uuid
+  status                     OrderStatus           @default(PLACED)
+  quantity                   Int                   @db.SmallInt
+  unitPriceMinor             BigInt                @map("unit_price_minor")
+  totalMinor                 BigInt                @map("total_minor")
+  discountMinor              BigInt                @default(0) @map("discount_minor")
+  taxMinor                   BigInt                @default(0) @map("tax_minor")
+  shippingMinor              BigInt                @default(0) @map("shipping_minor")
+  currency                   String                @default("USD") @db.Char(3)
+  contactName                String                @map("contact_name") @db.VarChar(80)
+  contactEmail               String                @map("contact_email")
+  version                    Int                   @default(1)
+  createdAt                  DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  project                    CalendarProject       @relation("Order_project", fields: [projectId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  intent                     CheckoutIntent        @relation("Order_intent", fields: [checkoutIntentId, ownerId, projectId], references: [id, ownerId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  orderCalendarVersion_order OrderCalendarVersion? @relation("OrderCalendarVersion_order")
+  paymentAttempt_order       PaymentAttempt[]      @relation("PaymentAttempt_order")
+  paymentSettlement_order    PaymentSettlement?    @relation("PaymentSettlement_order")
+  fulfillment_order          Fulfillment?          @relation("Fulfillment_order")
+  recipientShare_order       RecipientShare?       @relation("RecipientShare_order")
+  adminContentAccess_order   AdminContentAccess[]  @relation("AdminContentAccess_order")
+
+  @@unique([id, ownerId, projectId])
+  @@unique([checkoutIntentId, ownerId, projectId])
+  @@index([ownerId, createdAt, id])
+  @@index([projectId])
+  @@map("orders")
+  @@schema("lumical")
+}
+
+model OrderCalendarVersion {
+  id                               String                     @id @default(uuid()) @db.Uuid
+  orderId                          String                     @unique @map("order_id") @db.Uuid
+  ownerId                          String                     @map("owner_id") @db.Uuid
+  projectId                        String                     @map("project_id") @db.Uuid
+  sourceProjectRevision            Int                        @map("source_project_revision")
+  year                             Int                        @db.SmallInt
+  title                            String                     @db.VarChar(80)
+  dedication                       String                     @db.VarChar(80)
+  templateRevisionId               String                     @map("template_revision_id") @db.Uuid
+  templateNameVi                   String                     @map("template_name_vi")
+  templateNameEn                   String                     @map("template_name_en")
+  styleDefinition                  Json                       @map("style_definition")
+  createdAt                        DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  order                            Order                      @relation("OrderCalendarVersion_order", fields: [orderId, ownerId, projectId], references: [id, ownerId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  templateRevision                 TemplateRevision           @relation("OrderCalendarVersion_templateRevision", fields: [templateRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  orderMonthSnapshot_version       OrderMonthSnapshot[]       @relation("OrderMonthSnapshot_version")
+  orderSpecialDateSnapshot_version OrderSpecialDateSnapshot[] @relation("OrderSpecialDateSnapshot_version")
+  orderMediaReference_version      OrderMediaReference[]      @relation("OrderMediaReference_version")
+  orderARSnapshot_version          OrderARSnapshot?           @relation("OrderARSnapshot_version")
+  recipientAccessSession_version   RecipientAccessSession[]   @relation("RecipientAccessSession_version")
+
+  @@unique([id, orderId])
+  @@unique([id, ownerId, projectId])
+  @@unique([orderId, ownerId, projectId])
+  @@index([templateRevisionId])
+  @@map("order_calendar_versions")
+  @@schema("lumical")
+}
+
+model OrderMonthSnapshot {
+  id                        String                @id @default(uuid()) @db.Uuid
+  versionId                 String                @map("version_id") @db.Uuid
+  monthNumber               Int                   @map("month_number") @db.SmallInt
+  caption                   String?               @db.VarChar(300)
+  layout                    Json
+  version                   OrderCalendarVersion  @relation("OrderMonthSnapshot_version", fields: [versionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  orderMediaReference_month OrderMediaReference[] @relation("OrderMediaReference_month")
+
+  @@unique([versionId, monthNumber])
+  @@unique([id, versionId])
+  @@map("order_month_snapshots")
+  @@schema("lumical")
+}
+
+model OrderSpecialDateSnapshot {
+  id        String               @id @default(uuid()) @db.Uuid
+  versionId String               @map("version_id") @db.Uuid
+  eventDate DateTime             @map("event_date") @db.Date
+  title     String               @db.VarChar(80)
+  note      String?              @db.VarChar(300)
+  version   OrderCalendarVersion @relation("OrderSpecialDateSnapshot_version", fields: [versionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([versionId, eventDate, id])
+  @@map("order_special_date_snapshots")
+  @@schema("lumical")
+}
+
+model OrderMediaReference {
+  id                     String               @id @default(uuid()) @db.Uuid
+  versionId              String               @map("version_id") @db.Uuid
+  ownerId                String               @map("owner_id") @db.Uuid
+  projectId              String               @map("project_id") @db.Uuid
+  monthId                String?              @map("month_id") @db.Uuid
+  assetId                String               @map("asset_id") @db.Uuid
+  purpose                String
+  position               Int?                 @db.SmallInt
+  crop                   Json?
+  accessibleText         String               @map("accessible_text")
+  version                OrderCalendarVersion @relation("OrderMediaReference_version", fields: [versionId, ownerId, projectId], references: [id, ownerId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  month                  OrderMonthSnapshot?  @relation("OrderMediaReference_month", fields: [monthId, versionId], references: [id, versionId], onDelete: Restrict, onUpdate: Restrict)
+  asset                  MediaAsset           @relation("OrderMediaReference_asset", fields: [assetId, ownerId], references: [id, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  orderARSnapshot_reveal OrderARSnapshot[]    @relation("OrderARSnapshot_reveal")
+
+  @@unique([id, versionId])
+  @@index([versionId, ownerId, projectId])
+  @@index([monthId, versionId])
+  @@index([assetId, ownerId])
+  @@map("order_media_references")
+  @@schema("lumical")
+}
+
+model OrderARSnapshot {
+  id                     String               @id @default(uuid()) @db.Uuid
+  versionId              String               @unique @map("version_id") @db.Uuid
+  ownerId                String               @map("owner_id") @db.Uuid
+  projectId              String               @map("project_id") @db.Uuid
+  targetArtifactId       String               @map("target_artifact_id") @db.Uuid
+  revealReferenceId      String               @map("reveal_reference_id") @db.Uuid
+  readableText           String               @map("readable_text")
+  fallbackRepresentation Json                 @map("fallback_representation")
+  version                OrderCalendarVersion @relation("OrderARSnapshot_version", fields: [versionId, ownerId, projectId], references: [id, ownerId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  artifact               ARTargetArtifact     @relation("OrderARSnapshot_artifact", fields: [targetArtifactId, projectId, ownerId], references: [id, projectId, ownerId], onDelete: Restrict, onUpdate: Restrict)
+  reveal                 OrderMediaReference  @relation("OrderARSnapshot_reveal", fields: [revealReferenceId, versionId], references: [id, versionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([versionId, ownerId, projectId])
+  @@index([targetArtifactId, projectId, ownerId])
+  @@index([revealReferenceId, versionId])
+  @@map("order_ar_snapshots")
+  @@schema("lumical")
+}
+
+model PaymentAttempt {
+  id                        String             @id @default(uuid()) @db.Uuid
+  orderId                   String             @map("order_id") @db.Uuid
+  status                    PaymentStatus      @default(INITIATED)
+  provider                  String
+  environment               String             @db.VarChar(16)
+  providerOrderReference    String?            @map("provider_order_reference")
+  providerCaptureReference  String?            @map("provider_capture_reference")
+  evidenceSummary           Json?              @map("evidence_summary")
+  version                   Int                @default(1)
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  order                     Order              @relation("PaymentAttempt_order", fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  paymentOperation_attempt  PaymentOperation[] @relation("PaymentOperation_attempt")
+  paymentSettlement_attempt PaymentSettlement? @relation("PaymentSettlement_attempt")
+
+  @@unique([id, orderId, provider, environment])
+  @@unique([provider, environment, providerOrderReference])
+  @@index([orderId, createdAt, id])
+  @@map("payment_attempts")
+  @@schema("lumical")
+}
+
+model PaymentOperation {
+  id                String         @id @default(uuid()) @db.Uuid
+  attemptId         String         @map("attempt_id") @db.Uuid
+  kind              String
+  providerRequestId String         @unique @map("provider_request_id")
+  requestDigest     String         @map("request_digest")
+  condition         String
+  resultSummary     Json?          @map("result_summary")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  attempt           PaymentAttempt @relation("PaymentOperation_attempt", fields: [attemptId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([attemptId, kind])
+  @@map("payment_operations")
+  @@schema("lumical")
+}
+
+model PaymentSettlement {
+  id               String         @id @default(uuid()) @db.Uuid
+  orderId          String         @unique @map("order_id") @db.Uuid
+  attemptId        String         @unique @map("attempt_id") @db.Uuid
+  provider         String
+  environment      String         @db.VarChar(16)
+  captureReference String         @map("capture_reference")
+  amountMinor      BigInt         @map("amount_minor")
+  currency         String         @default("USD") @db.Char(3)
+  evidenceSummary  Json           @map("evidence_summary")
+  completedAt      DateTime       @map("completed_at") @db.Timestamptz(3)
+  order            Order          @relation("PaymentSettlement_order", fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  attempt          PaymentAttempt @relation("PaymentSettlement_attempt", fields: [attemptId, orderId, provider, environment], references: [id, orderId, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([provider, environment, captureReference])
+  @@unique([attemptId, orderId, provider, environment])
+  @@map("payment_settlements")
+  @@schema("lumical")
+}
+
+model Fulfillment {
+  id                           String             @id @default(uuid()) @db.Uuid
+  orderId                      String             @unique @map("order_id") @db.Uuid
+  status                       FulfillmentStatus  @default(WAITING_FOR_PAYMENT)
+  version                      Int                @default(1)
+  createdAt                    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  order                        Order              @relation("Fulfillment_order", fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fulfillmentEvent_fulfillment FulfillmentEvent[] @relation("FulfillmentEvent_fulfillment")
+
+  @@index([status])
+  @@map("fulfillments")
+  @@schema("lumical")
+}
+
+model FulfillmentEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  fulfillmentId  String            @map("fulfillment_id") @db.Uuid
+  actorId        String            @map("actor_id") @db.Uuid
+  previousStatus FulfillmentStatus @map("previous_status")
+  nextStatus     FulfillmentStatus @map("next_status")
+  reason         String
+  correlationId  String            @map("correlation_id")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  fulfillment    Fulfillment       @relation("FulfillmentEvent_fulfillment", fields: [fulfillmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor          User              @relation("FulfillmentEvent_actor", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([fulfillmentId, createdAt, id])
+  @@index([actorId])
+  @@map("fulfillment_events")
+  @@schema("lumical")
+}
+
+model RecipientShare {
+  id                           String                   @id @default(uuid()) @db.Uuid
+  orderId                      String                   @unique @map("order_id") @db.Uuid
+  status                       ShareStatus              @default(ACTIVE)
+  generation                   Int                      @default(1)
+  version                      Int                      @default(1)
+  credentialDigest             String?                  @unique @map("credential_digest")
+  revokedAt                    DateTime?                @map("revoked_at") @db.Timestamptz(3)
+  suspendedAt                  DateTime?                @map("suspended_at") @db.Timestamptz(3)
+  restoredAt                   DateTime?                @map("restored_at") @db.Timestamptz(3)
+  restorationReason            String?                  @map("restoration_reason")
+  createdAt                    DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  order                        Order                    @relation("RecipientShare_order", fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recipientAccessSession_share RecipientAccessSession[] @relation("RecipientAccessSession_share")
+
+  @@unique([id, orderId])
+  @@map("recipient_shares")
+  @@schema("lumical")
+}
+
+model RecipientAccessSession {
+  id             String               @id @default(uuid()) @db.Uuid
+  shareId        String               @map("share_id") @db.Uuid
+  orderId        String               @map("order_id") @db.Uuid
+  orderVersionId String               @map("order_version_id") @db.Uuid
+  generation     Int
+  leaseDigest    String               @unique @map("lease_digest")
+  csrfDigest     String               @map("csrf_digest")
+  expiresAt      DateTime             @map("expires_at") @db.Timestamptz(3)
+  revokedAt      DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  share          RecipientShare       @relation("RecipientAccessSession_share", fields: [shareId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Restrict)
+  version        OrderCalendarVersion @relation("RecipientAccessSession_version", fields: [orderVersionId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([shareId, generation])
+  @@index([orderVersionId, orderId])
+  @@index([expiresAt])
+  @@map("recipient_access_sessions")
+  @@schema("lumical")
+}
+
+model AdminContentAccess {
+  id                         String            @id @default(uuid()) @db.Uuid
+  adminId                    String            @map("admin_id") @db.Uuid
+  orderId                    String            @map("order_id") @db.Uuid
+  purpose                    String
+  reason                     String
+  expiresAt                  DateTime          @map("expires_at") @db.Timestamptz(3)
+  createdAt                  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  admin                      User              @relation("AdminContentAccess_admin", fields: [adminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  order                      Order             @relation("AdminContentAccess_order", fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  adminAuditEvent_inspection AdminAuditEvent[] @relation("AdminAuditEvent_inspection")
+
+  @@index([adminId, orderId, expiresAt])
+  @@index([orderId])
+  @@map("admin_content_access")
+  @@schema("lumical")
+}
+
+model AdminAuditEvent {
+  id            String              @id @default(uuid()) @db.Uuid
+  actorId       String              @map("actor_id") @db.Uuid
+  inspectionId  String?             @map("inspection_id") @db.Uuid
+  action        String
+  targetType    String              @map("target_type")
+  targetId      String              @map("target_id") @db.Uuid
+  outcome       String
+  purpose       String
+  correlationId String              @map("correlation_id")
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor         User                @relation("AdminAuditEvent_actor", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  inspection    AdminContentAccess? @relation("AdminAuditEvent_inspection", fields: [inspectionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([actorId, createdAt, id])
+  @@index([targetType, targetId, createdAt, id])
+  @@index([inspectionId])
+  @@map("admin_audit_events")
+  @@schema("lumical")
+}
+
+model IdempotencyRecord {
+  id              String    @id @default(uuid()) @db.Uuid
+  actorId         String    @map("actor_id") @db.Uuid
+  operation       String
+  key             String
+  requestDigest   String    @map("request_digest")
+  condition       String
+  resourceType    String?   @map("resource_type")
+  resourceId      String?   @map("resource_id") @db.Uuid
+  safeResult      Json?     @map("safe_result")
+  encryptedReplay Bytes?    @map("encrypted_replay") @db.ByteA
+  replayExpiresAt DateTime? @map("replay_expires_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor           User      @relation("IdempotencyRecord_actor", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([actorId, operation, key])
+  @@map("idempotency_records")
+  @@schema("lumical")
+}
+
+model ProviderEventInbox {
+  id              String    @id @default(uuid()) @db.Uuid
+  provider        String
+  environment     String    @db.VarChar(16)
+  eventId         String    @map("event_id")
+  evidenceSummary Json      @map("evidence_summary")
+  condition       String
+  verifiedAt      DateTime  @map("verified_at") @db.Timestamptz(3)
+  receivedAt      DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt     DateTime? @map("processed_at") @db.Timestamptz(3)
+  safeErrorCode   String?   @map("safe_error_code")
+
+  @@unique([provider, environment, eventId])
+  @@index([condition, receivedAt, id])
+  @@map("provider_event_inbox")
+  @@schema("lumical")
+}
+
+model JobRecord {
+  id                String    @id @default(uuid()) @db.Uuid
+  kind              String
+  objectId          String    @map("object_id") @db.Uuid
+  operationIdentity String    @unique @map("operation_identity")
+  condition         String
+  attempts          Int       @default(0)
+  dueAt             DateTime  @map("due_at") @db.Timestamptz(3)
+  leaseUntil        DateTime? @map("lease_until") @db.Timestamptz(3)
+  claimedBy         String?   @map("claimed_by") @db.Uuid
+  safeErrorCode     String?   @map("safe_error_code")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([condition, dueAt, id])
+  @@map("job_records")
+  @@schema("lumical")
+}

@@ -1,4 +1,44 @@
+name: lumical
 services:
+  postgres:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_USER: lumical_bootstrap
+      POSTGRES_DB: ${POSTGRES_DB:-lumical_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_BOOTSTRAP_PASSWORD:?Generate a local bootstrap password}
+      MIGRATION_DB_PASSWORD: ${MIGRATION_DB_PASSWORD:?Generate a local migration password}
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Generate a local runtime password}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # The initialization server is socket-only. Authenticate over final TCP
+      # and require the initialized migration owner and runtime schema access.
+      test:
+        - CMD-SHELL
+        - >-
+          test "$$(PGPASSWORD="$$RUNTIME_DB_PASSWORD" PGCONNECT_TIMEOUT=2
+          psql -h 127.0.0.1 -U lumical_runtime -d "$$POSTGRES_DB" -X -Atqc
+          "SELECT has_schema_privilege(current_user, 'lumical', 'USAGE')
+          AND EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='lumical'
+          AND nspowner='lumical_migration'::regrole)")" = t
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: migration
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://lumical_migration:${MIGRATION_DB_PASSWORD:?Set migration password}@postgres:5432/${POSTGRES_DB:-lumical_dev}?schema=lumical
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     build:
       context: .
@@ -6,6 +46,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      DATABASE_URL: postgresql://lumical_runtime:${RUNTIME_DB_PASSWORD:?Set runtime password}@postgres:5432/${POSTGRES_DB:-lumical_dev}?schema=lumical
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "${BACKEND_PORT:-3001}:3001"
 
@@ -20,3 +64,6 @@ services:
       BACKEND_URL: http://backend:3001
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
+
+volumes:
+  postgres_data:

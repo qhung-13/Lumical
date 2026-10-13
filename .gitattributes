@@ -1,0 +1,2 @@
+# Docker entrypoint scripts must be runnable after Windows checkouts.
+backend/database/init/*.sh text eol=lf

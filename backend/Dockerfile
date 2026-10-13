@@ -28,6 +28,12 @@ COPY backend ./backend
 
 RUN pnpm --dir backend build
 
+FROM build AS migration
+
+WORKDIR /app/backend
+USER node
+CMD ["node", "scripts/prisma.mjs", "migrate", "deploy"]
+
 
 FROM base AS runner
 

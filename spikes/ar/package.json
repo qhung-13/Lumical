@@ -1,0 +1,25 @@
+{
+  "name": "lumical-ar-spike",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "I03 isolated AR spike harness (P02). Not part of the pnpm workspace; does not touch frontend/ or backend/. Synthetic data only.",
+  "engines": {
+    "node": ">=22.2"
+  },
+  "scripts": {
+    "gen:fixtures": "node scripts/gen-fixtures.mjs",
+    "register": "node scripts/register-artifact.mjs",
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "compile": "node scripts/compile-targets.mjs",
+    "compile:verify": "node scripts/compile-targets.mjs --verify --stats",
+    "fault": "node scripts/fault.mjs"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "4.22.0",
+    "mind-ar": "1.2.5",
+    "pngjs": "7.0.0",
+    "three": "0.160.0"
+  }
+}

@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LumiCal · Admin Orders — interactive demo (I13-P04 + I13-P05)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   TOKENS — docs/DESIGN_SYSTEM.md (v2 frozen), light theme
+   ============================================================ */
+:root{
+  --canvas:#FAF7F1; --surface:#FFFDF9; --surface-raised:#FFFFFF; --surface-subtle:#F4EEE4;
+  --text-primary:#29221D; --text-secondary:#51453B; --text-muted:#665B50; --text-inverse:#FFFDF9;
+  --border:#D8CCBD; --border-strong:#907D68;
+  --brand:#A43225; --brand-hover:#87271D; --brand-active:#6F1F17; --brand-text:#9B2D22;
+  --focus:#A43225; --selected-bg:#F3DCD2; --selected-text:#762319;
+  --success:#276B42; --success-bg:#E7F4EA;
+  --warning:#84500C; --warning-bg:#FFF1D9;
+  --danger:#AA2925; --danger-bg:#FCE9E5;
+  --info:#1C5F7A; --info-bg:#E6F2F7;
+  --radius-subtle:4px; --radius-control:8px; --radius-card:12px; --radius-large:16px;
+  --elevation-4:0 24px 64px -16px rgb(41 34 29 / .34);
+  --layer-overlay:60; --layer-modal:80;
+  --font-display:'Baloo 2','Be Vietnam Pro',system-ui,sans-serif;
+  --font-ui:'Be Vietnam Pro',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --sidebar-w:248px;
+  --ease:cubic-bezier(.2,0,0,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--canvas);font-family:var(--font-ui);color:var(--text-primary);-webkit-font-smoothing:antialiased}
+svg{display:block}
+button,select,textarea,input{font-family:inherit}
+:where(a,button,select,textarea,input,[tabindex]):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+[hidden]{display:none !important}
+
+/* ============================================================
+   DEMO CHROME (không phải UI của app)
+   ============================================================ */
+.demo-bar{
+  position:sticky;top:0;z-index:100;
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px;
+  padding:10px 24px;background:#29221D;color:#F8F1E7;
+}
+.demo-bar h1{margin:0;font-family:var(--font-display);font-size:18px;line-height:26px;font-weight:700}
+.demo-bar .hint{margin:0;font-size:13px;line-height:20px;color:#DDD0C0}
+.demo-bar .spacer{flex:1 1 auto}
+.demo-btn{
+  height:36px;padding:0 14px;border-radius:var(--radius-control);
+  font-size:13px;line-height:20px;font-weight:600;cursor:pointer;
+  background:transparent;color:#F8F1E7;border:1px solid #8A7562;
+  transition:background-color 120ms var(--ease);
+}
+.demo-btn:hover{background:#3A322B}
+.demo-btn[aria-pressed="true"]{background:#F8F1E7;color:#29221D;border-color:#F8F1E7}
+.demo-links{display:flex;gap:8px;align-items:center}
+.demo-links code{font-size:12px;color:#B8A998}
+
+.stage{position:relative;min-height:calc(100vh - 56px)}
+
+/* ============================================================
+   BUTTONS / PILLS / BANNERS
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:44px;min-width:44px;padding:0 16px;
+  font-size:14px;line-height:20px;font-weight:600;
+  border-radius:var(--radius-control);border:1px solid transparent;
+  cursor:pointer;text-decoration:none;
+  transition:background-color 120ms var(--ease),border-color 120ms var(--ease),color 120ms var(--ease);
+}
+.btn--primary{background:var(--brand);color:var(--text-inverse);border-color:var(--brand)}
+.btn--primary:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
+.btn--primary:active{background:var(--brand-active)}
+.btn--secondary{background:var(--surface-subtle);color:var(--text-primary);border-color:var(--border-strong)}
+.btn--secondary:hover{background:#EDE5D9}
+.btn--outline{background:transparent;color:var(--text-primary);border-color:var(--border-strong)}
+.btn--outline:hover{background:var(--surface-subtle)}
+.btn--ghost{background:transparent;color:var(--text-primary);border-color:transparent}
+.btn--ghost:hover{background:var(--surface-subtle)}
+.btn--danger-outline{background:transparent;color:var(--danger);border:2px solid var(--danger)}
+.btn--danger-outline:hover{background:var(--danger-bg)}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 8px;border-radius:var(--radius-subtle);
+  font-size:12px;line-height:18px;font-weight:600;white-space:nowrap;
+}
+.pill svg{flex:0 0 auto}
+.pill--success{background:var(--success-bg);color:var(--success)}
+.pill--info{background:var(--info-bg);color:var(--info)}
+.pill--warning{background:var(--warning-bg);color:var(--warning)}
+.pill--danger{background:var(--danger-bg);color:var(--danger)}
+.pill--muted{background:var(--surface-subtle);color:var(--text-muted)}
+
+.banner{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-radius:var(--radius-control)}
+.banner svg{flex:0 0 auto;margin-top:2px}
+.banner--success{background:var(--success-bg);color:var(--success)}
+.banner--danger{background:var(--danger-bg);color:var(--danger)}
+.banner-title{margin:0;font-size:16px;line-height:24px;font-weight:600}
+.banner-copy{margin:2px 0 0;font-size:14px;line-height:22px}
+
+.badge{display:inline-flex;padding:2px 8px;border-radius:var(--radius-subtle);font-size:12px;line-height:18px;font-weight:600}
+.badge--current{background:var(--selected-bg);color:var(--selected-text)}
+
+/* ============================================================
+   ADMINSHELL
+   ============================================================ */
+.shell{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);min-height:calc(100vh - 56px)}
+.sidebar{
+  display:flex;flex-direction:column;background:var(--surface);
+  border-right:1px solid var(--border);padding:24px 16px;
+}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 8px 20px}
+.brand-mark{font-family:var(--font-display);font-size:22px;line-height:28px;font-weight:700}
+.brand-area{font-size:12px;line-height:18px;font-weight:700;color:var(--text-muted)}
+.nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.nav button,.nav-btn{
+  display:flex;align-items:center;gap:8px;width:100%;
+  min-height:44px;padding:0 12px;
+  font-size:14px;line-height:20px;font-weight:600;text-align:left;
+  color:var(--text-secondary);background:transparent;border:0;
+  border-left:2px solid transparent;border-radius:0 var(--radius-control) var(--radius-control) 0;
+  cursor:pointer;transition:background-color 120ms var(--ease);
+}
+.nav button:hover,.nav-btn:hover{background:var(--surface-subtle)}
+.nav button[aria-current="page"]{background:var(--surface-subtle);border-left-color:var(--brand);color:var(--text-primary)}
+.sidebar-foot{margin-top:auto;padding:16px 0 0;border-top:1px solid var(--border)}
+.sidebar-foot .nav-btn{margin-bottom:12px}
+.who{margin:0;font-size:14px;line-height:20px;font-weight:600;padding:0 12px}
+.who-role{margin:2px 0 0;font-size:12px;line-height:18px;font-weight:500;color:var(--text-muted);padding:0 12px}
+
+.main{padding:32px 40px 40px}
+.screen{display:none}
+.screen.is-active{display:block}
+
+/* ---------- PageHeader ---------- */
+.page-header{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:32px;
+  padding-bottom:24px;border-bottom:1px solid var(--border);
+}
+.eyebrow{margin:0;font-size:12px;line-height:18px;font-weight:700;color:var(--text-secondary)}
+.breadcrumb{margin:8px 0 0}
+.breadcrumb ol{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0;padding:0;font-size:14px;line-height:20px}
+.breadcrumb a{color:var(--text-secondary);text-decoration:underline;text-underline-offset:2px}
+.breadcrumb a:hover{color:var(--brand-text)}
+.breadcrumb [aria-current="page"]{color:var(--text-primary);font-weight:600}
+.breadcrumb .sep{color:var(--text-muted)}
+.page-title{margin:8px 0 0;font-family:var(--font-display);font-size:32px;line-height:40px;font-weight:700}
+.page-desc{margin:4px 0 0;font-size:16px;line-height:24px;color:var(--text-secondary)}
+.page-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.caption{margin:0;font-size:12px;line-height:18px;font-weight:500;color:var(--text-muted)}
+
+/* ============================================================
+   LIST SCREEN (I13-P04)
+   ============================================================ */
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:24px}
+.search{position:relative;flex:1 1 320px;max-width:400px}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
+.search input{
+  width:100%;height:44px;padding:0 12px 0 40px;
+  font-size:16px;line-height:24px;color:var(--text-primary);
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-control);
+}
+.search input::placeholder{color:var(--text-muted)}
+.select-wrap{position:relative;display:inline-block}
+.select-wrap select{
+  appearance:none;height:44px;padding:0 40px 0 14px;
+  font-size:14px;line-height:20px;font-weight:600;color:var(--text-primary);
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-control);
+  cursor:pointer;
+}
+.select-wrap svg{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-secondary);pointer-events:none}
+.count{margin:16px 0 0;font-size:14px;line-height:22px;color:var(--text-muted)}
+
+.table-wrap{margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead th{
+  background:var(--surface-subtle);
+  font-size:14px;line-height:20px;font-weight:600;color:var(--text-secondary);
+  text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);white-space:nowrap;
+}
+tbody td{font-size:14px;line-height:22px;color:var(--text-secondary);padding:12px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-subtle)}
+.cell-strong{display:block;font-size:14px;line-height:22px;font-weight:600;color:var(--text-primary)}
+.cell-sub{display:block;font-size:12px;line-height:18px;color:var(--text-muted);margin-top:2px}
+td.num{font-variant-numeric:tabular-nums;color:var(--text-primary)}
+td.action{text-align:right;white-space:nowrap}
+td .btn--ghost{color:var(--brand-text);text-decoration:underline;text-underline-offset:3px;padding:0 10px}
+td .btn--ghost:hover{background:var(--surface-subtle);color:var(--brand-hover)}
+
+.empty{
+  display:none;margin-top:12px;padding:40px 24px;text-align:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+}
+.empty.is-on{display:block}
+.empty svg{margin:0 auto 12px;color:var(--border-strong)}
+.empty h2{margin:0;font-family:var(--font-display);font-size:24px;line-height:32px;font-weight:700}
+.empty p{margin:6px 0 16px;font-size:16px;line-height:24px;color:var(--text-secondary)}
+
+.pagination{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:12px;margin-top:16px}
+.pagination .lbl{font-size:14px;line-height:20px;font-weight:600;color:var(--text-secondary)}
+.pages{display:flex;align-items:center;gap:4px}
+.icon-btn{
+  width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--border-strong);border-radius:var(--radius-control);
+  color:var(--text-primary);cursor:pointer;
+}
+.icon-btn:hover:not([disabled]){background:var(--surface-subtle)}
+.icon-btn[disabled]{opacity:.45;cursor:not-allowed}
+.page-num{
+  min-width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:600;color:var(--text-secondary);
+  background:transparent;border:1px solid transparent;border-radius:var(--radius-control);cursor:pointer;
+}
+.page-num:hover{background:var(--surface-subtle)}
+.page-num[aria-current="page"]{background:var(--selected-bg);color:var(--selected-text);border-color:var(--brand)}
+
+/* ============================================================
+   DETAIL SCREEN (I13-P05)
+   ============================================================ */
+.content{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:24px;margin-top:40px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:24px}
+.panel-title{margin:0 0 16px;font-size:20px;line-height:28px;font-weight:600}
+.panel--buyer{margin-top:24px}
+.datalist{margin:0}
+.datalist-row{display:grid;grid-template-columns:140px minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--border)}
+.datalist-row:last-child{border-bottom:0;padding-bottom:0}
+.datalist-row:first-child{padding-top:0}
+.datalist dt{font-size:14px;line-height:20px;font-weight:600;color:var(--text-muted)}
+.datalist dd{margin:0;font-size:16px;line-height:24px;color:var(--text-primary);word-break:break-word}
+.note{display:flex;gap:8px;align-items:flex-start;margin:16px 0 0;font-size:14px;line-height:22px;color:var(--text-muted)}
+.note svg{flex:0 0 auto;margin-top:3px}
+
+.stepper{list-style:none;margin:0;padding:0}
+.step{position:relative;display:flex;gap:12px;padding-bottom:20px}
+.step:last-child{padding-bottom:0}
+.step:not(:last-child)::after{content:"";position:absolute;left:11px;top:26px;bottom:2px;width:2px;background:var(--border)}
+.step-marker{
+  position:relative;z-index:1;flex:0 0 auto;width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:2px solid var(--border-strong);color:var(--text-muted);
+}
+.step-name{margin:0;font-size:16px;line-height:24px;font-weight:600;color:var(--text-muted)}
+.step-time{margin:2px 0 0;font-size:12px;line-height:18px;font-weight:500;color:var(--text-muted)}
+.step-badges{display:inline-flex;margin-left:8px}
+.step--current .step-marker{border-color:var(--brand);color:var(--brand)}
+.step--current .step-name{color:var(--brand-text)}
+.step--done .step-marker{border-color:var(--success);color:var(--success)}
+.step--done .step-name{color:var(--success)}
+
+.audit{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.subhead{margin:0 0 8px;font-size:14px;line-height:20px;font-weight:600;color:var(--text-secondary)}
+.audit-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.audit-list li{font-size:14px;line-height:22px;color:var(--text-secondary)}
+.audit-time{font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.audit-state{font-weight:600;color:var(--text-primary)}
+
+.actionbar{display:flex;justify-content:flex-end;align-items:center;margin-top:32px;padding-top:24px;border-top:1px solid var(--border)}
+.action-group{display:flex;align-items:center}
+.action-sep{width:1px;height:44px;background:var(--border);margin:0 16px}
+.demo-note{margin:12px 0 0;padding:10px 12px;font-size:14px;line-height:22px;color:#4A4038;
+  background:repeating-linear-gradient(45deg,#EFE7DA 0 8px,#F4EEE4 8px 16px);
+  border:1px dashed var(--border-strong);border-radius:var(--radius-control)}
+
+/* ============================================================
+   DIALOG + SETTINGS
+   ============================================================ */
+.dialog-layer{position:absolute;inset:0;z-index:var(--layer-overlay)}
+.dialog-layer[hidden]{display:none}
+.backdrop{position:absolute;inset:0;background:rgb(41 34 29 / .5)}
+.dialog{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:var(--layer-modal);width:min(560px,calc(100% - 32px));
+  max-height:calc(100% - 32px);overflow:auto;
+  background:var(--surface-raised);border:1px solid var(--border);
+  border-radius:var(--radius-large);box-shadow:var(--elevation-4);padding:24px;
+}
+.dialog-title{margin:0;font-family:var(--font-display);font-size:28px;line-height:36px;font-weight:700}
+.dialog-desc{margin:16px 0 0;font-size:16px;line-height:24px;color:var(--text-secondary)}
+.field{margin-top:20px}
+.field-label{display:flex;gap:8px;align-items:baseline;font-size:14px;line-height:20px;font-weight:600;color:var(--text-primary)}
+.field-required{font-size:14px;line-height:20px;font-weight:500;color:var(--text-secondary)}
+.textarea{
+  display:block;width:100%;margin-top:8px;min-height:96px;padding:12px;
+  font-size:16px;line-height:24px;color:var(--text-primary);background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--radius-control);resize:vertical;
+}
+.textarea::placeholder{color:var(--text-muted)}
+.textarea.is-focus-demo{outline:2px solid var(--focus);outline-offset:2px}
+.textarea[aria-invalid="true"]{border:2px solid var(--danger)}
+.field-help{margin:4px 0 0;font-size:14px;line-height:22px;color:var(--text-muted)}
+.field-error{
+  display:flex;gap:6px;align-items:flex-start;margin:4px 0 0;
+  font-size:14px;line-height:22px;font-weight:600;color:var(--danger);
+}
+.field-error svg{flex:0 0 auto;margin-top:3px}
+.summary-row{
+  display:flex;align-items:center;gap:8px;margin-top:24px;padding:10px 12px;
+  background:var(--surface-subtle);border:1px solid var(--border);border-radius:var(--radius-control);
+}
+.summary-key{font-size:14px;line-height:20px;font-weight:600;color:var(--text-secondary)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:14px;line-height:20px;font-weight:600}
+.state--info{color:var(--info)}
+.dialog-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px}
+
+/* language picker */
+.lang-fieldset{border:0;margin:20px 0 0;padding:0;min-width:0}
+.lang-legend{padding:0;font-size:14px;line-height:20px;font-weight:600;color:var(--text-primary)}
+.lang-hint{margin:4px 0 0;font-size:14px;line-height:22px;color:var(--text-muted)}
+.lang-list{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.lang-card{
+  position:relative;display:flex;align-items:center;gap:10px;min-height:56px;padding:12px 14px;
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-control);
+  font-size:15px;font-weight:600;color:var(--text-primary);cursor:pointer;
+  transition:background-color 120ms var(--ease),border-color 120ms var(--ease);
+}
+.lang-card:hover{background:var(--surface-subtle)}
+.lang-card input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.lang-card:focus-within{outline:2px solid var(--focus);outline-offset:2px}
+.lang-card.is-selected{border-color:var(--brand);background:var(--selected-bg);color:var(--selected-text);box-shadow:inset 0 0 0 1px var(--brand)}
+.lang-card .check{margin-left:auto;opacity:0;color:var(--brand);flex:0 0 auto}
+.lang-card.is-selected .check{opacity:1}
+.set-note{margin:16px 0 0;font-size:14px;line-height:22px;color:var(--text-muted)}
+</style>
+</head>
+
+<body>
+
+<!-- ===== DEMO CHROME (không phải UI app) ===== -->
+<div class="demo-bar">
+  <h1 data-i18n="demo.title">LumiCal Admin — interactive demo</h1>
+  <p class="hint" data-i18n-html="demo.hint">I13-P04 (list) + I13-P05 (detail/dialog). <strong>Click:</strong> View → detail · Advance to Preparing → dialog · type a Reason then click <em>Advance</em> → conflict state · Esc to close.</p>
+  <span class="spacer"></span>
+  <span class="demo-links">
+    <button class="demo-btn" type="button" data-goto="list" aria-pressed="true" data-i18n="demo.list">Orders list</button>
+    <button class="demo-btn" type="button" data-goto="detail" aria-pressed="false" data-i18n="demo.detail">Order detail</button>
+    <button class="demo-btn" type="button" id="btn-reset" data-i18n="demo.reset">Reset demo</button>
+    <code>#list · #detail · #dialog · #conflict · #settings</code>
+  </span>
+</div>
+
+<div class="stage" id="stage">
+  <div class="shell" id="shell">
+
+    <!-- ============ AdminShell ============ -->
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">LumiCal</span><span class="brand-area">Admin</span></div>
+      <nav aria-label="Admin">
+        <ul class="nav">
+          <li>
+            <button type="button" data-nav="orders" aria-current="page">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
+              <span data-i18n="nav.orders">Orders</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" data-nav="other">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              <span data-i18n="nav.templates">Templates</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" data-nav="other">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span data-i18n="nav.users">Users</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" data-nav="other">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span data-i18n="nav.notifications">Notifications</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+      <div class="sidebar-foot">
+        <button class="nav-btn" type="button" id="btn-settings" aria-haspopup="dialog">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          <span data-i18n="nav.settings">Settings</span>
+        </button>
+        <p class="who">admin@lumical.edu</p>
+        <p class="who-role" data-i18n="acct.role">Operations admin</p>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <!-- ================================================== -->
+      <!-- SCREEN 1 — ORDER LIST (I13-P04 / PROMPT 1)          -->
+      <!-- ================================================== -->
+      <section class="screen is-active" id="screen-list" aria-label="Orders list" data-i18n-aria="sec.list">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow" data-i18n="list.eyebrow">Operations</p>
+            <h1 class="page-title" data-i18n="list.title">Orders</h1>
+            <p class="page-desc" data-i18n="list.desc">Review payment status and advance verified fulfilment.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn--secondary" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+              <span data-i18n="common.refresh">Refresh</span>
+            </button>
+            <p class="caption" data-i18n="common.updated">Last updated 14:32</p>
+          </div>
+        </header>
+
+        <!-- Toolbar -->
+        <div class="toolbar" role="search">
+          <div class="search">
+            <label class="vh" for="q" data-i18n="search.label">Search orders</label>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="q" type="search" placeholder="Search order ID or buyer email" data-i18n-ph="search.ph" autocomplete="off" />
+          </div>
+
+          <div class="select-wrap">
+            <label class="vh" for="f-payment" data-i18n="sel.paymentLabel">Payment state</label>
+            <select id="f-payment">
+              <option value="" data-i18n="sel.allPayment">All payment states</option>
+              <option value="verified" data-i18n="pill.verified">Verified</option>
+              <option value="pending" data-i18n="pill.pending">Pending</option>
+              <option value="failed" data-i18n="pill.failed">Failed</option>
+              <option value="cancelled" data-i18n="pill.cancelled">Cancelled</option>
+            </select>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+
+          <div class="select-wrap">
+            <label class="vh" for="f-fulfil" data-i18n="sel.fulfilLabel">Fulfilment state</label>
+            <select id="f-fulfil">
+              <option value="" data-i18n="sel.allFulfil">All fulfilment states</option>
+              <option value="waiting" data-i18n="pill.waiting">Waiting</option>
+              <option value="preparing" data-i18n="pill.preparing">Preparing</option>
+              <option value="demo-complete" data-i18n="pill.demoComplete">Demo complete</option>
+              <option value="closed" data-i18n="pill.closed">Closed</option>
+            </select>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+
+          <div class="select-wrap">
+            <label class="vh" for="f-sort" data-i18n="sel.sortLabel">Sort</label>
+            <select id="f-sort">
+              <option data-i18n="sel.sortNewest">Sort: newest</option>
+              <option data-i18n="sel.sortOldest">Sort: oldest</option>
+              <option data-i18n="sel.sortAmount">Sort: amount high to low</option>
+            </select>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+
+          <button class="btn btn--ghost" type="button" id="btn-clear" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            <span data-i18n="clear.filters">Clear filters</span>
+          </button>
+        </div>
+
+        <p class="count" id="count" role="status" aria-live="polite">1–6 of 138 orders</p>
+
+        <!-- Table -->
+        <div class="table-wrap" id="table-wrap">
+          <table>
+            <caption class="vh" data-i18n="tbl.caption">Operational order list. Status is shown as an icon and a word.</caption>
+            <thead>
+              <tr>
+                <th scope="col" data-i18n="th.order">Order</th>
+                <th scope="col" data-i18n="th.buyer">Buyer</th>
+                <th scope="col" data-i18n="th.amount">Amount</th>
+                <th scope="col" data-i18n="th.payment">Payment</th>
+                <th scope="col" data-i18n="th.fulfil">Fulfilment</th>
+                <th scope="col" data-i18n="th.updated">Updated</th>
+                <th scope="col" class="action" data-i18n="th.action">Action</th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr data-payment="verified" data-fulfil="waiting" data-search="ord-2026-0148 buyer@example.com">
+                <td><span class="cell-strong">ORD-2026-0148</span><span class="cell-sub" data-i18n="date">14 Oct 2026, 08:57</span></td>
+                <td>buyer@example.com</td>
+                <td class="num">USD 24.00</td>
+                <td><span class="pill pill--success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><span data-i18n="pill.verified">Verified</span></span></td>
+                <td><span class="pill pill--info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="pill.waiting">Waiting</span></span></td>
+                <td data-i18n="date">14 Oct 2026, 09:15</td>
+                <td class="action"><button class="btn btn--ghost" type="button" data-open-detail data-i18n="row.view">View</button></td>
+              </tr>
+              <tr data-payment="pending" data-fulfil="waiting" data-search="ord-2026-0147 minh.chau@example.com">
+                <td><span class="cell-strong">ORD-2026-0147</span><span class="cell-sub" data-i18n="date">13 Oct 2026, 17:20</span></td>
+                <td>minh.chau@example.com</td>
+                <td class="num">USD 12.00</td>
+                <td><span class="pill pill--info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span data-i18n="pill.pending">Pending</span></span></td>
+                <td><span class="pill pill--info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="pill.waiting">Waiting</span></span></td>
+                <td data-i18n="date">14 Oct 2026, 08:02</td>
+                <td class="action"><button class="btn btn--ghost" type="button" data-open-detail data-i18n="row.view">View</button></td>
+              </tr>
+              <tr data-payment="verified" data-fulfil="preparing" data-search="ord-2026-0146 huy.nguyen@example.com">
+                <td><span class="cell-strong">ORD-2026-0146</span><span class="cell-sub" data-i18n="date">12 Oct 2026, 10:05</span></td>
+                <td>huy.nguyen@example.com</td>
+                <td class="num">USD 36.00</td>
+                <td><span class="pill pill--success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><span data-i18n="pill.verified">Verified</span></span></td>
+                <td><span class="pill pill--warning"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5"/></svg><span data-i18n="pill.preparing">Preparing</span></span></td>
+                <td data-i18n="date">13 Oct 2026, 14:48</td>
+                <td class="action"><button class="btn btn--ghost" type="button" data-open-detail data-i18n="row.view">View</button></td>
+              </tr>
+              <tr data-payment="failed" data-fulfil="waiting" data-search="ord-2026-0145 lan.tran@example.com">
+                <td><span class="cell-strong">ORD-2026-0145</span><span class="cell-sub" data-i18n="date">11 Oct 2026, 21:11</span></td>
+                <td>lan.tran@example.com</td>
+                <td class="num">USD 24.00</td>
+                <td><span class="pill pill--danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span data-i18n="pill.failed">Failed</span></span></td>
+                <td><span class="pill pill--info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="pill.waiting">Waiting</span></span></td>
+                <td data-i18n="date">12 Oct 2026, 07:30</td>
+                <td class="action"><button class="btn btn--ghost" type="button" data-open-detail data-i18n="row.view">View</button></td>
+              </tr>
+              <tr data-payment="cancelled" data-fulfil="closed" data-search="ord-2026-0144 son.le@example.com">
+                <td><span class="cell-strong">ORD-2026-0144</span><span class="cell-sub" data-i18n="date">09 Oct 2026, 12:44</span></td>
+                <td>son.le@example.com</td>
+                <td class="num">USD 18.00</td>
+                <td><span class="pill pill--muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg><span data-i18n="pill.cancelled">Cancelled</span></span></td>
+                <td><span class="pill pill--muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/></svg><span data-i18n="pill.closed">Closed</span></span></td>
+                <td data-i18n="date">10 Oct 2026, 09:26</td>
+                <td class="action"><button class="btn btn--ghost" type="button" data-open-detail data-i18n="row.view">View</button></td>
+              </tr>
+              <tr data-payment="verified" data-fulfil="demo-complete" data-search="ord-2026-0143 thu.pham@example.com">
+                <td><span class="cell-strong">ORD-2026-0143</span><span class="cell-sub" data-i18n="date">08 Oct 2026, 08:15</span></td>
+                <td>thu.pham@example.com</td>
+                <td class="num">USD 24.00</td>
+                <td><span class="pill pill--success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><span data-i18n="pill.verified">Verified</span></span></td>
+                <td><span class="pill pill--success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><span data-i18n="pill.demoComplete">Demo complete</span></span></td>
+                <td data-i18n="date">09 Oct 2026, 16:10</td>
+                <td class="action"><button class="btn btn--ghost" type="button" data-open-detail data-i18n="row.view">View</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty" id="empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M4.5 6.5 3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5l-1.5-6.5A2 2 0 0 0 17.6 5H6.4a2 2 0 0 0-1.9 1.5Z"/></svg>
+          <h2 data-i18n="empty.title">No orders match your filters</h2>
+          <p data-i18n="empty.desc">Try a different order ID or buyer email, or clear the active filters.</p>
+          <button class="btn btn--secondary" type="button" data-clear data-i18n="clear.filters">Clear filters</button>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination">
+          <span class="lbl" data-i18n="pag.rows">Rows per page</span>
+          <div class="select-wrap">
+            <label class="vh" for="rows-per-page" data-i18n="pag.rows">Rows per page</label>
+            <select id="rows-per-page"><option>25</option><option>50</option><option>100</option></select>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <div class="pages">
+            <button class="icon-btn" type="button" disabled aria-label="Previous page" data-i18n-aria="pag.prev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button class="page-num" type="button" aria-current="page">1</button>
+            <button class="page-num" type="button">2</button>
+            <button class="page-num" type="button">3</button>
+            <span class="page-num" aria-hidden="true">…</span>
+            <button class="page-num" type="button">6</button>
+            <button class="icon-btn" type="button" aria-label="Next page" data-i18n-aria="pag.next"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- SCREEN 2 — ORDER DETAIL (I13-P05 / PROMPT 2)        -->
+      <!-- ================================================== -->
+      <section class="screen" id="screen-detail" aria-label="Order detail" data-i18n-aria="sec.detail">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow" data-i18n="list.eyebrow">Operations</p>
+            <nav class="breadcrumb" aria-label="Breadcrumb">
+              <ol>
+                <li><a href="#list" data-goto="list" data-i18n="crumb.orders">Orders</a></li>
+                <li class="sep" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+                <li aria-current="page">ORD-2026-0148</li>
+              </ol>
+            </nav>
+            <h1 class="page-title">ORD-2026-0148</h1>
+            <p class="page-desc" data-i18n="detail.desc">Created 14 Oct 2026, 08:57 · Payment verified by gateway webhook at 09:12.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn--secondary" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+              <span data-i18n="common.refresh">Refresh</span>
+            </button>
+            <p class="caption" data-i18n="common.updated">Last updated 14:32</p>
+          </div>
+        </header>
+
+        <div class="content">
+          <!-- LEFT / Payment -->
+          <section class="panel" aria-labelledby="payment-title">
+            <h2 class="panel-title" id="payment-title" data-i18n="pay.title">Payment</h2>
+            <div class="banner banner--success">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg>
+              <div>
+                <p class="banner-title" data-i18n="pill.verified">Verified</p>
+                <p class="banner-copy" data-i18n="pay.verifiedCopy">Payment verified 14 Oct 2026, 09:12 by system webhook.</p>
+              </div>
+            </div>
+            <dl class="datalist" style="margin-top:20px">
+              <div class="datalist-row"><dt data-i18n="th.amount">Amount</dt><dd>USD 24.00</dd></div>
+              <div class="datalist-row"><dt data-i18n="pay.currency">Currency</dt><dd>USD</dd></div>
+              <div class="datalist-row"><dt data-i18n="pay.provider">Provider</dt><dd>PayPal Sandbox</dd></div>
+              <div class="datalist-row"><dt data-i18n="pay.ref">Provider ref.</dt><dd>5XY12345AB6789012C</dd></div>
+              <div class="datalist-row"><dt data-i18n="pay.verifiedAt">Verified at</dt><dd data-i18n="date">14 Oct 2026, 09:12</dd></div>
+              <div class="datalist-row"><dt data-i18n="pay.verifiedBy">Verified by</dt><dd data-i18n="pay.system">system webhook</dd></div>
+            </dl>
+            <p class="note">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+              <span data-i18n="pay.note">Sandbox payment — no real money was charged.</span>
+            </p>
+          </section>
+
+          <!-- RIGHT / Fulfilment -->
+          <section class="panel" aria-labelledby="fulfilment-title">
+            <h2 class="panel-title" id="fulfilment-title" data-i18n="ful.title">Fulfilment</h2>
+            <ol class="stepper">
+              <li class="step step--current">
+                <span class="step-marker"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                <div>
+                  <p class="step-name"><span data-i18n="step.waiting">Waiting</span><span class="step-badges"><span class="badge badge--current" data-i18n="badge.current">Current</span></span></p>
+                  <p class="step-time" data-i18n="date">14 Oct 2026, 09:15</p>
+                </div>
+              </li>
+              <li class="step">
+                <span class="step-marker"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5"/></svg></span>
+                <div><p class="step-name" data-i18n="step.preparing">Preparing</p><p class="step-time">—</p></div>
+              </li>
+              <li class="step">
+                <span class="step-marker"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg></span>
+                <div><p class="step-name" data-i18n="step.demoComplete">Demo complete</p><p class="step-time">—</p></div>
+              </li>
+              <li class="step">
+                <span class="step-marker"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></span>
+                <div><p class="step-name" data-i18n="step.closed">Order closed</p><p class="step-time">—</p></div>
+              </li>
+            </ol>
+            <div class="audit">
+              <h3 class="subhead" data-i18n="audit.title">Audit history</h3>
+              <ul class="audit-list" id="audit-list">
+                <li data-i18n-html="audit.one"><span class="audit-time">09:15</span> · <span class="audit-state">Waiting</span> · reason: payment verified · by system webhook</li>
+                <li data-i18n-html="audit.two"><span class="audit-time">08:57</span> · <span class="audit-state">Order created</span> · reason: sandbox checkout completed · by buyer@example.com</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel panel--buyer" aria-labelledby="buyer-title">
+          <h2 class="panel-title" id="buyer-title" data-i18n="buyer.title">Buyer</h2>
+          <dl class="datalist"><div class="datalist-row"><dt>Email</dt><dd>buyer@example.com</dd></div></dl>
+        </section>
+
+        <div class="actionbar">
+          <div class="action-group">
+            <button class="btn btn--primary" type="button" id="btn-open-dialog">
+              <span data-i18n="act.advance">Advance to Preparing</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            </button>
+            <span class="action-sep" aria-hidden="true"></span>
+            <button class="btn btn--danger-outline" type="button" id="btn-close-order" data-i18n="act.close">Close order</button>
+          </div>
+        </div>
+        <p class="demo-note" id="close-note" hidden data-i18n="act.note">Demo: destructive confirmation dialog for “Close order” is out of scope for this I13-P05 mockup.</p>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ DIALOG — advance ============ -->
+  <div class="dialog-layer" id="dialog-layer" hidden>
+    <div class="backdrop" data-close></div>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title" aria-describedby="dlg-desc" id="dialog">
+      <h2 class="dialog-title" id="dlg-title" data-i18n="dlg.title">Advance to Preparing?</h2>
+      <p class="dialog-desc" id="dlg-desc" data-i18n="dlg.desc">This records an audited transition for ORD-2026-0148. The buyer is not notified.</p>
+
+      <div class="banner banner--danger" id="dlg-conflict" hidden>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.3 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <p class="banner-copy" style="margin:0" data-i18n="dlg.conflict">This order changed in another session. Refresh to see the current state.</p>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="reason"><span data-i18n="fld.reason">Reason</span> <span class="field-required" data-i18n="fld.required">Required</span></label>
+        <textarea class="textarea is-focus-demo" id="reason" rows="4" placeholder="Why is this transition being made?" data-i18n-ph="fld.ph" aria-describedby="reason-help"></textarea>
+        <p class="field-help" id="reason-help" data-i18n="fld.help">Stored in the audit history.</p>
+        <p class="field-help" id="reason-help-conflict" hidden data-i18n="fld.helpConflict">Stored in the audit history. Your text is kept.</p>
+        <p class="field-error" id="reason-error" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          <span data-i18n="fld.error">Enter a reason before advancing.</span>
+        </p>
+      </div>
+
+      <div class="summary-row">
+        <span class="summary-key" data-i18n="dlg.current">Current:</span>
+        <span class="state state--info">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span data-i18n="step.waiting">Waiting</span>
+        </span>
+      </div>
+
+      <div class="dialog-actions">
+        <button class="btn btn--outline" type="button" id="btn-cancel" data-i18n="btn.cancel">Cancel</button>
+        <button class="btn btn--primary" type="button" id="btn-advance" data-i18n="btn.advance">Advance</button>
+        <button class="btn btn--primary" type="button" id="btn-refresh" hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+          <span data-i18n="common.refresh">Refresh</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DIALOG — settings ============ -->
+  <div class="dialog-layer" id="settings-layer" hidden>
+    <div class="backdrop" data-close-settings></div>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="set-title" aria-describedby="set-desc" id="settings-dialog">
+      <h2 class="dialog-title" id="set-title" data-i18n="set.title">Settings</h2>
+      <p class="dialog-desc" id="set-desc" data-i18n="set.desc">Demo preferences — changes apply immediately.</p>
+
+      <fieldset class="lang-fieldset">
+        <legend class="lang-legend" data-i18n="set.lang">Language</legend>
+        <p class="lang-hint" data-i18n="set.hint">Choose the interface language for this demo.</p>
+        <div class="lang-list">
+          <label class="lang-card is-selected" data-lang-card="en">
+            <input type="radio" name="demo-lang" value="en" checked />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/></svg>
+            <span>English</span>
+            <svg class="check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
+          </label>
+          <label class="lang-card" data-lang-card="vi">
+            <input type="radio" name="demo-lang" value="vi" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/></svg>
+            <span>Tiếng Việt</span>
+            <svg class="check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
+          </label>
+        </div>
+      </fieldset>
+
+      <p class="set-note" data-i18n="set.note">Your choice is remembered in this browser, for this demo only.</p>
+
+      <div class="dialog-actions">
+        <button class="btn btn--outline" type="button" id="btn-set-close" data-i18n="set.close">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="vh" id="live" role="status" aria-live="polite"></p>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+  const shell = $('#shell');
+  const live = $('#live');
+  const gotoBtns = $$('[data-goto]');
+
+  /* ==========================================================
+     i18n — EN is the markup default; VI comes from VI[]
+     ========================================================== */
+  const VI = {
+    'doc.title': 'LumiCal · Đơn hàng Admin — bản demo tương tác (I13-P04 + I13-P05)',
+    'demo.title': 'LumiCal Admin — demo tương tác',
+    'demo.hint': 'I13-P04 (danh sách) + I13-P05 (chi tiết/dialog). <strong>Bấm:</strong> View → chi tiết · Advance to Preparing → dialog · gõ Reason rồi bấm <em>Advance</em> → trạng thái conflict · Esc để đóng.',
+    'demo.list': 'Danh sách đơn',
+    'demo.detail': 'Chi tiết đơn',
+    'demo.reset': 'Đặt lại demo',
+
+    'nav.orders': 'Đơn hàng',
+    'nav.templates': 'Mẫu',
+    'nav.users': 'Người dùng',
+    'nav.notifications': 'Thông báo',
+    'nav.settings': 'Cài đặt',
+    'acct.role': 'Quản trị vận hành',
+
+    'sec.list': 'Danh sách đơn',
+    'sec.detail': 'Chi tiết đơn',
+    'list.eyebrow': 'Vận hành',
+    'list.title': 'Đơn hàng',
+    'list.desc': 'Kiểm tra trạng thái thanh toán và chuyển tiếp đơn đã xác minh.',
+    'common.refresh': 'Làm mới',
+    'common.updated': 'Cập nhật lần cuối 14:32',
+
+    'search.label': 'Tìm đơn hàng',
+    'search.ph': 'Tìm mã đơn hoặc email',
+    'sel.paymentLabel': 'Trạng thái thanh toán',
+    'sel.allPayment': 'Tất cả trạng thái thanh toán',
+    'sel.fulfilLabel': 'Trạng thái hoàn tất',
+    'sel.allFulfil': 'Tất cả trạng thái hoàn tất',
+    'sel.sortLabel': 'Sắp xếp',
+    'sel.sortNewest': 'Sắp xếp: mới nhất',
+    'sel.sortOldest': 'Sắp xếp: cũ nhất',
+    'sel.sortAmount': 'Sắp xếp: số tiền cao đến thấp',
+    'clear.filters': 'Xóa bộ lọc',
+
+    'th.order': 'Đơn hàng',
+    'th.buyer': 'Người mua',
+    'th.amount': 'Số tiền',
+    'th.payment': 'Thanh toán',
+    'th.fulfil': 'Hoàn tất',
+    'th.updated': 'Cập nhật',
+    'th.action': 'Thao tác',
+    'tbl.caption': 'Danh sách đơn vận hành. Trạng thái hiển thị bằng icon và chữ.',
+    'row.view': 'Xem',
+
+    'pill.verified': 'Đã xác minh',
+    'pill.pending': 'Chờ xác minh',
+    'pill.failed': 'Thất bại',
+    'pill.cancelled': 'Đã hủy',
+    'pill.waiting': 'Đang chờ',
+    'pill.preparing': 'Đang chuẩn bị',
+    'pill.demoComplete': 'Hoàn tất demo',
+    'pill.closed': 'Đã đóng',
+
+    'empty.title': 'Không có đơn nào khớp bộ lọc',
+    'empty.desc': 'Thử tìm theo mã đơn hoặc email khác, hoặc xóa bộ lọc đang bật.',
+    'pag.rows': 'Dòng mỗi trang',
+    'pag.prev': 'Trang trước',
+    'pag.next': 'Trang sau',
+
+    'crumb.orders': 'Đơn hàng',
+    'detail.desc': 'Tạo ngày 14 Oct 2026, 08:57 · Thanh toán được gateway webhook xác minh lúc 09:12.',
+
+    'pay.title': 'Thanh toán',
+    'pay.verifiedCopy': 'Thanh toán được xác minh 14 Oct 2026, 09:12 bởi webhook hệ thống.',
+    'pay.currency': 'Tiền tệ',
+    'pay.provider': 'Nhà cung cấp',
+    'pay.ref': 'Mã tham chiếu',
+    'pay.verifiedAt': 'Thời điểm xác minh',
+    'pay.verifiedBy': 'Người xác minh',
+    'pay.system': 'webhook hệ thống',
+    'pay.note': 'Thanh toán sandbox — không có tiền thật bị trừ.',
+
+    'ful.title': 'Hoàn tất đơn',
+    'step.waiting': 'Đang chờ',
+    'step.preparing': 'Đang chuẩn bị',
+    'step.demoComplete': 'Hoàn tất demo',
+    'step.closed': 'Đơn đã đóng',
+    'badge.current': 'Hiện tại',
+    'audit.title': 'Lịch sử kiểm toán',
+    'audit.one': '<span class="audit-time">09:15</span> · <span class="audit-state">Đang chờ</span> · lý do: thanh toán đã xác minh · bởi webhook hệ thống',
+    'audit.two': '<span class="audit-time">08:57</span> · <span class="audit-state">Đơn được tạo</span> · lý do: thanh toán sandbox hoàn tất · bởi buyer@example.com',
+    'buyer.title': 'Người mua',
+
+    'act.advance': 'Chuyển sang Đang chuẩn bị',
+    'act.close': 'Đóng đơn',
+    'act.note': 'Demo: hộp thoại xác nhận nguy hiểm cho “Close order” nằm ngoài phạm vi mockup I13-P05 này.',
+
+    'dlg.title': 'Chuyển sang Đang chuẩn bị?',
+    'dlg.desc': 'Thao tác này ghi lại một lượt chuyển tiếp có kiểm toán cho ORD-2026-0148. Người mua không nhận thông báo.',
+    'dlg.conflict': 'Đơn này đã thay đổi ở phiên khác. Làm mới để xem trạng thái hiện tại.',
+    'dlg.current': 'Hiện tại:',
+    'fld.reason': 'Lý do',
+    'fld.required': 'Bắt buộc',
+    'fld.ph': 'Vì sao thực hiện chuyển tiếp này?',
+    'fld.help': 'Được lưu vào lịch sử kiểm toán.',
+    'fld.helpConflict': 'Được lưu vào lịch sử kiểm toán. Văn bản của bạn vẫn được giữ.',
+    'fld.error': 'Nhập lý do trước khi chuyển tiếp.',
+    'btn.cancel': 'Hủy',
+    'btn.advance': 'Chuyển tiếp',
+
+    'set.title': 'Cài đặt',
+    'set.desc': 'Tùy chọn demo — thay đổi áp dụng ngay.',
+    'set.lang': 'Ngôn ngữ',
+    'set.hint': 'Chọn ngôn ngữ giao diện cho demo này.',
+    'set.note': 'Lựa chọn được ghi nhớ trong trình duyệt này, chỉ dùng cho demo.',
+    'set.close': 'Đóng'
+  };
+
+  const MONTHS = {Jan:'thg 1',Feb:'thg 2',Mar:'thg 3',Apr:'thg 4',May:'thg 5',Jun:'thg 6',Jul:'thg 7',Aug:'thg 8',Sep:'thg 9',Oct:'thg 10',Nov:'thg 11',Dec:'thg 12'};
+  const toVi = (s) => String(s).replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, (m) => MONTHS[m]);
+
+  let lang = 'en';
+  try { const saved = localStorage.getItem('demo-lang'); if (saved === 'vi' || saved === 'en') lang = saved; } catch (e) { /* ignore */ }
+  const forced = new URLSearchParams(location.search).get('lang');
+  if (forced === 'vi' || forced === 'en') lang = forced;
+
+  const pick = (key, fallback) => (lang === 'en' ? fallback : (VI[key] != null ? VI[key] : fallback));
+  const say = (enText, viKey) => { live.textContent = pick(viKey, enText); };
+
+  function tx(el) {
+    if (el.__en == null) el.__en = el.textContent;
+    return lang === 'en' ? el.__en : toVi(VI[el.dataset.i18n] != null ? VI[el.dataset.i18n] : el.__en);
+  }
+  function txHtml(el) {
+    if (el.__enHtml == null) el.__enHtml = el.innerHTML;
+    return lang === 'en' ? el.__enHtml : toVi(VI[el.dataset.i18nHtml] != null ? VI[el.dataset.i18nHtml] : el.__enHtml);
+  }
+  function txPh(el) {
+    if (el.__ph == null) el.__ph = el.placeholder;
+    el.placeholder = lang === 'en' ? el.__ph : (VI[el.dataset.i18nPh] != null ? VI[el.dataset.i18nPh] : el.__ph);
+  }
+  function txAria(el) {
+    if (el.__aria == null) el.__aria = el.getAttribute('aria-label');
+    el.setAttribute('aria-label', lang === 'en' ? el.__aria : (VI[el.dataset.i18nAria] != null ? VI[el.dataset.i18nAria] : el.__aria));
+  }
+
+  function applyI18n() {
+    document.documentElement.lang = lang;
+    document.title = lang === 'vi' ? VI['doc.title'] : 'LumiCal · Admin Orders — interactive demo (I13-P04 + I13-P05)';
+    $$('[data-i18n]').forEach((el) => { el.textContent = tx(el); });
+    $$('[data-i18n-html]').forEach((el) => { el.innerHTML = txHtml(el); });
+    $$('[data-i18n-ph]').forEach(txPh);
+    $$('[data-i18n-aria]').forEach(txAria);
+    renderCount();
+    syncLangCards();
+  }
+
+  /* ==========================================================
+     Modal stack (advance dialog + settings dialog)
+     ========================================================== */
+  const modals = [];
+  const focusablesIn = (root) =>
+    $$('button, [href], textarea, input, select, [tabindex]:not([tabindex="-1"])', root)
+      .filter((el) => !el.hidden && el.offsetParent !== null && !el.disabled);
+
+  function openModal(layer, dialog, trigger, focusEl) {
+    layer.hidden = false;
+    shell.inert = true;
+    modals.push({ layer, dialog, trigger });
+    const target = focusEl || focusablesIn(dialog)[0] || dialog;
+    target.focus();
+  }
+  function closeModal() {
+    const m = modals.pop();
+    if (!m) return;
+    m.layer.hidden = true;
+    if (!modals.length) shell.inert = false;
+    if (m.trigger && document.contains(m.trigger)) m.trigger.focus();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    const m = modals[modals.length - 1];
+    if (!m) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+    if (e.key !== 'Tab') return;
+    const list = focusablesIn(m.dialog);
+    if (!list.length) return;
+    const first = list[0];
+    const last = list[list.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  /* ==========================================================
+     Screens
+     ========================================================== */
+  function showScreen(name, updateHash = true) {
+    $$('.screen').forEach((s) => s.classList.toggle('is-active', s.id === 'screen-' + name));
+    gotoBtns.forEach((b) => {
+      if (b.hasAttribute('aria-pressed')) b.setAttribute('aria-pressed', String(b.dataset.goto === name));
+    });
+    if (updateHash && location.hash.slice(1) !== name) history.replaceState(null, '', '#' + name);
+    window.scrollTo(0, 0);
+  }
+
+  $$('[data-goto]').forEach((el) => el.addEventListener('click', (e) => {
+    e.preventDefault();
+    showScreen(el.dataset.goto);
+  }));
+
+  let lastTrigger = null;
+  $$('[data-open-detail]').forEach((b) => b.addEventListener('click', () => {
+    lastTrigger = b;
+    showScreen('detail');
+    $('#btn-open-dialog').focus();
+  }));
+
+  /* ==========================================================
+     List filters
+     ========================================================== */
+  const q = $('#q');
+  const fPayment = $('#f-payment');
+  const fFulfil = $('#f-fulfil');
+  const rows = $$('#rows tr');
+  const countEl = $('#count');
+  const tableWrap = $('#table-wrap');
+  const emptyEl = $('#empty');
+  const pagination = $('#pagination');
+  const btnClear = $('#btn-clear');
+  let shownCount = rows.length;
+  let filtering = false;
+
+  function renderCount() {
+    if (shownCount === 0) {
+      countEl.textContent = lang === 'vi' ? '0/138 đơn khớp' : '0 of 138 orders match';
+    } else if (filtering) {
+      countEl.textContent = lang === 'vi' ? `${shownCount}/138 đơn khớp` : `${shownCount} of 138 orders match`;
+    } else {
+      countEl.textContent = lang === 'vi' ? '1–6 / 138 đơn hàng' : '1–6 of 138 orders';
+    }
+  }
+
+  function applyFilters() {
+    const term = q.value.trim().toLowerCase();
+    const pay = fPayment.value;
+    const ful = fFulfil.value;
+    let shown = 0;
+
+    rows.forEach((tr) => {
+      const ok =
+        (!term || tr.dataset.search.includes(term)) &&
+        (!pay || tr.dataset.payment === pay) &&
+        (!ful || tr.dataset.fulfil === ful);
+      tr.hidden = !ok;
+      if (ok) shown++;
+    });
+
+    shownCount = shown;
+    filtering = Boolean(term || pay || ful);
+    btnClear.hidden = !filtering;
+
+    if (shown === 0) {
+      tableWrap.hidden = true;
+      pagination.hidden = true;
+      emptyEl.classList.add('is-on');
+    } else {
+      tableWrap.hidden = false;
+      pagination.hidden = false;
+      emptyEl.classList.remove('is-on');
+    }
+    renderCount();
+  }
+
+  function clearFilters() {
+    q.value = '';
+    fPayment.value = '';
+    fFulfil.value = '';
+    applyFilters();
+    q.focus();
+  }
+
+  q.addEventListener('input', applyFilters);
+  fPayment.addEventListener('change', applyFilters);
+  fFulfil.addEventListener('change', applyFilters);
+  btnClear.addEventListener('click', clearFilters);
+  $$('[data-clear]').forEach((b) => b.addEventListener('click', clearFilters));
+
+  /* ==========================================================
+     Advance dialog
+     ========================================================== */
+  const layer = $('#dialog-layer');
+  const dialog = $('#dialog');
+  const reason = $('#reason');
+  const reasonError = $('#reason-error');
+  const reasonHelp = $('#reason-help');
+  const reasonHelpConflict = $('#reason-help-conflict');
+  const conflictBanner = $('#dlg-conflict');
+  const btnAdvance = $('#btn-advance');
+  const btnRefresh = $('#btn-refresh');
+  let conflictOpen = false;
+
+  function setConflict(on) {
+    conflictOpen = on;
+    conflictBanner.hidden = !on;
+    btnAdvance.hidden = on;
+    btnRefresh.hidden = !on;
+    reasonHelp.hidden = on;
+    reasonHelpConflict.hidden = !on;
+  }
+
+  function setError(on) {
+    reasonError.hidden = !on;
+    reason.setAttribute('aria-invalid', String(on));
+    reasonHelp.hidden = on || conflictOpen;
+    reasonHelpConflict.hidden = !(on === false && conflictOpen);
+    reason.setAttribute('aria-describedby', on ? 'reason-error' : (conflictOpen ? 'reason-help-conflict' : 'reason-help'));
+  }
+
+  function openAdvance(from) {
+    reason.classList.toggle('is-focus-demo', !conflictOpen);
+    openModal(layer, dialog, from, conflictOpen ? btnRefresh : reason);
+  }
+
+  $('#btn-open-dialog').addEventListener('click', (e) => openAdvance(e.currentTarget));
+  $('#btn-cancel').addEventListener('click', closeModal);
+  $('[data-close]', layer).addEventListener('click', closeModal);
+
+  btnAdvance.addEventListener('click', () => {
+    if (!reason.value.trim()) {
+      setError(true);
+      reason.focus();
+      say('Enter a reason before advancing.', 'fld.error');
+      return;
+    }
+    setError(false);
+    setConflict(true);
+    btnRefresh.focus();
+    say('This order changed in another session. Refresh to see the current state.', 'dlg.conflict');
+  });
+
+  btnRefresh.addEventListener('click', () => {
+    setConflict(false);
+    setError(false);
+    reason.classList.add('is-focus-demo');
+    reason.focus();
+    say('Current state reloaded: Waiting.', 'live.reloaded');
+  });
+
+  $('#btn-close-order').addEventListener('click', () => {
+    const note = $('#close-note');
+    note.hidden = false;
+    live.textContent = tx(note);
+  });
+
+  /* ==========================================================
+     Settings dialog + language
+     ========================================================== */
+  const setLayer = $('#settings-layer');
+  const setDialog = $('#settings-dialog');
+  const langRadios = $$('input[name="demo-lang"]');
+
+  function syncLangCards() {
+    $$('.lang-card').forEach((card) => {
+      const input = card.querySelector('input');
+      const on = input.value === lang;
+      card.classList.toggle('is-selected', on);
+      input.checked = on;
+    });
+  }
+
+  function setLang(next) {
+    lang = next;
+    try { localStorage.setItem('demo-lang', next); } catch (e) { /* ignore */ }
+    applyI18n();
+    say(next === 'vi' ? 'Đã đổi ngôn ngữ: Tiếng Việt.' : 'Language changed: English.', 'live.lang');
+  }
+
+  function openSettings(trigger) {
+    openModal(setLayer, setDialog, trigger, $(`input[name="demo-lang"][value="${lang}"]`));
+  }
+
+  $('#btn-settings').addEventListener('click', (e) => openSettings(e.currentTarget));
+  $('#btn-set-close').addEventListener('click', closeModal);
+  $('[data-close-settings]', setLayer).addEventListener('click', closeModal);
+  langRadios.forEach((r) => r.addEventListener('change', () => { if (r.checked) setLang(r.value); }));
+
+  /* ==========================================================
+     Reset + hash deep-links
+     ========================================================== */
+  $('#btn-reset').addEventListener('click', () => {
+    clearFilters();
+    q.blur();
+    reason.value = '';
+    setConflict(false);
+    setError(false);
+    $('#close-note').hidden = true;
+    while (modals.length) closeModal();
+    showScreen('list');
+    say('Demo reset.', 'live.reset');
+  });
+
+  function applyHash() {
+    const h = location.hash.slice(1);
+    while (modals.length) closeModal();
+    if (h === 'dialog' || h === 'conflict') {
+      showScreen('detail', false);
+      setConflict(h === 'conflict');
+      if (h === 'conflict') reason.value = 'Warehouse confirmed stock for the demo calendars.';
+      setError(false);
+      openAdvance($('#btn-open-dialog'));
+    } else if (h === 'detail') {
+      showScreen('detail', false);
+    } else if (h === 'settings') {
+      showScreen('list', false);
+      openSettings($('#btn-settings'));
+    } else {
+      showScreen('list', false);
+    }
+  }
+  window.addEventListener('hashchange', applyHash);
+
+  VI['live.reloaded'] = 'Đã tải lại trạng thái hiện tại: Đang chờ.';
+  VI['live.reset'] = 'Đã đặt lại demo.';
+  VI['live.lang'] = 'Đã đổi ngôn ngữ.';
+
+  applyI18n();
+  applyFilters();
+  applyHash();
+})();
+</script>
+</body>
+</html>

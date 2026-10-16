@@ -13,6 +13,10 @@ Status of this evidence: **design mockup / contract fixture only** (ROADMAP §5 
 | `01-frame-a-order-detail.png` | Frame A — order detail page |
 | `02-frame-b-confirm-dialog.png` | Frame B — “Advance to Preparing?” confirmation dialog |
 | `03-frame-b-conflict.png` | Frame B′ — expired/conflict state (form content preserved) |
+| `admin-orders-demo.html` | Interactive single-file demo: **I13-P04** orders list + **I13-P05** detail/transition dialog, with an EN/VI language switch |
+| `demo-01-settings-en.png` | Settings dialog — language picker (English selected) |
+| `demo-02-orders-vi.png` | Orders list rendered in Vietnamese (`14 thg 10 2026` date format) |
+| `demo-03-conflict-vi.png` | Conflict dialog rendered in Vietnamese (Reason preserved) |
 
 Regenerate screenshots (Chrome headless, then crop the 3 frames from the gallery strip):
 
@@ -31,6 +35,28 @@ google-chrome --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
 | Stale-state recovery + expiry feedback, **preserve recoverable UI state** | B′ — conflict banner, Reason text kept, only `[Refresh]` as the recovery action |
 
 Rules referenced (not changed): `BR-FUL-001..003`, `BR-ADM-001/002`, `INV-09`, `API_CONTRACT` §17 (`GET /admin/orders/{id}`, `PUT /admin/orders/{id}/fulfillment` with `If-Match` + `Idempotency-Key`, `POST /admin/orders/{id}/inspection`), `ARCHITECTURE` §18 audit, `DATABASE` §18/§19, `DESIGN_SYSTEM` §3–§4 tokens and §10 component gates.
+
+## Interactive demo (`admin-orders-demo.html`)
+
+A self-contained, dependency-free HTML file (no build step, no `frontend/` import) so a reviewer can **click through** both tickets instead of reading static frames. Same design-system source: `docs/DESIGN_SYSTEM.md` light theme, Baloo 2 + Be Vietnam Pro, focus ring `2px #A43225 / offset 2px`, ≥44×44 targets.
+
+| Part of the demo | Maps to |
+| --- | --- |
+| Orders **list** screen — AdminShell, PageHeader, toolbar (search + payment/fulfilment/sort filters), operational table, pagination, empty state | `I13-P04` / PROMPT 1 |
+| Orders **detail** screen — breadcrumb, Payment/DataList vs Fulfilment stepper + audit history, buyer email only, `[Advance to Preparing]` … spatially separated `[Close order]` | `I13-P05` / Frame A |
+| **Advance dialog** — required Reason (inline error when empty), read-only `Current: Waiting`, `[Cancel] [Advance]`, focus trap + `Esc`, background `inert` | Frame B |
+| **Conflict state** — banner (icon + word), Reason text preserved, buttons become `[Cancel] [Refresh]` | Frame B′ |
+| **Settings dialog** — EN/VI language picker (radio cards, choice persisted in `localStorage`) | i18n demo only; no product requirement |
+
+Interactions to try: `View` → detail · `Advance to Preparing` → dialog · empty Reason → inline error · filled Reason + `Advance` → conflict state · `Esc` / `Cancel` → close. Deep links: `#list`, `#detail`, `#dialog`, `#conflict`, `#settings`; force a language with `?lang=vi` or `?lang=en`.
+
+```sh
+google-chrome --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+  --screenshot=/tmp/demo-vi.png --window-size=1440,1150 --virtual-time-budget=9000 \
+  "file://$PWD/admin-orders-demo.html?lang=vi#conflict"
+```
+
+Evidence-only: the file is static HTML in `docs/`, so this change adds **no** route, component, dependency or API call to the application, and it does not weaken the `I13-P01 → I13-P02 → I13-P04/P05` hard gates.
 
 ## Boundary notes
 

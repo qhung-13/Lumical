@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LumiCal · Admin Orders — Order detail + transition dialog (I13-P05)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   TOKENS — docs/DESIGN_SYSTEM.md (v2 frozen), light theme only
+   ============================================================ */
+:root{
+  --canvas:#FAF7F1;
+  --surface:#FFFDF9;
+  --surface-raised:#FFFFFF;
+  --surface-subtle:#F4EEE4;
+
+  --text-primary:#29221D;
+  --text-secondary:#51453B;
+  --text-muted:#665B50;
+  --text-inverse:#FFFDF9;
+
+  --border:#D8CCBD;
+  --border-strong:#907D68;
+
+  --brand:#A43225;
+  --brand-hover:#87271D;
+  --brand-active:#6F1F17;
+  --brand-text:#9B2D22;
+  --focus:#A43225;
+  --selected-bg:#F3DCD2;
+  --selected-text:#762319;
+
+  --success:#276B42;
+  --success-bg:#E7F4EA;
+  --warning:#84500C;
+  --warning-bg:#FFF1D9;
+  --danger:#AA2925;
+  --danger-bg:#FCE9E5;
+  --info:#1C5F7A;
+  --info-bg:#E6F2F7;
+
+  --radius-subtle:4px;
+  --radius-control:8px;
+  --radius-card:12px;
+  --radius-large:16px;
+
+  --elevation-1:0 1px 2px rgb(41 34 29 / .06);
+  --elevation-4:0 24px 64px -16px rgb(41 34 29 / .34);
+
+  --layer-overlay:60;
+  --layer-modal:80;
+
+  --font-display:'Baloo 2','Be Vietnam Pro',system-ui,sans-serif;
+  --font-ui:'Be Vietnam Pro',system-ui,-apple-system,'Segoe UI',sans-serif;
+
+  --sidebar-w:248px;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#EFE9E0;
+  font-family:var(--font-ui);
+  color:var(--text-primary);
+  -webkit-font-smoothing:antialiased;
+}
+img,svg{display:block}
+button{font-family:inherit}
+a{color:var(--brand-text)}
+
+/* Global focus ring: 2px #A43225, 2px offset */
+:where(a,button,textarea,input,[tabindex]):focus-visible{
+  outline:2px solid var(--focus);
+  outline-offset:2px;
+}
+
+.vh{
+  position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+  overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+}
+
+/* ============================================================
+   GALLERY CHROME (không phải UI của app)
+   ============================================================ */
+.wrap{max-width:100%;padding:32px 24px 56px}
+.gallery-head{margin-bottom:24px}
+.gallery-eyebrow{
+  margin:0 0 6px;font-size:12px;line-height:18px;font-weight:700;
+  color:var(--brand-text);
+}
+.gallery-head h1{
+  margin:0;font-family:var(--font-display);font-size:32px;line-height:40px;font-weight:700;
+}
+.gallery-meta{margin:8px 0 0;font-size:14px;line-height:22px;color:var(--text-secondary)}
+.gallery-jump{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding:0;list-style:none}
+.gallery-jump a{
+  display:inline-flex;align-items:center;height:44px;padding:0 16px;
+  font-size:14px;line-height:20px;font-weight:600;text-decoration:none;
+  color:var(--text-primary);background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--radius-control);
+}
+.gallery-jump a:hover{background:var(--surface-subtle)}
+.gallery-hint{margin:12px 0 0;font-size:14px;line-height:22px;color:var(--text-muted)}
+
+.frames{
+  display:flex;gap:40px;align-items:flex-start;
+  overflow-x:auto;padding:4px 4px 28px;
+}
+.frame{flex:0 0 auto;width:1440px;max-width:none}
+.frame-label{
+  display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;
+  margin-bottom:12px;font-size:14px;line-height:20px;font-weight:600;
+  color:var(--text-primary);background:var(--surface-subtle);
+  border:1px solid var(--border);border-radius:var(--radius-subtle);
+}
+.frame-label span{font-weight:500;color:var(--text-secondary)}
+
+.canvas{
+  position:relative;width:1440px;min-height:900px;
+  background:var(--canvas);
+  border:1px solid var(--border);border-radius:var(--radius-card);
+  overflow:hidden;
+}
+.frame-notes{
+  margin:16px 0 0;padding:16px 20px;list-style:none;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  columns:2;column-gap:32px;
+}
+.frame-notes li{
+  font-size:14px;line-height:22px;color:var(--text-secondary);
+  padding-left:18px;position:relative;margin-bottom:8px;break-inside:avoid;
+}
+.frame-notes li::before{
+  content:"";position:absolute;left:0;top:9px;width:8px;height:8px;
+  border-radius:2px;background:var(--selected-bg);border:1px solid var(--brand);
+}
+.frame-notes strong{font-weight:600;color:var(--text-primary)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95em}
+
+/* ============================================================
+   BUTTONS / BADGES / BANNERS
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:44px;min-width:44px;padding:0 16px;
+  font-size:14px;line-height:20px;font-weight:600;
+  border-radius:var(--radius-control);border:1px solid transparent;
+  cursor:pointer;text-decoration:none;transition:background-color 120ms cubic-bezier(.2,0,0,1),border-color 120ms cubic-bezier(.2,0,0,1);
+}
+.btn--primary{background:var(--brand);color:var(--text-inverse);border-color:var(--brand)}
+.btn--primary:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
+.btn--primary:active{background:var(--brand-active)}
+
+.btn--secondary{background:var(--surface-subtle);color:var(--text-primary);border-color:var(--border-strong)}
+.btn--secondary:hover{background:#EDE5D9}
+
+.btn--outline{background:transparent;color:var(--text-primary);border-color:var(--border-strong)}
+.btn--outline:hover{background:var(--surface-subtle)}
+
+.btn--danger-outline{
+  background:transparent;color:var(--danger);
+  border:2px solid var(--danger);
+}
+.btn--danger-outline:hover{background:var(--danger-bg)}
+
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:2px 8px;border-radius:var(--radius-subtle);
+  font-size:12px;line-height:18px;font-weight:600;
+}
+.badge--current{background:var(--selected-bg);color:var(--selected-text)}
+
+.banner{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:12px 16px;border-radius:var(--radius-control);
+}
+.banner svg{flex:0 0 auto;margin-top:2px}
+.banner--success{background:var(--success-bg);color:var(--success)}
+.banner--danger{background:var(--danger-bg);color:var(--danger)}
+.banner-title{margin:0;font-size:16px;line-height:24px;font-weight:600}
+.banner-copy{margin:2px 0 0;font-size:14px;line-height:22px}
+
+/* ============================================================
+   ADMINSHELL
+   ============================================================ */
+.shell{
+  display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);
+  min-height:900px;
+}
+.sidebar{
+  display:flex;flex-direction:column;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  padding:24px 16px;
+}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 8px 20px}
+.brand-mark{font-family:var(--font-display);font-size:22px;line-height:28px;font-weight:700}
+.brand-area{font-size:12px;line-height:18px;font-weight:700;color:var(--text-muted)}
+
+.nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.nav a{
+  display:flex;align-items:center;gap:8px;
+  min-height:44px;padding:0 12px;
+  font-size:14px;line-height:20px;font-weight:600;
+  color:var(--text-secondary);text-decoration:none;
+  border-left:2px solid transparent;border-radius:0 var(--radius-control) var(--radius-control) 0;
+  transition:background-color 120ms cubic-bezier(.2,0,0,1);
+}
+.nav a:hover{background:var(--surface-subtle)}
+.nav a[aria-current="page"]{
+  background:var(--surface-subtle);
+  border-left-color:var(--brand);
+  color:var(--text-primary);
+}
+.nav svg{flex:0 0 auto}
+
+.sidebar-foot{
+  margin-top:auto;padding:16px 8px 0;border-top:1px solid var(--border);
+}
+.sidebar-foot p{margin:0}
+.who{font-size:14px;line-height:20px;font-weight:600;color:var(--text-primary)}
+.who-role{font-size:12px;line-height:18px;font-weight:500;color:var(--text-muted);margin-top:2px !important}
+
+/* ============================================================
+   MAIN / PAGEHEADER
+   ============================================================ */
+.main{padding:32px 40px 40px;display:flex;flex-direction:column}
+.page-header{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:32px;
+  padding-bottom:24px;border-bottom:1px solid var(--border);
+}
+.eyebrow{margin:0;font-size:12px;line-height:18px;font-weight:700;color:var(--text-secondary)}
+
+.breadcrumb{margin:8px 0 0}
+.breadcrumb ol{
+  list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  margin:0;padding:0;font-size:14px;line-height:20px;
+}
+.breadcrumb a{color:var(--text-secondary);text-decoration:underline;text-underline-offset:2px}
+.breadcrumb a:hover{color:var(--brand-text)}
+.breadcrumb [aria-current="page"]{color:var(--text-primary);font-weight:600}
+.breadcrumb .sep{color:var(--text-muted)}
+
+.page-title{
+  margin:8px 0 0;font-family:var(--font-display);
+  font-size:32px;line-height:40px;font-weight:700;
+}
+.page-desc{margin:4px 0 0;font-size:16px;line-height:24px;color:var(--text-secondary)}
+
+.page-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.caption{margin:0;font-size:12px;line-height:18px;font-weight:500;color:var(--text-muted)}
+
+/* ============================================================
+   CONTENT REGIONS
+   ============================================================ */
+.content{
+  display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:24px;
+  margin-top:40px;
+}
+.panel{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  padding:24px;
+}
+.panel-title{
+  margin:0 0 16px;font-family:var(--font-ui);
+  font-size:20px;line-height:28px;font-weight:600;
+}
+.panel--buyer{margin-top:24px}
+
+/* DataList: label column 140px, muted labels, values 16px text-primary */
+.datalist{margin:0}
+.datalist-row{
+  display:grid;grid-template-columns:140px minmax(0,1fr);gap:16px;
+  padding:12px 0;border-bottom:1px solid var(--border);
+}
+.datalist-row:last-child{border-bottom:0;padding-bottom:0}
+.datalist-row:first-child{padding-top:0}
+.datalist dt{font-size:14px;line-height:20px;font-weight:600;color:var(--text-muted)}
+.datalist dd{margin:0;font-size:16px;line-height:24px;color:var(--text-primary);word-break:break-word}
+
+.note{
+  display:flex;gap:8px;align-items:flex-start;
+  margin:16px 0 0;font-size:14px;line-height:22px;color:var(--text-muted);
+}
+.note svg{flex:0 0 auto;margin-top:3px}
+
+/* ---------- Stepper ---------- */
+.stepper{list-style:none;margin:0;padding:0}
+.step{position:relative;display:flex;gap:12px;padding-bottom:20px}
+.step:last-child{padding-bottom:0}
+.step:not(:last-child)::after{
+  content:"";position:absolute;left:11px;top:26px;bottom:2px;width:2px;
+  background:var(--border);
+}
+.step-marker{
+  position:relative;z-index:1;flex:0 0 auto;
+  width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:2px solid var(--border-strong);color:var(--text-muted);
+}
+.step-name{margin:0;font-size:16px;line-height:24px;font-weight:600;color:var(--text-muted)}
+.step-time{margin:2px 0 0;font-size:12px;line-height:18px;font-weight:500;color:var(--text-muted)}
+.step-badges{display:inline-flex;gap:8px;align-items:center;margin-left:8px;vertical-align:2px}
+
+/* current step = brand emphasis + word label "Current" */
+.step--current .step-marker{border-color:var(--brand);color:var(--brand)}
+.step--current .step-name{color:var(--brand-text)}
+.step--current::after{background:var(--border)}
+
+/* completed step = success green (không có step nào completed ở data này) */
+.step--done .step-marker{border-color:var(--success);color:var(--success)}
+.step--done .step-name{color:var(--success)}
+
+.step--future .step-marker{border-color:var(--border-strong);color:var(--text-muted)}
+
+/* ---------- Audit history ---------- */
+.audit{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.subhead{
+  margin:0 0 8px;font-size:14px;line-height:20px;font-weight:600;
+  color:var(--text-secondary);
+}
+.audit-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.audit-list li{font-size:14px;line-height:22px;color:var(--text-secondary)}
+.audit-time{font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.audit-state{font-weight:600;color:var(--text-primary)}
+
+/* ---------- Footer action bar ---------- */
+.actionbar{
+  display:flex;justify-content:flex-end;align-items:center;
+  margin-top:32px;padding-top:24px;border-top:1px solid var(--border);
+}
+.action-group{display:flex;align-items:center}
+.action-sep{width:1px;height:44px;background:var(--border);margin:0 16px}
+
+/* ============================================================
+   FRAME B — dialog trên backdrop dimmed
+   ============================================================ */
+.canvas--dialog{min-height:900px}
+.frame{scroll-margin-top:16px}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.behind{position:absolute;inset:0;filter:saturate(.9)}
+.backdrop{position:absolute;inset:0;background:rgb(41 34 29 / .5);z-index:var(--layer-overlay)}
+
+.dialog{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:var(--layer-modal);
+  width:min(560px,calc(100% - 32px));
+  max-height:calc(100% - 32px);overflow:auto;
+  background:var(--surface-raised);
+  border:1px solid var(--border);
+  border-radius:var(--radius-large);
+  box-shadow:var(--elevation-4); /* phần tử DUY NHẤT có shadow */
+  padding:24px;
+}
+.dialog-title{
+  margin:0;font-family:var(--font-display);
+  font-size:28px;line-height:36px;font-weight:700;
+}
+.dialog-desc{margin:16px 0 0;font-size:16px;line-height:24px;color:var(--text-secondary)}
+
+/* FormField: label → 8px → control → 4px → helper */
+.field{margin-top:20px}
+.field-label{
+  display:flex;gap:8px;align-items:baseline;
+  font-size:14px;line-height:20px;font-weight:600;color:var(--text-primary);
+}
+.field-required{font-size:14px;line-height:20px;font-weight:500;color:var(--text-secondary)}
+.textarea{
+  display:block;width:100%;margin-top:8px;min-height:96px;
+  padding:12px;font-family:var(--font-ui);
+  font-size:16px;line-height:24px;color:var(--text-primary);
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--radius-control);resize:vertical;
+}
+.textarea::placeholder{color:var(--text-muted)}
+.textarea.is-focused{outline:2px solid var(--focus);outline-offset:2px;border-color:var(--border-strong)}
+.field-help{margin:4px 0 0;font-size:14px;line-height:22px;color:var(--text-muted)}
+
+.summary-row{
+  display:flex;align-items:center;gap:8px;
+  margin-top:24px;padding:10px 12px;
+  background:var(--surface-subtle);border:1px solid var(--border);
+  border-radius:var(--radius-control);
+}
+.summary-key{font-size:14px;line-height:20px;font-weight:600;color:var(--text-secondary)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:14px;line-height:20px;font-weight:600}
+.state--info{color:var(--info)}
+
+.dialog-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px}
+.btn.is-focused{outline:2px solid var(--focus);outline-offset:2px}
+
+.banner + .field{margin-top:20px}
+
+/* ============================================================
+   COMPLIANCE
+   ============================================================ */
+.compliance{
+  margin-top:8px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:24px;max-width:1440px;
+}
+.compliance h2{margin:0 0 4px;font-family:var(--font-display);font-size:24px;line-height:32px;font-weight:700}
+.compliance p{margin:0 0 16px;font-size:14px;line-height:22px;color:var(--text-secondary)}
+.checks{list-style:none;margin:0;padding:0;columns:2;column-gap:40px}
+.checks li{
+  display:flex;gap:10px;align-items:flex-start;
+  font-size:14px;line-height:22px;color:var(--text-secondary);
+  margin-bottom:10px;break-inside:avoid;
+}
+.checks svg{flex:0 0 auto;margin-top:3px;color:var(--success)}
+.checks strong{color:var(--text-primary);font-weight:600}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header class="gallery-head">
+    <p class="gallery-eyebrow">LumiCal · I13-P05 · Design System v2 (frozen)</p>
+    <h1>Admin Orders — Order detail + fulfilment transition dialog</h1>
+    <p class="gallery-meta">Desktop-first 1440px · light theme · token lấy từ <code>docs/DESIGN_SYSTEM.md</code> · font: Baloo 2 (H1/H2) + Be Vietnam Pro (body)</p>
+    <ul class="gallery-jump">
+      <li><a href="#frame-a">Frame A — Order detail</a></li>
+      <li><a href="#frame-b">Frame B — Confirm dialog</a></li>
+      <li><a href="#frame-b2">Frame B′ — Conflict / expired</a></li>
+      <li><a href="#compliance">Checklist</a></li>
+    </ul>
+    <p class="gallery-hint" lang="vi">3 frame nằm ngang — cuộn ngang để xem hết. Mỗi frame có ghi chú kiểm tra ngay dưới.</p>
+  </header>
+
+  <div class="frames">
+
+    <!-- ============================ FRAME A ============================ -->
+    <section class="frame" id="frame-a" aria-label="Frame A: order detail page">
+      <p class="frame-label">FRAME A <span>· Order detail page</span></p>
+
+      <div class="canvas">
+        <div class="shell">
+
+          <!-- AdminShell -->
+          <aside class="sidebar">
+            <div class="brand">
+              <span class="brand-mark">LumiCal</span>
+              <span class="brand-area">Admin</span>
+            </div>
+            <nav aria-label="Admin">
+              <ul class="nav">
+                <li>
+                  <a href="#frame-a" aria-current="page">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
+                    Orders
+                  </a>
+                </li>
+                <li>
+                  <a href="#frame-a">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Templates
+                  </a>
+                </li>
+                <li>
+                  <a href="#frame-a">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    Users
+                  </a>
+                </li>
+                <li>
+                  <a href="#frame-a">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                    Notifications
+                  </a>
+                </li>
+              </ul>
+            </nav>
+            <div class="sidebar-foot">
+              <p class="who">admin@lumical.edu</p>
+              <p class="who-role">Operations admin</p>
+            </div>
+          </aside>
+
+          <!-- Main -->
+          <main class="main">
+            <header class="page-header">
+              <div>
+                <p class="eyebrow">Operations</p>
+                <nav class="breadcrumb" aria-label="Breadcrumb">
+                  <ol>
+                    <li><a href="#frame-a">Orders</a></li>
+                    <li class="sep" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </li>
+                    <li aria-current="page">ORD-2026-0148</li>
+                  </ol>
+                </nav>
+                <h1 class="page-title">ORD-2026-0148</h1>
+                <p class="page-desc">Created 14 Oct 2026, 08:57 · Payment verified by gateway webhook at 09:12.</p>
+              </div>
+              <div class="page-actions">
+                <button class="btn btn--secondary" type="button">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+                  Refresh
+                </button>
+                <p class="caption">Last updated 14:32</p>
+              </div>
+            </header>
+
+            <div class="content">
+
+              <!-- LEFT / main column -->
+              <section class="panel" aria-labelledby="payment-title">
+                <h2 class="panel-title" id="payment-title">Payment</h2>
+
+                <div class="banner banner--success">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg>
+                  <div>
+                    <p class="banner-title">Verified</p>
+                    <p class="banner-copy">Payment verified 14 Oct 2026, 09:12 by system webhook.</p>
+                  </div>
+                </div>
+
+                <dl class="datalist" style="margin-top:20px">
+                  <div class="datalist-row"><dt>Amount</dt><dd>USD 24.00</dd></div>
+                  <div class="datalist-row"><dt>Currency</dt><dd>USD</dd></div>
+                  <div class="datalist-row"><dt>Provider</dt><dd>PayPal Sandbox</dd></div>
+                  <div class="datalist-row"><dt>Provider ref.</dt><dd>5XY12345AB6789012C</dd></div>
+                  <div class="datalist-row"><dt>Verified at</dt><dd>14 Oct 2026, 09:12</dd></div>
+                  <div class="datalist-row"><dt>Verified by</dt><dd>system webhook</dd></div>
+                </dl>
+
+                <p class="note">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+                  Sandbox payment — no real money was charged.
+                </p>
+              </section>
+
+              <!-- RIGHT / side column -->
+              <section class="panel" aria-labelledby="fulfilment-title">
+                <h2 class="panel-title" id="fulfilment-title">Fulfilment</h2>
+
+                <ol class="stepper">
+                  <li class="step step--current">
+                    <span class="step-marker">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    </span>
+                    <div>
+                      <p class="step-name">Waiting<span class="step-badges"><span class="badge badge--current">Current</span></span></p>
+                      <p class="step-time">14 Oct 2026, 09:15</p>
+                    </div>
+                  </li>
+                  <li class="step step--future">
+                    <span class="step-marker">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5"/><path d="M12 12v9"/></svg>
+                    </span>
+                    <div>
+                      <p class="step-name">Preparing</p>
+                      <p class="step-time">—</p>
+                    </div>
+                  </li>
+                  <li class="step step--future">
+                    <span class="step-marker">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg>
+                    </span>
+                    <div>
+                      <p class="step-name">Demo complete</p>
+                      <p class="step-time">—</p>
+                    </div>
+                  </li>
+                  <li class="step step--future">
+                    <span class="step-marker">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>
+                    </span>
+                    <div>
+                      <p class="step-name">Order closed</p>
+                      <p class="step-time">—</p>
+                    </div>
+                  </li>
+                </ol>
+
+                <div class="audit">
+                  <h3 class="subhead">Audit history</h3>
+                  <ul class="audit-list">
+                    <li><span class="audit-time">09:15</span> · <span class="audit-state">Waiting</span> · reason: payment verified · by system webhook</li>
+                    <li><span class="audit-time">08:57</span> · <span class="audit-state">Order created</span> · reason: sandbox checkout completed · by buyer@example.com</li>
+                  </ul>
+                </div>
+              </section>
+            </div>
+
+            <!-- Buyer region -->
+            <section class="panel panel--buyer" aria-labelledby="buyer-title">
+              <h2 class="panel-title" id="buyer-title">Buyer</h2>
+              <dl class="datalist">
+                <div class="datalist-row"><dt>Email</dt><dd>buyer@example.com</dd></div>
+              </dl>
+            </section>
+
+            <!-- Footer action bar -->
+            <div class="actionbar">
+              <div class="action-group action-group--split">
+                <button class="btn btn--primary" type="button">
+                  Advance to Preparing
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                </button>
+                <span class="action-sep" aria-hidden="true"></span>
+                <button class="btn btn--danger-outline" type="button">Close order</button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      <ul class="frame-notes" lang="vi">
+        <li><strong>2 vùng tách riêng:</strong> panel <code>Payment</code> (trái) và <code>Fulfilment</code> (phải) không gộp chung.</li>
+        <li><strong>DataList</strong> cột label 140px muted, value 16px <code>text-primary</code>; caption sandbox14px muted.</li>
+        <li><strong>Stepper là <code>&lt;ol&gt;</code></strong> (list, không chart): Waiting = current (brand + nhãn <em>Current</em>), 3 bước sau muted, timestamp <code>—</code>.</li>
+        <li>Điều trị <strong>success green #276B42</strong> cho step completed đã có sẵn trong CSS — data này chưa có step completed nên chưa hiển thị.</li>
+        <li><strong>Buyer chỉ có email</strong> — không SĐT, không địa chỉ, không số thẻ trên trang.</li>
+        <li><strong>Nút danger tách xa:</strong> <code>Close order</code> (outline đỏ) cách primary 32px + divider dọc; primary nằm bên trái group.</li>
+        <li>Không toggle “đã trả tiền”, không chart/KPI/sparkline — admin không thể đánh dấu đơn đã thanh toán.</li>
+        <li>Status luôn <strong>icon + chữ</strong>; nav active dùng thanh brand 2px bên trái + <code>aria-current</code>.</li>
+      </ul>
+    </section>
+
+    <!-- ============================ FRAME B ============================ -->
+    <section class="frame" id="frame-b" aria-label="Frame B: advance confirmation dialog">
+      <p class="frame-label">FRAME B <span>· Confirmation dialog “Advance to Preparing?”</span></p>
+
+      <div class="canvas canvas--dialog">
+        <!-- trang phía sau (context, ẩn với screen reader) -->
+        <div class="behind" aria-hidden="true">
+          <div class="shell">
+            <aside class="sidebar">
+              <div class="brand"><span class="brand-mark">LumiCal</span><span class="brand-area">Admin</span></div>
+              <nav>
+                <ul class="nav">
+                  <li><a href="#frame-b" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>Orders</a></li>
+                  <li><a href="#frame-b" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Templates</a></li>
+                  <li><a href="#frame-b" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Users</a></li>
+                  <li><a href="#frame-b" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notifications</a></li>
+                </ul>
+              </nav>
+            </aside>
+            <main class="main">
+              <header class="page-header">
+                <div>
+                  <p class="eyebrow">Operations</p>
+                  <nav class="breadcrumb" aria-label="Breadcrumb">
+                    <ol>
+                      <li><a href="#frame-b" tabindex="-1">Orders</a></li>
+                      <li class="sep"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+                      <li aria-current="page">ORD-2026-0148</li>
+                    </ol>
+                  </nav>
+                  <p class="page-title">ORD-2026-0148</p>
+                  <p class="page-desc">Created 14 Oct 2026, 08:57 · Payment verified by gateway webhook at 09:12.</p>
+                </div>
+              </header>
+              <div class="content">
+                <section class="panel"><h2 class="panel-title">Payment</h2><div class="banner banner--success" style="margin-bottom:16px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><div><p class="banner-title">Verified</p><p class="banner-copy">Payment verified 14 Oct 2026, 09:12 by system webhook.</p></div></div><div style="display:grid;gap:12px"><span style="height:12px;width:70%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:55%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:62%;background:var(--surface-subtle);border-radius:4px"></span></div></section>
+                <section class="panel"><h2 class="panel-title">Fulfilment</h2><div style="display:grid;gap:16px"><span style="height:12px;width:60%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:52%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:58%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:44%;background:var(--surface-subtle);border-radius:4px"></span></div></section>
+              </div>
+            </main>
+          </div>
+        </div>
+
+        <div class="backdrop"></div>
+
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-b-title" aria-describedby="dlg-b-desc">
+          <h2 class="dialog-title" id="dlg-b-title">Advance to Preparing?</h2>
+          <p class="dialog-desc" id="dlg-b-desc">This records an audited transition for ORD-2026-0148. The buyer is not notified.</p>
+
+          <div class="field">
+            <label class="field-label" for="reason-b">Reason <span class="field-required">Required</span></label>
+            <textarea class="textarea is-focused" id="reason-b" rows="4" placeholder="Why is this transition being made?" aria-describedby="reason-b-help"></textarea>
+            <p class="field-help" id="reason-b-help">Stored in the audit history.</p>
+          </div>
+
+          <div class="summary-row">
+            <span class="summary-key">Current:</span>
+            <span class="state state--info">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              Waiting
+            </span>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="btn btn--outline" type="button">Cancel</button>
+            <button class="btn btn--primary" type="button">Advance</button>
+          </div>
+        </div>
+      </div>
+
+      <ul class="frame-notes" lang="vi">
+        <li>Dialog <strong>radius 16px, nền #FFFFFF, là phần tử duy nhất có shadow</strong> (elevation.4); backdrop dim <code>rgb(41 34 29 / .5)</code>.</li>
+        <li><strong>Focus ban đầu vào ô Reason</strong> (first safe control) — đang hiển thị ring <strong>2px #A43225, offset 2px</strong>.</li>
+        <li>Tab/Shift+Tab <strong>bị trap trong dialog</strong>; Esc = Cancel; <strong>Cancel luôn hiển thị</strong>, không ẩn, không dùng <code>display:none</code>.</li>
+        <li>FormField: label 14/20 semibold + “Required” → 8px → textarea ≥3 dòng → 4px → helper 14px.</li>
+        <li>Dòng read-only <strong>“Current: Waiting”</strong> giúp admin thấy state trước khi xác nhận (phòng state cũ).</li>
+        <li>Nút ghi <strong>“Advance”</strong>, không bao giờ ghi “Completed” / “Done!” — không optimistic completion.</li>
+        <li>Button row căn phải, thứ tự [Cancel outline] → [Advance brand #A43225 chữ trắng].</li>
+        <li>Enter trong textarea chỉ xuống dòng, không submit — tránh bấm nhầm.</li>
+      </ul>
+    </section>
+
+    <!-- ============================ FRAME B2 ============================ -->
+    <section class="frame" id="frame-b2" aria-label="Frame B prime: conflict dialog">
+      <p class="frame-label">FRAME B′ <span>· Conflict / expired state</span></p>
+
+      <div class="canvas canvas--dialog">
+        <div class="behind" aria-hidden="true">
+          <div class="shell">
+            <aside class="sidebar">
+              <div class="brand"><span class="brand-mark">LumiCal</span><span class="brand-area">Admin</span></div>
+              <nav>
+                <ul class="nav">
+                  <li><a href="#frame-b2" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>Orders</a></li>
+                  <li><a href="#frame-b2" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Templates</a></li>
+                  <li><a href="#frame-b2" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Users</a></li>
+                  <li><a href="#frame-b2" tabindex="-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notifications</a></li>
+                </ul>
+              </nav>
+            </aside>
+            <main class="main">
+              <header class="page-header">
+                <div>
+                  <p class="eyebrow">Operations</p>
+                  <nav class="breadcrumb" aria-label="Breadcrumb">
+                    <ol>
+                      <li><a href="#frame-b2" tabindex="-1">Orders</a></li>
+                      <li class="sep"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+                      <li aria-current="page">ORD-2026-0148</li>
+                    </ol>
+                  </nav>
+                  <p class="page-title">ORD-2026-0148</p>
+                  <p class="page-desc">Created 14 Oct 2026, 08:57 · Payment verified by gateway webhook at 09:12.</p>
+                </div>
+              </header>
+              <div class="content">
+                <section class="panel"><h2 class="panel-title">Payment</h2><div class="banner banner--success" style="margin-bottom:16px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><div><p class="banner-title">Verified</p><p class="banner-copy">Payment verified 14 Oct 2026, 09:12 by system webhook.</p></div></div><div style="display:grid;gap:12px"><span style="height:12px;width:70%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:55%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:62%;background:var(--surface-subtle);border-radius:4px"></span></div></section>
+                <section class="panel"><h2 class="panel-title">Fulfilment</h2><div style="display:grid;gap:16px"><span style="height:12px;width:60%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:52%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:58%;background:var(--surface-subtle);border-radius:4px"></span><span style="height:12px;width:44%;background:var(--surface-subtle);border-radius:4px"></span></div></section>
+              </div>
+            </main>
+          </div>
+        </div>
+
+        <div class="backdrop"></div>
+
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-c-title" aria-describedby="dlg-c-desc">
+          <h2 class="dialog-title" id="dlg-c-title">Advance to Preparing?</h2>
+          <p class="dialog-desc" id="dlg-c-desc">This records an audited transition for ORD-2026-0148. The buyer is not notified.</p>
+
+          <div class="banner banner--danger" role="alert">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.3 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <p class="banner-copy" style="margin:0">This order changed in another session. Refresh to see the current state.</p>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="reason-c">Reason <span class="field-required">Required</span></label>
+            <textarea class="textarea" id="reason-c" rows="4" placeholder="Why is this transition being made?" aria-describedby="reason-c-help">Warehouse confirmed stock for the demo calendars.</textarea>
+            <p class="field-help" id="reason-c-help">Stored in the audit history.</p>
+          </div>
+
+          <div class="summary-row">
+            <span class="summary-key">Current:</span>
+            <span class="state state--info">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              Waiting
+            </span>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="btn btn--outline" type="button">Cancel</button>
+            <button class="btn btn--primary is-focused" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <ul class="frame-notes" lang="vi">
+        <li>Banner danger <code>#FCE9E5</code> / chữ <code>#AA2925</code> (5.87:1) <strong>icon + chữ</strong>, không dùng màu đơn độc.</li>
+        <li><strong>Nội dung Reason được giữ nguyên</strong> (đã gõ sẵn) — form không bị xóa khi conflict.</li>
+        <li>Hành động chính còn lại là <strong>[Refresh]</strong> (ring focus hiển thị trên nó = initial focus an toàn); <strong>[Cancel] vẫn thấy</strong> để đóng bằng phím.</li>
+        <li>Không có nút <code>Advance</code> khi state đã cũ, không có “Done!” — không optimistic completion.</li>
+        <li>Dòng “Current: Waiting” vẫn còn để admin đối chiếu state cũ với banner conflict.</li>
+        <li>Backdrop không xác nhận thao tác khi bấm ra ngoài; chỉ Esc/Cancel mới đóng.</li>
+        <li>Mọi nút ≥44×44px; textarea tối thiểu 3 dòng.</li>
+        <li>Chỉ dialog có shadow — các panel sau backdrop vẫn phẳng (elevation.0).</li>
+      </ul>
+    </section>
+  </div>
+
+  <!-- ============================ CHECKLIST ============================ -->
+  <section class="compliance" id="compliance" aria-labelledby="check-title">
+    <h2 id="check-title">Checklist I13-P05</h2>
+    <p lang="vi">Đối chiếu với bảng checklist trong <code>STITCH_PROMPTS.md</code> và <code>docs/DESIGN_SYSTEM.md</code>.</p>
+    <ul class="checks">
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Mọi status đều <strong>icon + chữ</strong> (Verified, Waiting, Conflict) — không chấm màu đơn độc.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span><strong>Không có toggle/nút đánh dấu đã trả tiền</strong> — admin không thể mark paid từ màn này.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span><strong>Không chart / graph / KPI / sparkline</strong> — stepper là danh sách <code>&lt;ol&gt;</code>.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Nút destructive <strong>“Close order” tách 32px + divider</strong> khỏi primary.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Buyer <strong>chỉ hiện email</strong> — không SĐT / địa chỉ / số thẻ.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span><strong>Payment và fulfilment tách 2 panel</strong> riêng biệt, không gộp.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Dialog ghi <strong>“Advance”</strong>, không ghi “Completed” / “Done!”.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Nội dung form <strong>giữ nguyên khi conflict/expired</strong>.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Font: <strong>Baloo 2</strong> cho H1/H2, <strong>Be Vietnam Pro</strong> cho body/label/caption.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Focus ring <strong>2px #A43225, offset 2px</strong>; focus bị trap, Cancel không bị ẩn.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>Mọi target <strong>≥44×44px</strong>; nút primary nằm bên trái group, danger tách xa.</span></li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg><span>DataList label cột <strong>140px muted</strong>, value 16px text-primary; radius dialog 16px.</span></li>
+    </ul>
+  </section>
+
+</div>
+</body>
+</html>

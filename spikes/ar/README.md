@@ -18,7 +18,8 @@ Branch: `feature/I03-P02-synthetic-target-prototype`.
 | Recognition ≠ authorization (Q7) | Reveal needs the session scope plus the artifact/index that scope allows; artifacts are only served to an authorized session, never as public files | Yes | Yes (combined-artifact scan) |
 | Preparation failure | Missing / tampered artifact → `UNAVAILABLE`, fallback still works (`npm run fault`) | Yes | Optional |
 
-`npm test` (31 tests) covers the server, manifest, committed artifacts and module graph. **They are not AR evidence.**
+`npm test` (47 tests) covers the server, manifest, committed artifacts, module graph, static privacy checks of the page
+scripts and the installed MindAR build, fallback readability and port conformance. **They are not AR evidence.**
 P02's real-recognition criteria stay unchecked until the phone runs below are recorded in `evidence/`.
 
 ## Run it
@@ -28,7 +29,7 @@ Requirements: Node >= 22.2 and network access for the first install.
 ```bash
 cd spikes/ar
 npm ci --ignore-scripts        # --ignore-scripts: mind-ar depends on native `canvas`, which this harness does not use
-npm test                       # 31 tests
+npm test                       # 47 tests
 npm run compile:verify         # optional: recompile A, B and the combined artifact, record reproducibility, print feature counts
 SPIKE_ENABLE_COMBINED=1 npm start
 ```
@@ -106,8 +107,11 @@ DevTools/remote-inspector network trace once per device class (the page's off-or
 
 - Artifact preparation works in plain Node and is byte-reproducible (two recompiles identical, recorded in the manifest).
 - `mind-ar@1.2.5` depends on native `canvas`; a normal install failed in the build sandbox, so install with
-  `--ignore-scripts`. `npm audit` reports vulnerabilities through `canvas` → `@mapbox/node-pre-gyp` → `tar`
-  (install-time tooling, not part of what the browser loads); re-check before any workspace reuse.
+  `--ignore-scripts`. `npm audit` reports vulnerabilities (the count changes with the advisory database; 6 to 7 seen), all
+  transitive through `mind-ar`: `canvas` → `@mapbox/node-pre-gyp` → `tar` (critical/high; install-time tooling, and
+  `canvas` is never loaded by this harness because installs use `--ignore-scripts`) and `@tensorflow/tfjs` →
+  `argparse` → `sprintf-js` (moderate). npm reports no fix available. Do not run `npm audit fix --force` (it would
+  change pinned versions); re-check before any workspace reuse.
 - Upstream `mind-ar` last published 2024-01-16 (maintenance risk for P05). MIT license confirmed first-hand from the
   published package metadata and its LICENSE file.
 - MindAR's entry module imports `three/addons/renderers/CSS3DRenderer.js` and uses `outputEncoding`/`sRGBEncoding`;
@@ -124,3 +128,11 @@ DevTools/remote-inspector network trace once per device class (the page's off-or
 - Whether `mindar.stop()` releases every camera track is exactly what the evidence panel measures.
 - Whether the harness page loads on a real device with the CSP (importmap hash, `wasm-unsafe-eval`, workers).
 - Real recognition quality of the synthetic images (distance, light, orientation).
+
+## I03-P04 (privacy, fallback, provider port)
+
+- Review and findings: `I03-P04-privacy-fallback-port-review.md`.
+- Port sketch (type-checks under `tsc --strict`, not compiled by the workspace): `port/ar-provider-port.ts`.
+- Real-device network, storage and readability record: `evidence/P04-observations-template.md`.
+- Tests: `test/privacy-static.test.mjs`, `test/fallback-readability.test.mjs`, `test/port-conformance.test.mjs`.
+  They inspect source and the installed library; they do not replace a real network trace.

@@ -1,0 +1,96 @@
+/* Approved roles from docs/DESIGN_SYSTEM.md §§3–4. Components consume roles. */
+:root {
+  color-scheme: light;
+  --color-canvas: light-dark(#FAF7F1, #181512);
+  --color-surface: light-dark(#FFFDF9, #211C18);
+  --color-surface-raised: light-dark(#FFFFFF, #2B241F);
+  --color-surface-subtle: light-dark(#F4EEE4, #29221C);
+  --color-text-primary: light-dark(#29221D, #F8F1E7);
+  --color-text-secondary: light-dark(#51453B, #DDD0C0);
+  --color-text-muted: light-dark(#665B50, #B8A998);
+  --color-text-inverse: light-dark(#FFFDF9, #29221D);
+  --color-border: light-dark(#D8CCBD, #5A4D40);
+  --color-border-strong: light-dark(#907D68, #8A7562);
+  --color-brand: light-dark(#A43225, #E58C7A);
+  --color-brand-hover: light-dark(#87271D, #F4A596);
+  --color-brand-active: light-dark(#6F1F17, #CE7463);
+  --color-brand-text: light-dark(#9B2D22, #F4A596);
+  --color-focus: light-dark(#A43225, #F4A596);
+  --color-selected-bg: light-dark(#F3DCD2, #563229);
+  --color-selected-text: light-dark(#762319, #FFE9DF);
+  --color-selected-border: light-dark(#A43225, #E58C7A);
+  --color-success: light-dark(#276B42, #A8D6AC);
+  --color-success-bg: light-dark(#E7F4EA, #203529);
+  --color-warning: light-dark(#84500C, #F3C47B);
+  --color-warning-bg: light-dark(#FFF1D9, #3A2A18);
+  --color-danger: light-dark(#AA2925, #F5A59D);
+  --color-danger-hover: light-dark(#8E211E, #FFC0B8);
+  --color-danger-active: light-dark(#731A18, #DB8D85);
+  --color-danger-bg: light-dark(#FCE9E5, #432522);
+  --color-info: light-dark(#1C5F7A, #A7D4EA);
+  --color-info-bg: light-dark(#E6F2F7, #203644);
+  --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-heading: 'Baloo 2', 'Be Vietnam Pro', system-ui, sans-serif;
+  --type-h1: 2rem;
+  --type-h1-line: 2.5rem;
+  --type-h2: 1.75rem;
+  --type-h2-line: 2.25rem;
+  --type-h3: 1.5rem;
+  --type-h3-line: 2rem;
+  --type-body-lg: 1.125rem;
+  --type-body-lg-line: 1.75rem;
+  --type-body: 1rem;
+  --type-body-line: 1.5rem;
+  --type-body-sm: .875rem;
+  --type-body-sm-line: 1.375rem;
+  --type-label: .875rem;
+  --type-label-line: 1.25rem;
+  --type-caption: .75rem;
+  --type-caption-line: 1.125rem;
+  --space-0: 0;
+  --space-0_5: .125rem;
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --control-sm: 2.25rem;
+  --control-md: 2.75rem;
+  --control-lg: 3.25rem;
+  --radius-control: .5rem;
+  --radius-card: .75rem;
+  --radius-large: 1rem;
+  --layout-page-max: 75rem;
+  --layout-content-max: 45rem;
+  --layout-admin-max: 90rem;
+  --layout-gutter: var(--space-4);
+  --layer-base: 0;
+  --layer-sticky: 20;
+  --layer-dropdown: 40;
+  --layer-toast: 50;
+  --layer-overlay: 60;
+  --layer-modal: 80;
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --shadow-dialog: light-dark(rgb(41 34 29 / .34), rgb(0 0 0 / .65));
+  --elevation-dialog: 0 24px 64px -16px var(--shadow-dialog);
+}
+
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="system"] { color-scheme: light dark; }
+
+@media (min-width: 600px) { :root { --layout-gutter: var(--space-6); } }
+@media (min-width: 960px) {
+  :root { --layout-gutter: var(--space-8); --type-h1: 2.5rem; --type-h1-line: 3rem; --type-h2: 2rem; --type-h2-line: 2.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-fast: 0ms; --motion-standard: 0ms; }
+}

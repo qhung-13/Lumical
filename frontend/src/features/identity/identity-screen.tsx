@@ -4,16 +4,19 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError } from '../../api/identity';
-import { identityCopy, type Locale } from '../../i18n/identity';
+import { identityCopy } from '../../i18n/identity';
 import { useIdentity } from './provider';
 import { privateKey } from './session-manager';
 import styles from './identity.module.css';
+import { usePreferences } from '../../design-system/foundations/preferences-provider';
+import { PreferenceControls } from '../../design-system/foundations/preference-controls';
+import { Button } from '../../design-system/primitives/button';
+import { FormField } from '../../design-system/composites/form-field';
 
-export function IdentityScreen({ mode, initialLocale = 'en', initialTheme = 'system' }: { mode: 'register' | 'login' | 'account'; initialLocale?: Locale; initialTheme?: string }) {
+export function IdentityScreen({ mode }: { mode: 'register' | 'login' | 'account' }) {
   const { manager, state } = useIdentity();
   const router = useRouter();
-  const [locale, setLocale] = useState<Locale>(initialLocale);
-  const [theme, setTheme] = useState(initialTheme);
+  const { locale, theme } = usePreferences();
   const copy = identityCopy[locale];
   const account = useQuery({ queryKey: privateKey(state.principal?.id ?? 'guest', 'account'),
     queryFn: () => manager.api.ownAccount(), enabled: mode === 'account' && state.phase === 'authenticated' && state.mutationReady });
@@ -24,7 +27,6 @@ export function IdentityScreen({ mode, initialLocale = 'en', initialTheme = 'sys
   const [fields, setFields] = useState<{ email?: boolean; password?: boolean }>({});
   const intent = useRef<string | undefined>(undefined);
   const summary = useRef<HTMLDivElement>(null);
-  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
   useEffect(() => { if (error) summary.current?.focus(); }, [error]);
   const message = (code: string) => code === 'UNAUTHENTICATED' ? copy.credentials : code === 'VALIDATION_FAILED' ? copy.validation :
     code === 'CONFLICT' || code === 'IDEMPOTENCY_CONFLICT' ? copy.conflict : code === 'RATE_LIMITED' ? copy.limited :
@@ -56,42 +58,30 @@ export function IdentityScreen({ mode, initialLocale = 'en', initialTheme = 'sys
   return <main className={styles.identity} data-theme={theme} lang={locale}>
     <nav aria-label={locale === 'vi' ? 'Điều hướng tài khoản' : 'Account navigation'} className={styles.cluster}>
       <Link href="/">{copy.home}</Link>
-      <label>{copy.language}<select value={locale} onChange={event => {
-        const value = event.target.value === 'vi' ? 'vi' : 'en'; setLocale(value);
-        document.cookie = `lumical_locale=${value}; Path=/; SameSite=Lax; Max-Age=31536000`;
-      }}><option value="en">English</option><option value="vi">Tiếng Việt</option></select></label>
-      <label>{copy.theme}<select value={theme} onChange={event => {
-        setTheme(event.target.value); document.cookie = `lumical_theme=${event.target.value}; Path=/; SameSite=Lax; Max-Age=31536000`;
-      }}><option value="system">{copy.system}</option><option value="light">{copy.light}</option><option value="dark">{copy.dark}</option></select></label>
+      <PreferenceControls />
     </nav>
     <h1>{heading}</h1>
     {error && <div className={styles.error} role="alert" ref={summary} tabIndex={-1}>{message(error)}</div>}
     {state.phase === 'loading' && <p role="status">{copy.restoring}</p>}
-    {state.phase === 'unavailable' && <div role="status"><p>{copy.unavailable}</p><button onClick={() => void manager.bootstrap()}>{copy.retry}</button></div>}
+    {state.phase === 'unavailable' && <div role="status"><p>{copy.unavailable}</p><Button onClick={() => void manager.bootstrap()}>{copy.retry}</Button></div>}
     {state.phase === 'authenticated' && state.principal && <section aria-label={copy.account}>
       <p>{state.principal.email}</p>
-      {account.isError && <p role="status">{copy.unavailable} <button onClick={() => void account.refetch()}>{copy.retry}</button></p>}
+      {account.isError && <p role="status">{copy.unavailable} <Button onClick={() => void account.refetch()}>{copy.retry}</Button></p>}
       {mode !== 'account' && <p><Link href="/account">{copy.account}</Link></p>}
-      <button disabled={pending || !state.mutationReady} onClick={() => void logout()}>{pending ? copy.pending : copy.logout}</button>
+      <Button disabled={!state.mutationReady} loading={pending} loadingLabel={copy.pending} onClick={() => void logout()}>{copy.logout}</Button>
     </section>}
     {state.phase === 'unauthenticated' && (mode === 'account' ? <section>
       <p>{copy.guest}</p><Link href="/login">{copy.login}</Link>
-    </section> : <form onSubmit={event => void submit(event)} noValidate aria-busy={pending}>
+    </section> : <form onSubmit={event => void submit(event)} noValidate>
       <p>{copy.hint}</p>
       <fieldset disabled={pending}>
-        <div className={styles.field}>
-          <label htmlFor="identity-email">{copy.email} ({copy.required})</label>
-          <input id="identity-email" name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required value={email}
-            onChange={event => { change(); setEmail(event.target.value); }} aria-invalid={!!fields.email} aria-describedby={fields.email ? 'identity-email-error' : undefined} />
-          {fields.email && <p id="identity-email-error" className={styles.fieldError}>{copy.emailError}</p>}
-        </div>
-        <div className={styles.field}>
-          <label htmlFor="identity-password">{copy.password} ({copy.required})</label>
-          <input id="identity-password" name="password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required value={password}
-            onChange={event => { change(); setPassword(event.target.value); }} aria-invalid={!!fields.password} aria-describedby={fields.password ? 'identity-password-error' : undefined} />
-          {fields.password && <p id="identity-password-error" className={styles.fieldError}>{copy.passwordError}</p>}
-        </div>
-        <button className={styles.primary} type="submit">{pending ? copy.pending : heading}</button>
+        <FormField id="identity-email" label={copy.email} requirementLabel={copy.required} error={fields.email ? copy.emailError : undefined}
+          name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required value={email}
+          onChange={event => { change(); setEmail(event.target.value); }} />
+        <FormField id="identity-password" label={copy.password} requirementLabel={copy.required} error={fields.password ? copy.passwordError : undefined}
+          name="password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required value={password}
+          onChange={event => { change(); setPassword(event.target.value); }} />
+        <Button variant="primary" type="submit" loading={pending} loadingLabel={copy.pending}>{heading}</Button>
       </fieldset>
       <p><Link href={mode === 'register' ? '/login' : '/register'}>{mode === 'register' ? copy.login : copy.register}</Link></p>
     </form>)}

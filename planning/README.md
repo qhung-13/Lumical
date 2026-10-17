@@ -18,6 +18,8 @@ Historical DONE entries reflect repository/history and the earlier I00 evidence,
 
 **I01 execution update — 2026-10-12:** I01 and P01–P08 are now **IN_REVIEW** on `feature/I01-database-foundation`, following the explicit I01 implementation request. PostgreSQL 17.11/Prisma 7.10.0 persistence, separate migration/runtime roles, 30 P0 models, immutable history, synthetic seeds, transaction contexts and live/ready health are implemented. Frozen install, peers, root `pnpm verify`, real blank/repeat/upgrade PostgreSQL integration and full Docker/database outage smoke passed locally. [I01 evidence](I01-database-foundation.md#execution-evidence--2026-10-12) records the technical checks and remaining human approval. Frozen authority bytes are unchanged; no commit/push was made. I00's outstanding DS/i18n common gate and all other item statuses/dependencies remain unchanged; I01 implementation is not approval for dependent feature expansion.
 
+**I00 completion execution update — 2026-10-17:** LEAD explicitly authorized the full ROADMAP visual/language gate without waiver or deferral. P04–P07 are implemented with shared tokens/controls/Dialog/preferences, neutral public/form/Admin examples and browser/axe/visual evidence. I00 and P04–P07 remain **IN_REVIEW** pending real browser-toolbar zoom, screen-reader and human acceptance; P01–P03 remain historical DONE. The earlier scope blocker is resolved. See [current I00 evidence](I00-repository-project-foundation.md#execution-evidence--2026-10-17). I01/I02 implementation and statuses are preserved.
+
 ## Team Ownership
 
 | Role | Primary ownership | Architecture authority | Review responsibility |
@@ -33,7 +35,7 @@ Primary Pxx counts: LEAD **25**, MEMBER_2 **29**, MEMBER_3 **31**, MEMBER_4 **41
 
 | Milestone | Implementation items | Priority boundary |
 | --- | --- | --- |
-| M0 — Foundation | I00 | P0 foundation; reconcile full acceptance |
+| M0 — Foundation | I00 | P0 foundation; complete manual/common-gate acceptance |
 | M1 — Core Platform | I01–I03 | P0 database/identity and mandatory early AR spike |
 | M2 — Calendar Creation | I04–I08 | P0 catalog, Project, private media, Studio, preview/readiness/preparation |
 | M3 — Order & Recipient Experience | I09–I12 | P0 snapshots, verified sandbox, sharing/fallback and genuine AR |
@@ -46,7 +48,7 @@ Names are the exact canonical ROADMAP names. Ixx primary owner coordinates integ
 
 | Ixx | Name | Milestone | Primary owner | Supporting members | Reviewer | Hard dependencies / admission | Priority | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| [I00](I00-repository-project-foundation.md) | Repository / Project Foundation | M0 | LEAD | MEMBER_2, MEMBER_4, MEMBER_3 | LEAD | R04 accepted; I00 clarification | P0 | IN_PROGRESS |
+| [I00](I00-repository-project-foundation.md) | Repository / Project Foundation | M0 | LEAD | MEMBER_2, MEMBER_4, MEMBER_3 | LEAD | R04 accepted; explicit full-scope LEAD authorization | P0 | IN_REVIEW |
 | [I01](I01-database-foundation.md) | Database Foundation | M1 | LEAD | MEMBER_2, MEMBER_3, MEMBER_4 | LEAD | I00 | P0 | IN_REVIEW |
 | [I02](I02-identity-and-sessions.md) | Identity & Sessions | M1 | LEAD | MEMBER_2, MEMBER_3, MEMBER_4 | LEAD | I01 | P0 | IN_REVIEW |
 | [I03](I03-early-ar-technology-spike.md) | Early AR Technology Spike | M1 | MEMBER_3 | LEAD, MEMBER_4 | LEAD | I00 | P0 | TODO |
@@ -123,7 +125,7 @@ Phases are acceptance windows, **not dates, sprint lengths or new authority orde
 
 | Phase / entry gate | LEAD | MEMBER_2 | MEMBER_3 | MEMBER_4 |
 | --- | --- | --- | --- | --- |
-| A — Current I00 gap | Resolve acceptance/pinning clarification with authority owner; review the outstanding I00 slice | **After clarification**, I00-P04 then P05 | Independent teammate review of eligible I00 slice/evidence; implementation waits for I00 | **After clarification**, I00-P06; P07 after P04–P06 |
+| A — I00 completion review | Review common-gate evidence and record final acceptance | Review implemented P04/P05 and manual focus/assistive checks | Independent teammate review of the I00 slice; existing later-item gates remain | Review implemented P06/P07 and complete manual language/theme/zoom evidence |
 | B — Full I00 accepted | I01-P01; then P03/P04 after environment/schema gates | Review seed/fixture requirements in P01; I01-P06 after P03–P05 | I03-P01/P02; I01-P05 after P04 as a separate work slot | I01-P02/P08; I03-P03 after prototype; I01-P07 after all required predecessors |
 | C — I01 accepted; spike evidence evolving | I02-P01/P02; I03-P05 after device/privacy evidence | Contract review support first; I02-P04 after P02, then P05 | I03-P04/P06 after their gates; I02-P06 after identity/UI tasks | I02-P03 after P02; complete eligible I03 device evidence |
 | D — I02 accepted | Review I04/I06 contracts; retain core review capacity | I04-P01/P03 | I06-P01–P04; I04-P05 after catalog/UI prerequisites; finish outstanding I03 proof before I07 | I04-P02/P04 |
@@ -190,7 +192,7 @@ Use [DEV_WORKFLOW §22](../docs/DEV_WORKFLOW.md#22-definition-of-done) and [TEST
 
 ## Planning Risks and Authority Clarifications
 
-1. **AUTHORITY CLARIFICATION REQUIRED — I00 acceptance scope.** The merged narrowly scoped foundation deliberately deferred DS implementation, while ROADMAP I00 still names a DS public/form/dialog/Admin common gate and VI/EN/theme shells. LEAD coordinates the proper authority-owner confirmation of how this gap is closed; planning neither waives nor moves that gate. I00-P04/P06 are BLOCKED until clarified; no later integrated item becomes READY automatically.
+1. **RESOLVED — I00 acceptance scope.** LEAD explicitly decided: “The full ROADMAP I00 visual/language gate remains part of I00 and is explicitly authorized for implementation; it is not waived or deferred.” P04–P07 are implemented and IN_REVIEW. Required manual evidence and reviewer acceptance remain; no later integrated item becomes READY automatically.
 2. **Tooling-pinning timing — execution update.** The original plan flagged I00 pinning references against deferred I01 installation. The explicit I01 implementation request authorized this tooling execution; compatible versions are now pinned and tested. Teammate review of versions/schema/privileges remains pending; authority files and I00 acceptance are unchanged.
 3. **Technical alignment at I01:** `/api/v1/health/live` and `/health/ready` now match API_CONTRACT and pass real PostgreSQL/outage checks. The existing `/api/v1/health` compatibility route preserves the I00 frontend proof and is submitted for LEAD review. The Next health-only handler does not establish the business API reverse proxy; I02-P02 explicitly owns that security-sensitive transport setup.
 4. **External acceptance gates:** I03 must find viable real mobile recognition/privacy/licensing; I06 must prove actual configured Cloudinary originals/derivatives are private; I10 must prove actual sandbox USD/account binding. Failed evidence blocks the affected item, not a scope rewrite.

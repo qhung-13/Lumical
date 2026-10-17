@@ -34,7 +34,11 @@ Thumbs.db
 
 # Test artifacts
 playwright-report
+**/playwright-report
 test-results
+**/test-results
+blob-report
+**/blob-report
 
 # Misc
 *.tmp

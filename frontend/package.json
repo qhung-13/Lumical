@@ -9,18 +9,25 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test --project=chromium --project=firefox --project=webkit",
+    "test:visual": "playwright test --project=chromium-visual"
   },
   "dependencies": {
+    "@fontsource/baloo-2": "5.3.0",
+    "@fontsource/be-vietnam-pro": "5.3.0",
     "@tanstack/react-query": "5.104.2",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
     "@types/node": "20.19.43",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",

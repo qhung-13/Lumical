@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IdentityProvider } from './provider';
+import { PreferencesProvider } from '../../design-system/foundations/preferences-provider';
 import { IdentityScreen } from './identity-screen';
 const replace = vi.hoisted(() => vi.fn());
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
@@ -12,7 +13,7 @@ describe('identity forms and account UI', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ authenticated: false }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'UNAUTHENTICATED', fieldErrors: [] } }), { status: 401 }));
     vi.stubGlobal('fetch', fetcher);
-    render(<IdentityProvider initial={{ phase: 'unauthenticated' }}><IdentityScreen mode="login" /></IdentityProvider>);
+    render(<PreferencesProvider><IdentityProvider initial={{ phase: 'unauthenticated' }}><IdentityScreen mode="login" /></IdentityProvider></PreferencesProvider>);
     const email = await screen.findByLabelText('Email (required)'); const password = screen.getByLabelText('Password (required)');
     fireEvent.submit(email.closest('form')!);
     expect(password).toHaveAttribute('aria-describedby', 'identity-password-error');
@@ -29,7 +30,7 @@ describe('identity forms and account UI', () => {
       .mockRejectedValueOnce(new Error('network'))
       .mockResolvedValueOnce(json({ ...principal, csrfToken: 'a'.repeat(64) }));
     vi.stubGlobal('fetch', fetcher);
-    render(<IdentityProvider initial={{ phase: 'unauthenticated' }}><IdentityScreen mode="register" /></IdentityProvider>);
+    render(<PreferencesProvider><IdentityProvider initial={{ phase: 'unauthenticated' }}><IdentityScreen mode="register" /></IdentityProvider></PreferencesProvider>);
     const email = await screen.findByLabelText('Email (required)');
     fireEvent.change(email, { target: { value: principal.email } });
     fireEvent.change(screen.getByLabelText('Password (required)'), { target: { value: 'TEST ONLY passphrase' } });
@@ -45,7 +46,7 @@ describe('identity forms and account UI', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ authenticated: true, principal, csrfToken: 'a'.repeat(64) }))
       .mockResolvedValueOnce(json(principal)).mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetcher);
-    render(<IdentityProvider initial={{ phase: 'unauthenticated' }}><IdentityScreen mode="account" /></IdentityProvider>);
+    render(<PreferencesProvider><IdentityProvider initial={{ phase: 'unauthenticated' }}><IdentityScreen mode="account" /></IdentityProvider></PreferencesProvider>);
     await screen.findByText(principal.email);
     fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'vi' } });
     expect(screen.getByRole('heading', { name: 'Tài khoản của bạn' })).toBeVisible();

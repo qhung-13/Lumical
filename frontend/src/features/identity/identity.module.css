@@ -1,66 +1,7 @@
-/* Feature-owned native form composition while the I00 shared DS gate is pending.
-   This subset uses the frozen semantic mappings and scales; no parallel UI kit. */
-.identity {
-  --color-canvas: #FAF7F1;
-  --color-surface: #FFFDF9;
-  --color-text-primary: #29221D;
-  --color-text-secondary: #51453B;
-  --color-text-inverse: #FFFDF9;
-  --color-border-strong: #907D68;
-  --color-brand: #A43225;
-  --color-brand-hover: #87271D;
-  --color-brand-active: #6F1F17;
-  --color-brand-text: #9B2D22;
-  --color-focus: #A43225;
-  --color-danger: #AA2925;
-  --color-danger-bg: #FCE9E5;
-  --space-1: .25rem; --space-2: .5rem; --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem;
-  --radius-control: .5rem;
-  color-scheme: light;
-  color: var(--color-text-primary);
-  background: var(--color-canvas);
-  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
-  font-size: 1rem; line-height: 1.5rem;
-  min-height: 100dvh;
-  padding: var(--space-8) var(--space-4);
-}
-.identity[data-theme='dark'] {
-  --color-canvas: #181512; --color-surface: #211C18; --color-text-primary: #F8F1E7; --color-text-secondary: #DDD0C0;
-  --color-text-inverse: #29221D; --color-border-strong: #8A7562; --color-brand: #E58C7A;
-  --color-brand-hover: #F4A596; --color-brand-active: #CE7463; --color-brand-text: #F4A596;
-  --color-focus: #F4A596; --color-danger: #F5A59D; --color-danger-bg: #432522;
-  color-scheme: dark;
-}
-@media (prefers-color-scheme: dark) {
-  .identity[data-theme='system'] {
-    --color-canvas: #181512; --color-surface: #211C18; --color-text-primary: #F8F1E7; --color-text-secondary: #DDD0C0;
-    --color-text-inverse: #29221D; --color-border-strong: #8A7562; --color-brand: #E58C7A;
-    --color-brand-hover: #F4A596; --color-brand-active: #CE7463; --color-brand-text: #F4A596;
-    --color-focus: #F4A596; --color-danger: #F5A59D; --color-danger-bg: #432522;
-    color-scheme: dark;
-  }
-}
-.identity h1 { font-family: 'Baloo 2', system-ui, sans-serif; font-size: 2rem; line-height: 2.5rem; margin-block: var(--space-8); }
+/* I02 composition consumes the shared I00 foundation; auth behavior is unchanged. */
+.identity { color: var(--color-text-primary); background: var(--color-canvas); width: 100%; max-width: var(--layout-content-max); min-height: 100dvh; margin-inline: auto; padding: var(--space-8) var(--layout-gutter); }
+.identity h1 { margin-block: var(--space-8); }
 .identity p { color: var(--color-text-secondary); }
-.identity a { color: var(--color-brand-text); text-decoration: underline; }
-.identity input, .identity select, .identity button {
-  font: inherit; color: var(--color-text-primary); background: var(--color-surface);
-  min-height: 2.75rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); padding: var(--space-2) var(--space-4);
-  max-width: 100%;
-}
-.identity button { cursor: pointer; white-space: normal; }
-.identity button:disabled { cursor: wait; }
-.identity :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-.identity .primary { background: var(--color-brand); color: var(--color-text-inverse); border-color: var(--color-brand); }
-.identity .primary:hover { background: var(--color-brand-hover); }
-.identity .primary:active { background: var(--color-brand-active); }
 .identity fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .cluster { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
-.cluster label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.field { display: grid; gap: var(--space-2); margin-block-end: var(--space-5); }
-.field label { font-size: .875rem; line-height: 1.25rem; font-weight: 600; }
-.field input { width: 100%; }
-.field input[aria-invalid='true'] { border-color: var(--color-danger); }
-.field .fieldError { margin: 0; color: var(--color-danger); }
 .error { padding: var(--space-4); margin-block: var(--space-6); background: var(--color-danger-bg); color: var(--color-danger); }
-@media (min-width: 960px) { .identity h1 { font-size: 2.5rem; line-height: 3rem; } }

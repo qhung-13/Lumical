@@ -1,8 +1,9 @@
 # LumiCal
 
 A university software engineering project for personalized twelve-month memory
-calendars. This repository contains the **I00 team-ready and I01 database foundations**.
-The temporary frontend page and technical health endpoint support setup only.
+calendars. This repository contains the I00 shared presentation foundation, I01 database
+foundation and I02 identity implementation. The public, form/dialog and Admin
+examples are neutral Design System fixtures; they perform no business operations.
 
 ## Requirements and installation
 
@@ -13,7 +14,14 @@ The temporary frontend page and technical health endpoint support setup only.
 ```sh
 npm install --global pnpm@11.22.0
 pnpm install --frozen-lockfile
+pnpm --dir frontend exec playwright install --with-deps chromium firefox webkit
 ```
+
+The browser install is required before `pnpm verify`; dependency installation
+alone does not download Playwright runtimes. Repeat it after a Playwright upgrade.
+On Linux, `--with-deps` also installs required system libraries and may need sudo.
+CI installs these same prerequisites explicitly. Docker must be running for the
+disposable PostgreSQL checks.
 
 All commands below run from the repository root. The root `pnpm-lock.yaml` is the
 only dependency lockfile; add dependencies to the relevant workspace package.
@@ -25,7 +33,7 @@ only dependency lockfile; add dependencies to the relevant workspace package.
 | `frontend/` | Next.js 16.4.0, React 19.3.0, TypeScript 5.9.3; App Router, CSS, ESLint, Vitest + Testing Library. |
 | `frontend/src/app/` | Routing, layouts and route handlers; compose features here. |
 | `frontend/src/features/` | Future product features. |
-| `frontend/src/components/`, `design-system/` | Shared UI and future approved Design System implementation. |
+| `frontend/src/components/`, `design-system/` | Shared UI and approved Design System foundations, controls and layouts. |
 | `frontend/src/api/`, `lib/`, `hooks/`, `i18n/`, `types/` | API access, generic infrastructure, shared hooks, translations and neutral UI types. |
 | `backend/` | NestJS 12.1.2, TypeScript 6.0.3, ESLint, Jest 30.5.2 and Supertest. |
 | `backend/src/modules/` | Technical health module now; future modules follow Backend Standards. |
@@ -133,7 +141,9 @@ pnpm --dir backend test:e2e    # e2e alone
 pnpm build
 pnpm test:db                   # disposable real PostgreSQL, migrations and integrity
 pnpm test:docker               # builds Compose images, tests readiness/outage, cleans its own project
-pnpm verify                   # typecheck -> lint -> test -> build -> test:db; CI contract
+pnpm test:ui                  # three-browser accessibility, keyboard and reflow gate
+pnpm test:visual              # reviewed Windows/Chromium snapshot comparison
+pnpm verify                   # static, unit, build, contract, proxy, UI and PostgreSQL gates
 ```
 
 Package scripts remain available via `pnpm --dir frontend ...` and
@@ -161,6 +171,33 @@ run verification and obtain teammate PR review before merging. Authorities
 remain frozen; propose coordinated authority changes through review.
 Never commit real `.env` files, secrets, participant content or build output.
 
-Intentional deferrals: **auth = I02**,
-**AR technology spike = I03**. Product UI, full Design System, provider
-integrations and deployment are outside this foundation task.
+Identity remains owned by **I02** and the AR technology spike by **I03**.
+Product features, the remaining Design System inventory, provider integrations
+and deployment remain outside this foundation slice.
+
+## Shared presentation foundation (I00)
+
+Open `/`, `/foundation/form` and `/foundation/admin` to inspect the public,
+form/Dialog and neutral Admin compositions. The latter is an interface example,
+not an Admin permission or business route. Existing identity pages consume the
+same tokens, controls and presentation preferences.
+
+The server renders the language/theme preference cookies. An initial System
+choice follows OS appearance in CSS, before hydration. Only the enum values in
+`lumical_locale` and `lumical_theme` are persisted; authentication remains I02-owned.
+Approved Baloo 2 and Be Vietnam Pro fonts (including Vietnamese subsets) are
+self-hosted through pinned Fontsource packages under the SIL Open Font License.
+
+After installing dependencies, install the browser test runtimes once:
+
+```sh
+pnpm --dir frontend exec playwright install --with-deps chromium firefox webkit
+pnpm build
+pnpm test:ui
+pnpm test:visual
+```
+
+`pnpm verify` includes the three-browser accessibility/keyboard/reflow gate.
+Visual comparisons use reviewed Chromium Windows snapshots; CI runs those in a
+separate Windows job, keeping platform font rasterization consistent. See
+[frontend guidance](frontend/README.md) and [I00 evidence](planning/I00-repository-project-foundation.md).

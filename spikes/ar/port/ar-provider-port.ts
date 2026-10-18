@@ -1,15 +1,19 @@
 /**
- * I03-P04 — AR provider port SKETCH.
+ * I03-P04 — AR provider port SKETCH (revision 2, after review).
  *
- * Purpose: show that a provider-neutral boundary can preserve (a) source version, (b) immutable artifact semantics,
- * (c) "recognition is not authorization", and (d) a same-content camera-free path. It is a review aid for LEAD (I03-P05)
- * and the input for the real port in I08/I12. It is NOT a contract: any API change follows DEV_WORKFLOW section 11.
- * Not compiled by the workspace; type-check locally with:
- *     npx -p typescript tsc --noEmit --strict --target es2022 --moduleResolution bundler port/ar-provider-port.ts
+ * Purpose: show that a provider-neutral boundary can preserve (a) the source version, (b) immutable artifact semantics,
+ * (c) "recognition is not authorization", and (d) a camera-free path that does not depend on AR. It is a review aid for
+ * LEAD (I03-P05) and the input for the real port in I08/I12. It is NOT a contract: any API change follows
+ * DEV_WORKFLOW section 11. Not compiled by the workspace; type-check locally with:
+ *     npx -p typescript tsc --noEmit --strict --target es2022 --moduleResolution bundler --module esnext port/ar-provider-port.ts
  *
- * Rules mirrored here: BR-AR-001 (image + message is enough), BR-AR-002 (artifact bound to the order's source version),
- * BR-AR-003 / INV-08 (recognition is not authorization, no global target-to-media lookup), BR-AR-004 (camera-free
- * fallback with the same content), ADR-005 (provider metadata stays in the adapter).
+ * Rules mirrored here: BR-AR-001 (one designated target, image + message is enough), BR-AR-002 (artifact bound to the
+ * order's source version), BR-AR-003 / INV-08 (recognition is not authorization, no global target-to-media lookup),
+ * BR-AR-004 (camera-free path with the same content), ADR-005 (provider metadata stays in the adapter).
+ *
+ * Changes from revision 1: artifact byte identity is separate from the source-revision binding; no provider target or
+ * anchor index crosses this boundary; `prepare()` and the store verify hashes; `content()` cannot fail because the AR
+ * artifact is unavailable.
  */
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -18,74 +22,113 @@
 
 type Brand<T, B extends string> = T & { readonly __brand: B };
 
-/** Immutable identity of the Project/Order source version the artifact was prepared from. */
+/** Identity of the Project/Order source version an artifact is prepared for. */
 export type SourceRevisionId = Brand<string, 'SourceRevisionId'>;
-/** Content-addressed: derived from the artifact bytes, so one id can only ever mean one byte sequence. */
-export type ArtifactId = Brand<string, 'ArtifactId'>;
-/** Opaque to everything except the adapter that produced it (for MindAR: the anchor index in the compiled file). */
-export type TargetIndex = Brand<number, 'TargetIndex'>;
-
-// ---------------------------------------------------------------------------------------------------------------
-// Preparation (server side / build time). Provider-neutral view of "what was prepared from what".
-// ---------------------------------------------------------------------------------------------------------------
-
-export interface ARTargetSource {
-  readonly sourceRevisionId: SourceRevisionId;
-  /** Hash of the exact image bytes the target is prepared from. A different image is a different source. */
-  readonly sourceImageSha256: string;
-  readonly width: number;
-  readonly height: number;
-}
-
 /**
- * IMMUTABLE record. Never updated in place. A changed source image or a changed provider/tool version produces a NEW
- * ArtifactId; an Order that referenced the old one keeps resolving to the old bytes (BR-AR-002).
+ * Canonical artifact identity, derived from the FULL SHA-256 of the artifact bytes (e.g. `ar-<64 hex>`). One id can only
+ * mean one byte sequence. Short forms exist for display only and are never used as keys.
  */
+export type ArtifactId = Brand<string, 'ArtifactId'>;
+export type Sha256Hex = Brand<string, 'Sha256Hex'>;
+
+// ---------------------------------------------------------------------------------------------------------------
+// 1. Artifact BYTE identity. Knows nothing about orders, projects or revisions.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** IMMUTABLE. Never updated in place; there is no update and no delete in P0. */
 export interface PreparedARArtifact {
-  readonly artifactId: ArtifactId;
-  readonly sourceRevisionId: SourceRevisionId;
-  readonly sourceImageSha256: string;
-  readonly artifactSha256: string;
+  readonly artifactId: ArtifactId; // must equal 'ar-' + artifactSha256
+  readonly artifactSha256: Sha256Hex;
   readonly sizeBytes: number;
-  /** Number of targets in the file. Production artifacts have exactly 1 (one designated target, BR-AR-001). */
-  readonly targetCount: 1;
   readonly providerId: string; // e.g. 'mindar'
-  readonly providerVersion: string; // e.g. 'mind-ar@1.2.5'
-  readonly preparedAt: string; // ISO timestamp, informational only; never part of the id
-  /**
-   * Adapter-bound data (tool name, tooling versions, reproducibility checks). Never exposed in an API DTO and never
-   * interpreted outside the adapter (ADR-005).
-   */
+  readonly providerVersion: string; // e.g. 'mind-ar@1.2.5, @tensorflow/tfjs@4.22.0 (cpu)'
+  readonly createdAt: string; // informational; never part of the id
+  /** Adapter-bound data (tool name, toolchain, reproducibility records). Never exposed in a DTO, never read outside the adapter. */
   readonly providerMetadata: unknown;
 }
 
-export interface ARPreparationPort {
-  /**
-   * Idempotent: the same (source image, provider, provider version) yields the same artifact bytes and therefore the
-   * same ArtifactId. Must never mutate an existing artifact. Failure is an explicit error, never a silent fallback to
-   * a different target.
-   */
-  prepare(source: ARTargetSource, imageBytes: Uint8Array): Promise<{ artifact: PreparedARArtifact; bytes: Uint8Array }>;
+export class ArtifactIntegrityError extends Error {
+  constructor(readonly reason: 'hash-mismatch' | 'id-mismatch' | 'id-collision' | 'size-mismatch' | 'not-single-target') {
+    super(reason);
+  }
 }
 
-/** Append-only store. `put` of an existing id with different bytes MUST fail. There is no update and no delete in P0. */
+/**
+ * Append-only content-addressed store.
+ *  - `put` MUST recompute the SHA-256 of `bytes` and fail with `hash-mismatch` / `id-mismatch` if it disagrees with the
+ *    record; it MUST fail with `id-collision` if the id already exists with different bytes; identical bytes are a no-op.
+ *  - `get` MUST re-verify the bytes against `artifactSha256` and report `unavailable` on any disagreement or absence.
+ */
 export interface ARArtifactStore {
   put(artifact: PreparedARArtifact, bytes: Uint8Array): Promise<void>;
-  /** Integrity-checked: returns `unavailable` when bytes are missing or no longer match `artifactSha256`. */
   get(id: ArtifactId): Promise<{ status: 'ok'; artifact: PreparedARArtifact; bytes: Uint8Array } | { status: 'unavailable' }>;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Recognition (client side). The recognizer only ever reports "which target of the loaded artifact is in view".
+// 2. Source-revision BINDING. A separate, append-only fact: "this artifact was prepared for this source revision".
 // ---------------------------------------------------------------------------------------------------------------
 
+export type ProvenanceStatus =
+  | 'built-from-verified-source' // produced by the preparation port from a source whose hash was verified
+  | 'verified-recompile' // external bytes equal a fresh recompile of the verified source (same toolchain only)
+  | 'manual-unverified'; // structure fits but the content is NOT proven to come from this source
+
+export interface ARArtifactBinding {
+  readonly sourceRevisionId: SourceRevisionId;
+  readonly sourceImageSha256: Sha256Hex; // the exact image bytes the artifact was prepared from
+  readonly artifactId: ArtifactId;
+  readonly provenance: { readonly status: ProvenanceStatus; readonly detail: string; readonly checkedAt: string };
+  readonly boundAt: string;
+}
+
+/**
+ * Append-only. The same artifact bytes MAY be bound to several revisions (identical source image); one revision MAY be
+ * re-bound to a new artifact (new toolchain, new image). Existing bindings are never changed, so an Order version that
+ * referenced a binding keeps resolving to the same artifact bytes (BR-AR-002).
+ */
+export interface ARBindingStore {
+  bind(binding: ARArtifactBinding): Promise<void>;
+  findBySourceRevision(id: SourceRevisionId): Promise<readonly ARArtifactBinding[]>;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Preparation (server side / build time)
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface ARTargetSource {
+  readonly sourceRevisionId: SourceRevisionId;
+  /** Declared hash of the image bytes. `prepare` MUST hash `imageBytes` and refuse on mismatch. */
+  readonly sourceImageSha256: Sha256Hex;
+}
+
+export interface ARPreparationPort {
+  /**
+   * Preconditions: sha256(imageBytes) === source.sourceImageSha256, otherwise fail before doing any work.
+   * Postconditions the caller may rely on (and the adapter MUST guarantee):
+   *   - exactly ONE designated target (BR-AR-001); multi-target output fails with `not-single-target`
+   *   - artifact.artifactSha256 === sha256(bytes) and artifact.artifactId === 'ar-' + artifact.artifactSha256
+   *   - idempotent for the same (image bytes, provider, provider version) in the recorded toolchain
+   * It never mutates a stored artifact and never silently substitutes another target. Binding the result to a source
+   * revision is a separate call on `ARBindingStore`, made only after these checks pass.
+   */
+  prepare(source: ARTargetSource, imageBytes: Uint8Array): Promise<{ artifact: PreparedARArtifact; bytes: Uint8Array; provenance: ProvenanceStatus }>;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Recognition (client side). Provider details, including anchor/target indexes, STOP at the adapter.
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Production artifacts have exactly one target, so "recognized" has a single meaning: the artifact's designated target
+ * is in view. There is deliberately no `targetIndex` here. A provider that needs one (MindAR's anchor index) keeps it
+ * inside its adapter; multi-target artifacts exist only as a test-only adapter extension (see harness `combined`).
+ */
 export interface RecognitionEvent {
-  readonly artifactId: ArtifactId; // which artifact the device loaded
-  readonly targetIndex: TargetIndex; // which target inside it; no provider data, no pose, no frame
+  readonly artifactId: ArtifactId;
 }
 
 export interface ARRecognizerPort {
-  /** `artifactBytes` were fetched through the authorized artifact endpoint and verified against `artifactSha256`. */
+  /** `artifactBytes` come from the authorized artifact endpoint and are verified against `artifactSha256` first. */
   start(input: { artifactId: ArtifactId; artifactBytes: Uint8Array }, handlers: {
     onFound(event: RecognitionEvent): void;
     onLost(event: RecognitionEvent): void;
@@ -96,7 +139,7 @@ export interface ARRecognizerPort {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Reveal (server side). Authorization lives HERE, never in the recognizer.
+// Reveal and camera-free content (server side). Authorization lives HERE, never in the recognizer.
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Same payload for the AR reveal and the camera-free path (BR-AR-004). Text must be real text, not baked into the image. */
@@ -108,38 +151,44 @@ export interface RevealContent {
 
 /** Caller identity as already resolved by the sharing subsystem (I11/I12). The port does not parse tokens or links. */
 export interface AuthorizedShareScope {
+  /** The ordered version whose content is shown. This alone decides the content, for both reveal and camera-free. */
   readonly orderVersionId: string;
-  /** The single artifact bound to this order version. Absent while preparation failed. */
+  /** The artifact bound to this order version for AR. Absent while preparation failed or is unverified. */
   readonly boundArtifactId: ArtifactId | undefined;
 }
 
+/**
+ * Deliberately one `not_found` shape for: no scope, other scope, other artifact and "recognized but not ours". No oracle
+ * that distinguishes these (BR-AR-003, INV-08).
+ */
 export type RevealResult =
   | { status: 'revealed'; content: RevealContent }
-  /**
-   * Deliberately one shape for: no scope, other scope, other artifact, unknown target index, and "recognized but not
-   * ours". No oracle that distinguishes these (BR-AR-003, INV-08).
-   */
   | { status: 'not_found' }
-  /** Only for an AUTHORIZED scope whose own artifact cannot be served. The camera-free path still works. */
+  /** Only for an AUTHORIZED scope whose own artifact cannot be served. Never returned by `content()`. */
   | { status: 'unavailable' };
+
+/** The camera-free path has no AR failure mode: it never reads or verifies an artifact. */
+export type ContentResult = { status: 'revealed'; content: RevealContent } | { status: 'not_found' };
 
 export interface ARRevealService {
   /**
-   * Resolves content from `scope` only. The recognition event is a hint that must equal the scope's own binding:
-   * `event.artifactId === scope.boundArtifactId` and `event.targetIndex === 0`. It is never a key into any media store,
-   * and no function in this port accepts a bare target id and returns media.
+   * `event.artifactId` is a hint that must equal `scope.boundArtifactId`. It is never a key into any media store, and
+   * no function in this port accepts a bare recognition result and returns media.
    */
   reveal(scope: AuthorizedShareScope | undefined, event: RecognitionEvent): Promise<RevealResult>;
-  /** Camera-free path: identical content, identical authorization, no artifact needed. */
-  content(scope: AuthorizedShareScope | undefined): Promise<RevealResult>;
+  /** Same content and same authorization as `reveal`, independent of AR: works when the artifact is missing, corrupt or unverified. */
+  content(scope: AuthorizedShareScope | undefined): Promise<ContentResult>;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// MindAR 1.2.5 adapter mapping (documentation only, see I03-P04 review section 5)
+// MindAR 1.2.5 adapter mapping (documentation only, see the I03-P04 review)
 // ---------------------------------------------------------------------------------------------------------------
-//   ARPreparationPort.prepare  -> CompilerBase.compileImageTargets([image]) + exportData()  (Node, no native canvas)
-//   PreparedARArtifact.artifactSha256 / artifactId -> sha256 of the exported .mind bytes, id = 'ar-' + first 16 hex
-//   providerMetadata           -> { tool, toolVersion: 'mind-ar@1.2.5, @tensorflow/tfjs@4.22.0 (cpu)', reproducibility }
-//   ARRecognizerPort.start     -> new MindARThree({ imageTargetSrc: blobUrl, maxTrack: 1, ui*: 'no' }); addAnchor(0)
-//   RecognitionEvent.targetIndex -> the anchor index passed to addAnchor
-//   ARRecognizerPort.stop      -> mindar.stop() + our own getUserMedia track bookkeeping (library does not report it)
+//   prepare                    -> CompilerBase.compileImageTargets([image]) + exportData() in Node (no native canvas)
+//   PreparedARArtifact         -> artifactSha256 = sha256(.mind bytes); artifactId = 'ar-' + full sha256
+//   ARArtifactBinding          -> manifest record: sourceRevisionId, sourceImageSha256, provenance (src/provenance.mjs)
+//   providerMetadata           -> { tool, toolVersion, environment, reproducibility checks }
+//   ARRecognizerPort.start     -> new MindARThree({ imageTargetSrc: blobUrl, maxTrack: 1 }); the adapter calls addAnchor(0)
+//   RecognitionEvent           -> { artifactId } only; the anchor index never leaves the adapter
+//   ARRecognizerPort.stop      -> mindar.stop() + our own getUserMedia track bookkeeping (the library does not report it)
+// Harness-only: the combined multi-target artifact and the `targetIndex` field of /api/spike/reveal are a test extension
+// used to make the tracker recognize B inside session A; they are not part of this port.

@@ -8,15 +8,28 @@
       "sourceImageSha256": "7e48cd1fc984d7065470c2fb459668e134d51fce11e8e919034c0ff5bae258ea",
       "pixelSha256": "ea461c3007528ac651a8c0a85c49a5d39a0c9769e8602740987b8490c29153cd",
       "artifact": {
-        "artifactId": "ar-c9a3a21cc733aafb",
-        "file": "artifacts/ar-c9a3a21cc733aafb.mind",
+        "artifactId": "ar-c9a3a21cc733aafb9c70662428608a28229ede3adbb6fa9a15f29c68d67b33d3",
+        "file": "artifacts/ar-c9a3a21cc733aafb9c70662428608a28229ede3adbb6fa9a15f29c68d67b33d3.mind",
         "sha256": "c9a3a21cc733aafb9c70662428608a28229ede3adbb6fa9a15f29c68d67b33d3",
         "sizeBytes": 752457,
         "sourceRevisionId": "synthetic-revision-A",
         "sourceImageSha256": "7e48cd1fc984d7065470c2fb459668e134d51fce11e8e919034c0ff5bae258ea",
+        "provenance": {
+          "status": "built-from-verified-source",
+          "detail": "compiled by this tool from the source image whose hash matched the manifest",
+          "checkedAt": "2026-10-18T11:14:18.303Z",
+          "environment": {
+            "mindAr": "1.2.5",
+            "tfjs": "4.22.0",
+            "backend": "cpu",
+            "node": "v22.22.2",
+            "platform": "linux",
+            "arch": "x64"
+          }
+        },
         "tool": "mind-ar Node compile (scripts/compile-targets.mjs)",
         "toolVersion": "mind-ar@1.2.5, @tensorflow/tfjs@4.22.0 (cpu backend)",
-        "registeredAt": "2026-10-15T20:45:34.584Z"
+        "registeredAt": "2026-10-18T11:14:18.305Z"
       }
     },
     "B": {
@@ -26,21 +39,34 @@
       "sourceImageSha256": "0fb2b98d9b8d85f10fc0350431a1a8c0adce6d16b25a0bd844d16fb64b171924",
       "pixelSha256": "91b04439271dbbfc16cab5debde85ce18b4bcf6989380a4ebbed8c144bf3ee28",
       "artifact": {
-        "artifactId": "ar-fc4c9e01218a4587",
-        "file": "artifacts/ar-fc4c9e01218a4587.mind",
+        "artifactId": "ar-fc4c9e01218a458770cfd2c2d61a86023162ebe7b79be8eb23f7f4e864d6bff4",
+        "file": "artifacts/ar-fc4c9e01218a458770cfd2c2d61a86023162ebe7b79be8eb23f7f4e864d6bff4.mind",
         "sha256": "fc4c9e01218a458770cfd2c2d61a86023162ebe7b79be8eb23f7f4e864d6bff4",
         "sizeBytes": 768251,
         "sourceRevisionId": "synthetic-revision-B",
         "sourceImageSha256": "0fb2b98d9b8d85f10fc0350431a1a8c0adce6d16b25a0bd844d16fb64b171924",
+        "provenance": {
+          "status": "built-from-verified-source",
+          "detail": "compiled by this tool from the source image whose hash matched the manifest",
+          "checkedAt": "2026-10-18T11:14:54.512Z",
+          "environment": {
+            "mindAr": "1.2.5",
+            "tfjs": "4.22.0",
+            "backend": "cpu",
+            "node": "v22.22.2",
+            "platform": "linux",
+            "arch": "x64"
+          }
+        },
         "tool": "mind-ar Node compile (scripts/compile-targets.mjs)",
         "toolVersion": "mind-ar@1.2.5, @tensorflow/tfjs@4.22.0 (cpu backend)",
-        "registeredAt": "2026-10-15T20:46:16.994Z"
+        "registeredAt": "2026-10-18T11:14:54.515Z"
       }
     }
   },
   "combined": {
-    "artifactId": "ar-15fcb25d141f3689",
-    "file": "artifacts/ar-15fcb25d141f3689.mind",
+    "artifactId": "ar-15fcb25d141f36894c72f4a4ebc8c1bfac0333c0971d98366d2346cc61e14943",
+    "file": "artifacts/ar-15fcb25d141f36894c72f4a4ebc8c1bfac0333c0971d98366d2346cc61e14943.mind",
     "sha256": "15fcb25d141f36894c72f4a4ebc8c1bfac0333c0971d98366d2346cc61e14943",
     "sizeBytes": 1520694,
     "targets": {
@@ -51,9 +77,22 @@
       "A": "7e48cd1fc984d7065470c2fb459668e134d51fce11e8e919034c0ff5bae258ea",
       "B": "0fb2b98d9b8d85f10fc0350431a1a8c0adce6d16b25a0bd844d16fb64b171924"
     },
+    "provenance": {
+      "status": "built-from-verified-source",
+      "detail": "compiled by this tool from the source image whose hash matched the manifest",
+      "checkedAt": "2026-10-18T11:15:45.329Z",
+      "environment": {
+        "mindAr": "1.2.5",
+        "tfjs": "4.22.0",
+        "backend": "cpu",
+        "node": "v22.22.2",
+        "platform": "linux",
+        "arch": "x64"
+      }
+    },
     "tool": "mind-ar Node compile (scripts/compile-targets.mjs)",
     "toolVersion": "mind-ar@1.2.5, @tensorflow/tfjs@4.22.0 (cpu backend)",
-    "registeredAt": "2026-10-15T20:47:22.183Z",
+    "registeredAt": "2026-10-18T11:15:45.332Z",
     "testOnly": true
   },
   "reproducibilityChecks": [
@@ -62,14 +101,24 @@
       "previousSha256": "c9a3a21cc733aafb9c70662428608a28229ede3adbb6fa9a15f29c68d67b33d3",
       "newSha256": "c9a3a21cc733aafb9c70662428608a28229ede3adbb6fa9a15f29c68d67b33d3",
       "match": true,
-      "checkedAt": "2026-10-15T20:45:55.575Z"
+      "checkedAt": "2026-10-18T11:14:36.434Z",
+      "environment": {
+        "node": "v22.22.2",
+        "platform": "linux",
+        "arch": "x64"
+      }
     },
     {
       "versionKey": "B",
       "previousSha256": "fc4c9e01218a458770cfd2c2d61a86023162ebe7b79be8eb23f7f4e864d6bff4",
       "newSha256": "fc4c9e01218a458770cfd2c2d61a86023162ebe7b79be8eb23f7f4e864d6bff4",
       "match": true,
-      "checkedAt": "2026-10-15T20:46:39.275Z"
+      "checkedAt": "2026-10-18T11:15:11.577Z",
+      "environment": {
+        "node": "v22.22.2",
+        "platform": "linux",
+        "arch": "x64"
+      }
     }
   ]
 }

@@ -15,6 +15,7 @@ const STATIC = {
   '/fallback': { file: 'public/fallback.html', type: 'text/html; charset=utf-8' },
   '/client.js': { file: 'public/client.js', type: 'text/javascript; charset=utf-8' },
   '/fallback.js': { file: 'public/fallback.js', type: 'text/javascript; charset=utf-8' },
+  '/reveal-guard.js': { file: 'public/reveal-guard.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'public/styles.css', type: 'text/css; charset=utf-8' },
 };
 const VENDOR = {

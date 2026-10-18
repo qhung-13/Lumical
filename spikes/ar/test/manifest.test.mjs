@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { registerArtifact, checkReproducible, registerCombined, artifactIdFor, sha256 } from '../src/manifest.mjs';
 
+const PROV = { status: 'manual-unverified', detail: 'synthetic test bytes, not a real .mind file' };
+
 const makeManifest = () => ({
   versions: {
     A: { projectRevisionId: 'rev-A', sourceImageSha256: 'a'.repeat(64), artifact: null },
@@ -16,7 +18,7 @@ test('registered artifact is identified by hash and bound to its source revision
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-'));
   const m = makeManifest();
   const buf = Buffer.from('compiled-A');
-  const art = registerArtifact(dir, m, { versionKey: 'A', buffer: buf, tool: 't', toolVersion: '1' });
+  const art = registerArtifact(dir, m, { versionKey: 'A', buffer: buf, tool: 't', toolVersion: '1', provenance: PROV });
   assert.equal(art.artifactId, artifactIdFor(sha256(buf)));
   assert.equal(art.sourceRevisionId, 'rev-A');
   assert.equal(art.sourceImageSha256, 'a'.repeat(64));
@@ -27,7 +29,7 @@ test('registered artifact is identified by hash and bound to its source revision
 test('reproducibility check reports MATCH/DIFFER and keeps the registered artifact', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-'));
   const m = makeManifest();
-  registerArtifact(dir, m, { versionKey: 'A', buffer: Buffer.from('x'), tool: 't', toolVersion: '1' });
+  registerArtifact(dir, m, { versionKey: 'A', buffer: Buffer.from('x'), tool: 't', toolVersion: '1', provenance: PROV });
   const same = checkReproducible(m, { versionKey: 'A', buffer: Buffer.from('x') });
   const diff = checkReproducible(m, { versionKey: 'A', buffer: Buffer.from('y') });
   assert.equal(same.match, true);
@@ -39,7 +41,7 @@ test('reproducibility check reports MATCH/DIFFER and keeps the registered artifa
 test('combined artifact is marked test-only with per-version target indexes', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-'));
   const m = makeManifest();
-  const c = registerCombined(dir, m, { buffer: Buffer.from('both'), order: ['A', 'B'], tool: 't', toolVersion: '1' });
+  const c = registerCombined(dir, m, { buffer: Buffer.from('both'), order: ['A', 'B'], tool: 't', toolVersion: '1', provenance: PROV });
   assert.equal(c.testOnly, true);
   assert.deepEqual(c.targets, { A: 0, B: 1 });
 });

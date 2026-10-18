@@ -4,7 +4,9 @@ main { max-width: 40rem; margin: 0 auto; padding: 1rem; }
 h1 small { font-size: .6em; font-weight: 400; opacity: .7; }
 .actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin: .75rem 0; }
 button { font: inherit; padding: .6rem 1rem; min-height: 44px; }
-#container { position: relative; width: 100%; height: 55vh; overflow: hidden; background: #111; }
+/* z-index: 0 makes #container a stacking context. MindAR places its <video> at z-index: -2; without this the video
+   escapes to an ancestor context and is painted BEHIND this background, which shows as a black camera area. */
+#container { position: relative; z-index: 0; width: 100%; height: 55vh; overflow: hidden; background: #111; }
 #reveal { margin: 1rem 0; padding: 1rem; border: 2px solid currentColor; }
 #reveal img { max-width: 100%; height: auto; display: block; margin-bottom: .5rem; }
 pre { max-height: 14rem; overflow: auto; font-size: .75rem; white-space: pre-wrap; border: 1px solid #8888; padding: .5rem; }

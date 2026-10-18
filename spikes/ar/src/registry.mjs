@@ -3,8 +3,12 @@
 // every failure of scope looks identical (fail closed), fallback works without any artifact.
 import fs from 'node:fs';
 import path from 'node:path';
-import { sha256 } from './manifest.mjs';
+import { sha256, shortArtifactId } from './manifest.mjs';
+
 import { buildContent } from './content.mjs';
+
+// An artifact registered before provenance was recorded is treated as unverified, never as verified.
+const provenanceOf = (artifact) => artifact?.provenance?.status ?? 'manual-unverified';
 
 export const NOT_FOUND = Object.freeze({ status: 404, body: { code: 'NOT_FOUND' } });
 const UNAVAILABLE = Object.freeze({ status: 503, body: { code: 'UNAVAILABLE' } });
@@ -46,11 +50,11 @@ export function createRegistry({ manifest, rootDir, sessions, enableCombined = f
         status: 200,
         body: {
           scopeLabel: v, // harness-only convenience so the tester knows which link they opened
-          version: own ? { artifactId: own.artifactId, targetCount: 1, status: readArtifact(own).ok ? 'READY' : 'UNAVAILABLE' } : { artifactId: null, targetCount: 1, status: 'UNAVAILABLE' },
+          version: own ? { artifactId: own.artifactId, shortId: shortArtifactId(own.artifactId), provenance: provenanceOf(own), targetCount: 1, status: readArtifact(own).ok ? 'READY' : 'UNAVAILABLE' } : { artifactId: null, targetCount: 1, status: 'UNAVAILABLE' },
           combined: entries.find((e) => e.kind === 'combined')
             ? (() => {
                 const c = entries.find((e) => e.kind === 'combined');
-                return { artifactId: c.artifactId, targetCount: c.targetCount, status: readArtifact(c).ok ? 'READY' : 'UNAVAILABLE', testOnly: true };
+                return { artifactId: c.artifactId, shortId: shortArtifactId(c.artifactId), provenance: provenanceOf(c), targetCount: c.targetCount, status: readArtifact(c).ok ? 'READY' : 'UNAVAILABLE', testOnly: true };
               })()
             : null,
         },

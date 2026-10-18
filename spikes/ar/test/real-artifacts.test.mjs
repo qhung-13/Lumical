@@ -61,6 +61,15 @@ test('other version artifact, wrong index, no token: identical NOT_FOUND', async
   for (const r of results) { assert.equal(r.status, 404); assert.deepEqual(await r.json(), { code: 'NOT_FOUND' }); }
 });
 
+test('a short id prefix never resolves to an artifact (only the full SHA-256 id does)', async () => {
+  const id = manifest.versions.A.artifact.artifactId;
+  for (const short of [id.slice(0, 19), id.slice(0, 15), id.slice(0, -1), id.toUpperCase()]) {
+    assert.equal((await call(`/api/spike/artifacts/${short}`, { token: TA })).status, 404, short);
+    assert.equal((await reveal(TA, short, 0)).status, 404, short);
+  }
+  assert.equal((await call(`/api/spike/artifacts/${id}`, { token: TA })).status, 200);
+});
+
 test('combined test artifact: recognizing B inside session A is refused (recognition is not authorization)', async () => {
   const c = manifest.combined.artifactId;
   assert.equal((await reveal(TA, c, 0)).status, 200); // A's own target in the combined artifact

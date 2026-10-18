@@ -18,7 +18,7 @@ Branch: `feature/I03-P02-synthetic-target-prototype`.
 | Recognition ≠ authorization (Q7) | Reveal needs the session scope plus the artifact/index that scope allows; artifacts are only served to an authorized session, never as public files | Yes | Yes (combined-artifact scan) |
 | Preparation failure | Missing / tampered artifact → `UNAVAILABLE`, fallback still works (`npm run fault`) | Yes | Optional |
 
-`npm test` (31 tests) covers the server, manifest, committed artifacts and module graph. **They are not AR evidence.**
+`npm test` (36 tests) covers the server, manifest, committed artifacts and module graph. **They are not AR evidence.**
 P02's real-recognition criteria stay unchecked until the phone runs below are recorded in `evidence/`.
 
 ## Run it
@@ -27,8 +27,8 @@ Requirements: Node >= 22.2 and network access for the first install.
 
 ```bash
 cd spikes/ar
-npm ci --ignore-scripts        # --ignore-scripts: mind-ar depends on native `canvas`, which this harness does not use
-npm test                       # 31 tests
+npm ci --ignore-scripts        # mind-ar depends on native `canvas`: it is installed but NOT compiled with --ignore-scripts, and never loaded here
+npm test                       # 36 tests
 npm run compile:verify         # optional: recompile A, B and the combined artifact, record reproducibility, print feature counts
 SPIKE_ENABLE_COMBINED=1 npm start
 ```
@@ -49,7 +49,7 @@ reviewed through the PR). Direct dependencies: `mind-ar@1.2.5` (MIT, last publis
   regenerates them (pixel-deterministic; PNG bytes may differ across zlib versions, so the committed files are the source
   of truth). Regenerating changes the source hashes and invalidates registered artifacts; run `npm run compile -- --force`
   afterwards.
-- `npm run compile` prepares artifacts in plain Node (no native `canvas`) and registers them in the manifest. The
+- `npm run compile` prepares artifacts in plain Node (the native `canvas` package is present but not compiled, and is not used) and registers them in the manifest. The
   committed result: 1024x1024 sources, about 3.7k matching feature points each, byte-identical on recompile.
 - The MindAR browser compile tool (<https://hiukim.github.io/mind-ar-js-doc/tools/compile>) remains a valid cross-check:
   `npm run register -- --version A --file ~/Downloads/targets.mind --tool-version "<date>"`, and
@@ -106,8 +106,11 @@ DevTools/remote-inspector network trace once per device class (the page's off-or
 
 - Artifact preparation works in plain Node and is byte-reproducible (two recompiles identical, recorded in the manifest).
 - `mind-ar@1.2.5` depends on native `canvas`; a normal install failed in the build sandbox, so install with
-  `--ignore-scripts`. `npm audit` reports vulnerabilities through `canvas` → `@mapbox/node-pre-gyp` → `tar`
-  (install-time tooling, not part of what the browser loads); re-check before any workspace reuse.
+  `--ignore-scripts`. `npm audit` reports vulnerabilities (the count changes with the advisory database; 6 to 7 seen), all
+  transitive through `mind-ar`: `canvas` → `@mapbox/node-pre-gyp` → `tar` (critical/high; install-time tooling, and
+  `canvas` is never loaded by this harness because installs use `--ignore-scripts`) and `@tensorflow/tfjs` →
+  `argparse` → `sprintf-js` (moderate). npm reports no fix available. Do not run `npm audit fix --force` (it would
+  change pinned versions); re-check before any workspace reuse.
 - Upstream `mind-ar` last published 2024-01-16 (maintenance risk for P05). MIT license confirmed first-hand from the
   published package metadata and its LICENSE file.
 - MindAR's entry module imports `three/addons/renderers/CSS3DRenderer.js` and uses `outputEncoding`/`sRGBEncoding`;
@@ -124,3 +127,21 @@ DevTools/remote-inspector network trace once per device class (the page's off-or
 - Whether `mindar.stop()` releases every camera track is exactly what the evidence panel measures.
 - Whether the harness page loads on a real device with the CSP (importmap hash, `wasm-unsafe-eval`, workers).
 - Real recognition quality of the synthetic images (distance, light, orientation).
+
+## Device observations so far (MEMBER_4, 2026-10-18, not yet in `evidence/`)
+
+Source: a test report by the I03-P03 owner against commit `166b7f9`. Redmi Note 13, Android 14 (HyperOS), Chrome, over an
+HTTPS tunnel; desktop Chrome 155 on Ubuntu for rendering.
+
+| Case | Result | Reading |
+| --- | --- | --- |
+| HTTPS load, camera permission, MindAR start | Works; tracks live, tracking runs | Infrastructure is viable |
+| Session A + `version-a.png` | Card A shown | Genuine recognition + version-bound reveal worked once |
+| Session A + `version-b.png` (per-version artifact) | Nothing shown | **Weak evidence**: that artifact contains only target A, so no request is ever made |
+| Session A + combined artifact + `version-b.png` | Nothing shown, expected the "nothing to show" message | **Not valid**: the artifact choice was changed after Start, so the per-version artifact was still in use |
+| Camera area | Black on desktop and phone | Fixed in this branch: `#container` had no stacking context (`z-index: 0`) |
+
+Fixes made after that report: camera area stacking context; the camera summary now updates on start and on track events;
+the artifact choice is locked while AR runs and the status names the artifact in use; the status shows loading and
+scanning progress. `test/ui-static.test.mjs` guards these. Case 4 must be re-run before it counts as evidence.
+Still not recorded anywhere: permission denied, unsupported browser, repeatability, light/distance/orientation, network trace.

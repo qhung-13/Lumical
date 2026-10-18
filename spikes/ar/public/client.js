@@ -49,8 +49,9 @@ if (md?.getUserMedia) {
       const stream = await orig(constraints);
       for (const t of stream.getTracks()) {
         tracks.push(t);
-        t.addEventListener('ended', () => log('track:ended', { kind: t.kind }));
+        t.addEventListener('ended', () => { log('track:ended', { kind: t.kind }); updateCameraSummary(); });
         log('track:created', { kind: t.kind, readyState: t.readyState });
+        updateCameraSummary();
       }
       return stream;
     } catch (err) {
@@ -84,6 +85,13 @@ function chosen() {
   const useCombined = session.combined && document.querySelector('input[name=artifact]:checked')?.value === 'combined';
   return useCombined ? session.combined : session.version;
 }
+const artifactLabel = (art) => (art === session.combined ? 'combined A+B (test-only)' : `per-version ${session.scopeLabel}`);
+// The artifact is fixed when AR starts. Lock the choice while running so a late change cannot be mistaken for a test of it.
+const setArtifactChoiceLocked = (locked) => document.querySelectorAll('input[name=artifact]').forEach((r) => { r.disabled = locked; });
+document.querySelectorAll('input[name=artifact]').forEach((r) => r.addEventListener('change', () => {
+  if (running) return;
+  setStatus(`Artifact selected: ${artifactLabel(chosen())}. Press Start AR to use it.`);
+}));
 
 function renderReveal(c) {
   const box = $('reveal');
@@ -128,7 +136,7 @@ async function start() {
     }
     const art = chosen();
     if (!art?.artifactId || art.status !== 'READY') throw Object.assign(new Error('prep'), { name: 'PreparationUnavailable' });
-    setStatus('Fetching prepared target…');
+    setStatus(`Fetching prepared target (${artifactLabel(art)})…`);
     const res = await fetch(`/api/spike/artifacts/${encodeURIComponent(art.artifactId)}`, { headers: auth(), cache: 'no-store' });
     if (!res.ok) throw Object.assign(new Error('prep'), { name: 'PreparationUnavailable' });
     const blobUrl = URL.createObjectURL(await res.blob()); // MindAR cannot send our auth header itself
@@ -141,14 +149,17 @@ async function start() {
       anchor.onTargetLost = () => {
         log('target:lost', { index: i });
         $('reveal').hidden = true;
+        if (running) setStatus('Target lost. Scanning…');
       };
     }
-    setStatus('Starting camera…');
+    setStatus('Loading the target and starting the camera… (the first start can take a few seconds)');
+    setArtifactChoiceLocked(true);
     await mindar.start();
     renderer.setAnimationLoop(() => renderer.render(scene, camera));
     $('stop').disabled = false;
-    setStatus('Camera on. Point the camera at the target.');
-    log('ar:started', { artifactId: art.artifactId, targetCount: art.targetCount });
+    setStatus(`Scanning with the ${artifactLabel(art)} artifact. Point the camera at the target.`);
+    log('ar:started', { artifactId: art.artifactId, targetCount: art.targetCount, artifact: artifactLabel(art) });
+    updateCameraSummary();
   } catch (err) {
     log('ar:error', { name: err.name, message: String(err.message).slice(0, 120) });
     await stop(true);
@@ -180,6 +191,7 @@ async function stop(silent = false) {
   }
   $('stop').disabled = true;
   $('start').disabled = !session;
+  setArtifactChoiceLocked(false);
   await new Promise((ok) => setTimeout(ok, 300));
   const summary = updateCameraSummary();
   log('ar:stopped', summary);

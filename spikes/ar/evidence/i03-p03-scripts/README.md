@@ -20,19 +20,17 @@ HOST=0.0.0.0 SPIKE_ENABLE_COMBINED=1 node src/server.mjs     # :8787
 
 | Script | Evidence section | What it measures |
 | --- | --- | --- |
-| `test-spike.sh` | §9 | 27 server-side behavioural checks (fail-closed, session isolation, CSP) |
 | `p03-stop-diag.mjs` | §4 | camera **exit / track cleanup** — the ticket's review focus |
 | `p03-permission.mjs` | §5 | camera start when granted, and behaviour when **denied** |
 | `p03-denial-stack.mjs` | §5 | captures the exact stack trace of the denial crash |
 | `p03-mindar-reject.mjs` | §5 | isolates whether MindAR or the client rejects wrongly |
 | `p03-a11y.mjs` | §7 | accessibility of start / exit / fallback (18 checks) |
-| `p03-firefox.mjs` | §3, §12 | same lifecycle on Firefox |
+| `p03-firefox.mjs` | §3, §10 | same lifecycle on Firefox |
 | `p03-firefox-deny.mjs` | §5 | Firefox permission-denial behaviour |
 | `make-always.mjs` | §6b | builds a fake-camera video where the target never leaves frame |
 | `p03-trials.mjs` | §6b | repeat recognition rate, 5 independent trials per target |
 | `make-y4m.mjs` | §6a | builds the appear/disappear video (3 s / 3 s / 3 s) |
 | `p03-repeat.mjs` | §6a | counts `target:found` / `target:lost` / `reveal:ok` over 40 s |
-| `make-cycle12.mjs` | §6 | 6 s / 6 s variant used to test the measurement protocol itself |
 | `p03-video-diag.mjs` | §6 | samples the camera frame to confirm what the tracker actually sees |
 
 ## Typical run
@@ -59,12 +57,8 @@ Driving them headless would silently produce false negatives.
    Reporting `version B fails` from the 512 px run would have been a false
    finding against someone else's artifact.
 3. **`p.click` on the artifact radio before `Start` is mandatory** — the choice
-   is read once inside `start()` (fixed in `939f739`, which also locks the
-   choice while running).
-4. **Do not hard-code artifact ids.** I03-P04 moved identity to the full
-   SHA-256; a script with short ids produced 3 false failures. `test-spike.sh`
-   now reads ids from `GET /api/spike/session` with `jq`.
-5. **System Firefox is a snap** and refuses to be driven
+   is read once inside `start()`.
+4. **System Firefox is a snap** and refuses to be driven
    (`Firefox is already running, but is not responding`). Use a puppeteer-managed
    build: `npx @puppeteer/browsers install firefox@stable`.
 

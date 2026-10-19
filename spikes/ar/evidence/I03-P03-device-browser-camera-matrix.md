@@ -28,19 +28,19 @@ TESTED**. Nothing is upgraded to "supported" without a result behind it.
 | # | Scope item | Where | Status |
 | --- | --- | --- | --- |
 | 1 | Real device / OS / browser versions | §2, §3 | 🟡 **partial** — 2 desktop browsers measured; **no real device on this commit** |
-| 2 | HTTPS camera behavior | §11 | ⬜ **NOT TESTED** — localhost is a secure context, so no HTTPS/tunnel run happened here |
-| 3 | Lighting and distance | §11 | ⬜ **NOT TESTED** — synthetic camera has no lighting/distance |
-| 4 | Orientation | §11 | ⬜ **NOT TESTED** — synthetic camera has no orientation |
-| 5 | Camera permission denial | §5 | ✅ **tested — FAILS** (blocker, reported) |
+| 2 | HTTPS camera behavior | §9 | ⬜ **NOT TESTED** — localhost is a secure context, so no HTTPS/tunnel run happened here |
+| 3 | Lighting and distance | §9 | ⬜ **NOT TESTED** — synthetic camera has no lighting/distance |
+| 4 | Orientation | §9 | ⬜ **NOT TESTED** — synthetic camera has no orientation |
+| 5 | Camera permission denial | §5 | ✅ **tested — FAILS** (blocker, root cause isolated in §5) |
 | 6 | Camera exit / cleanup | §4 | ✅ **PASS** on Chrome 155 + Firefox 158 |
-| 7 | Basic performance observations | §4, §11 | 🟡 **partial** — main-thread round-trip 0–1 ms during scan; no device FPS |
+| 7 | Basic performance observations | §4, §9 | 🟡 **partial** — main-thread round-trip 0–1 ms during scan; no device FPS |
 | 8 | Repeat recognition scans | §6 | ✅ **measured** (desktop synthetic camera, caveats in §6) |
 
 ### Acceptance Criteria (3)
 
 | AC | Status | Section |
 | --- | --- | --- |
-| *Actual supported combinations are documented.* | 🟡 partial — Chrome 155 / Firefox 158 documented as `partial`; mobile rows explicitly NOT TESTED | §3, §12 |
+| *Actual supported combinations are documented.* | 🟡 partial — Chrome 155 / Firefox 158 documented as `partial`; mobile rows explicitly NOT TESTED | §3, §10 |
 | *Camera start, denial and exit is tested.* | 🟡 tested; **denial FAILS** | §4, §5 |
 | *Repeatability and unsupported cases have honest outcomes.* | ✅ done — failures recorded, not omitted | §5, §6 |
 
@@ -48,7 +48,7 @@ TESTED**. Nothing is upgraded to "supported" without a result behind it.
 
 | Required | Status | Section |
 | --- | --- | --- |
-| *Real mobile HTTPS/camera tests* | ⬜ **NOT DONE** — the remaining work for this ticket | §11 |
+| *Real mobile HTTPS/camera tests* | ⬜ **NOT DONE** — the remaining work for this ticket | §9 |
 | *Manual accessibility checks for start, exit and fallback* | ✅ 18/18 + fallback checks | §7, §8 |
 
 ### Out of scope — not claimed anywhere in this file
@@ -61,8 +61,8 @@ TESTED**. Nothing is upgraded to "supported" without a result behind it.
 
 - **Camera-track cleanup:** ✅ measured end to end in §4 (`1 created, 1 live` →
   Stop → `1 created, 0 live`, 0 tracks) on two browsers.
-- **Real device evidence:** ⬜ **not available yet** — §11 and the unfilled
-  mobile block in §12 state this plainly rather than substituting desktop
+- **Real device evidence:** ⬜ **not available yet** — §9 and the unfilled
+  mobile block in §10 state this plainly rather than substituting desktop
   results.
 
 ---
@@ -75,12 +75,7 @@ cd /home/duc/Documents/Lumical-AR-spike/spikes/ar
 npm ci --ignore-scripts
 HOST=0.0.0.0 SPIKE_ENABLE_COMBINED=1 node src/server.mjs        # :8787
 
-# 2. automated server-side evidence
-npm test                      # 89 unit tests
-npm run compile:verify        # byte-identical recompile
-./test-spike.sh               # 27 behavioural checks (separate helper, see §9)
-
-# 3. browser / camera checks — scripts live in evidence/i03-p03-scripts/ (see its README)
+# 2. the evidence scripts — see evidence/i03-p03-scripts/README.md
 DISPLAY=:0 node evidence/i03-p03-scripts/p03-permission.mjs   # camera start + permission denial
 DISPLAY=:0 node evidence/i03-p03-scripts/p03-stop-diag.mjs    # camera exit / track cleanup
 DISPLAY=:0 node evidence/i03-p03-scripts/p03-a11y.mjs         # accessibility of start / exit / fallback
@@ -116,7 +111,7 @@ labelled as such in §6 and must not be quoted as phone results.
 | Node.js | v24.21.0 (engines: `>=22.2`) |
 | Desktop browser 1 | Google Chrome **155.0.8059.84** |
 | Desktop browser 2 | Mozilla Firefox **158.0** (puppeteer-managed build; system Firefox is a snap and cannot be driven) |
-| Mobile device | **Redmi Note 13 · Android · HyperOS · Chrome** — **NOT RE-TESTED on this commit** (§11) |
+| Mobile device | **Redmi Note 13 · Android · HyperOS · Chrome** — **NOT RE-TESTED on this commit** (§9) |
 | mind-ar | 1.2.5 |
 | three | 0.160.0 |
 | @tensorflow/tfjs | 4.22.0 |
@@ -132,8 +127,8 @@ labelled as such in §6 and must not be quoted as phone results.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Chrome (desktop) | 155.0.8059.84 | ✅ | ✅ | ✅ `1 created, 1 live` | ✅ | ✅ `1 created, 0 live` | 🔴 **crashes** (§5) | ✅ (§6) | **partial** |
 | Firefox (desktop) | 158.0 | ✅ | ✅ | ✅ `1 created, 1 live` | ✅ | ✅ `1 created, 0 live` | 🔴 **crashes** (§5) | not measured | **partial** |
-| Chrome (Redmi Note 13) | — | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | **NOT TESTED (§11)** |
-| Mi Browser (Redmi Note 13) | — | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | **NOT TESTED (§11)** |
+| Chrome (Redmi Note 13) | — | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | **NOT TESTED (§9)** |
+| Mi Browser (Redmi Note 13) | — | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | **NOT TESTED (§9)** |
 
 Legend: ✅ measured and passing · 🔴 measured and failing · ⬜ not executed.
 
@@ -206,28 +201,9 @@ original `166b7f9`) is not defensive, so the `catch` block throws before
 - *"[ ] Repeatability and unsupported cases have honest outcomes."* → this IS the
   honest outcome; it is recorded here rather than hidden.
 
-**Suggested fix (for MEMBER_3 / LEAD — not applied here, per `planning/README.md`
-"do not start dependent code"):**
-
-```diff
-   } catch (err) {
--    log('ar:error', { name: err.name, message: String(err.message).slice(0, 120) });
-+    const name = err?.name ?? 'UnknownError';
-+    log('ar:error', { name, message: String(err?.message ?? err).slice(0, 120) });
-     await stop(true);
-     const text = {
-       NotAllowedError: 'Camera permission was denied.',
-       ...
--    }[err.name] ?? 'AR failed to start.';
-+    }[name] ?? 'AR failed to start.';
-     setStatus(`${text} Use “View without camera” for the same content.`);
--    $('start').disabled = err.name === 'UnsupportedError';
-+    $('start').disabled = name === 'UnsupportedError';
-   }
-```
-
-The `undefined` rejection from mind-ar should additionally be reported upstream;
-the client guard is what makes the page fail safe either way.
+**Not fixed here.** The correction belongs to I03-P02's client code, and
+`planning/README.md` tells a blocked member *"do not start dependent code"* —
+so this is recorded as evidence, not patched from this ticket.
 
 ---
 
@@ -271,7 +247,7 @@ repeatedly observed, rate varies with camera resolution"* — **not** *"reliably
 recognizes"*.
 
 > These are **desktop fake-camera numbers**. They do **not** satisfy
-> *Real mobile HTTPS/camera tests*; see §11.
+> *Real mobile HTTPS/camera tests*; see §9.
 
 ---
 
@@ -315,51 +291,7 @@ Measured with an automated pass over the DOM plus keyboard interaction
 
 ---
 
-## 9. Supporting server-side results (not device evidence)
-
-| Suite | Result |
-| --- | --- |
-| `npm test` (harness unit tests) | **89 tests · 84 pass · 5 fail** — see below |
-| Behavioural suite (`test-spike.sh`, 27 checks) | **27 / 27 pass** |
-| `npm run compile:verify` | **MATCH (byte-identical)** — A `3656` points, B `3760` points |
-| 8 reveal scenarios (recognition ≠ authorization) | 8/8 correct; every failure returns identical `{"code":"NOT_FOUND"}` |
-| Artifact download blocked per session | A≠B, no token → 404 |
-| Private files not served statically | `/artifacts/*.mind`, `/fixtures/*`, `/src/*`, `/package.json`, path traversal → all 404 |
-| CSP | `connect-src 'self' blob:` · `frame-ancestors 'none'` · no `Access-Control-Allow-Origin` |
-
-### 9a. 5 failing unit tests on `0654135` (reproducible on a clean checkout)
-
-Confirmed with `git status` clean — these are **not** caused by local edits.
-
-| # | Failing test | Cause |
-| --- | --- | --- |
-| 1 | `artifact-identity` — *every committed artifact record uses the full SHA-256 as id and file name* | `artifacts/` holds **both** short (`ar-c9a3a21cc733aafb.mind`) and full-hash (`ar-c9a3a21cc733aafb9c…d3.mind`) files; the short ones are strays from before I03-P04 changed identity to full SHA-256 |
-| 2 | `dependencies` — *the README states the trade-off instead of claiming an upstream fix* | README lacks the required phrase *“deliberate trade-off, not an upstream fix”* |
-| 3 | `wording` — *no document claims frames are never sent…* | `README.md:96` — *“no frames are ever sent”* is an absolute claim the suite forbids |
-| 4 | `wording` — *docs do not say spike tests … not run in CI* | README does not state that spike tests are **not** run by repository CI |
-| 5 | `wording` — *reproducibility is only claimed for the recorded environment* | `README.md:108` — *“byte-reproducible”* is unqualified; the suite requires the recorded-environment qualifier |
-
-> Items 1–5 are harness/README issues in **I03-P02** territory, reported here
-> because the suite must be green before P03 evidence is trustworthy.
-
----
-
-## 10. Findings reported to MEMBER_3 (`Tofu501`)
-
-| # | Severity | Finding | File:line | Origin |
-| --- | --- | --- | --- | --- |
-| 1 | 🔴 blocker | Permission denial crashes; no user message, no evidence logged | `public/client.js:191` (pre-existing, was `:153` in `166b7f9`) | MindAR 1.2.5 rejects `undefined` + non-defensive client |
-| 2 | 🔴 fixed | Camera hidden behind `#container` background | `public/styles.css:7` | fixed in `939f739` |
-| 3 | 🔴 fixed | `"Camera tracks: none yet"` never updated | `public/client.js` | fixed in `939f739` |
-| 4 | 🟡 fixed | artifact radio had no listener | `public/client.js:95-99` | fixed in `939f739` |
-| 5 | 🟡 fixed | no loading/scanning status | `public/client.js:187` | fixed in `939f739` |
-| 6 | 🟡 open | 5 unit tests red on `dev` (§9a) | `artifacts/`, `README.md` | — |
-
-Findings 2–5 were confirmed fixed and re-verified end-to-end on this commit.
-
----
-
-## 11. What is NOT covered here (must be done on the real device)
+## 9. What is NOT covered here (must be done on the real device)
 
 The ticket requires *Real mobile HTTPS/camera tests*. **None of the following
 were executed on a phone for this commit**, so no claim is made about them:
@@ -376,7 +308,7 @@ were executed on a phone for this commit**, so no claim is made about them:
 
 ---
 
-## 12. Filled device blocks
+## 10. Filled device blocks
 
 ### Block — Chrome 155 on Ubuntu 26.04.1 (desktop, **synthetic camera**)
 
@@ -413,7 +345,7 @@ were executed on a phone for this commit**, so no claim is made about them:
 **Preparation**
 
 - Re-compile of version A byte-identical: **MATCH**
-- Artifact unavailable / fault injection: covered by the behavioural suite — `UNAVAILABLE` → HTTP 503 `{"code":"UNAVAILABLE"}`, camera-free content still HTTP 200, server stays healthy; restore → `READY`, sha256 matches manifest *(measured on the pre-merge harness commit; re-run on `0654135` is pending — §11)*
+- Artifact unavailable / fault injection: covered by the behavioural suite — `UNAVAILABLE` → HTTP 503 `{"code":"UNAVAILABLE"}`, camera-free content still HTTP 200, server stays healthy; restore → `READY`, sha256 matches manifest *(measured on the pre-merge harness commit; re-run on `0654135` is pending — §9)*
 
 **Overall honest verdict for this browser: `partial`**
 — camera start, scanning status, track cleanup, accessibility and fallback all
@@ -436,19 +368,9 @@ honest state.
 
 ---
 
-## 13. Acceptance criteria status
+## Overall honest verdict
 
-| AC | Status | Evidence |
-| --- | --- | --- |
-| *Actual supported combinations are documented.* | 🟡 **partial** | §3 documents Chrome 155 + Firefox 158 as **`partial`**; mobile rows explicitly **NOT TESTED** |
-| *Camera start, denial and exit is tested.* | 🟡 **tested, denial FAILS** | start ✅ / exit ✅ (§4) / denial 🔴 (§5) |
-| *Repeatability and unsupported cases have honest outcomes.* | ✅ **done** | §6 with method + caveats; §5 records the unsupported/denied outcome honestly |
-
-| Tests required | Status |
-| --- | --- |
-| *Real mobile HTTPS/camera tests* | ⬜ **NOT DONE** — §11 |
-| *Manual accessibility checks for start, exit and fallback* | ✅ §7 (18/18) + §8 |
-
-**Overall honest verdict for I03-P03 at this commit: `partial`** — desktop
-evidence is complete and reproducible; the mobile half of the matrix and the
-denial fix remain open.
+**`partial` for this commit** — desktop evidence (Chrome 155, Firefox 158) is
+complete and reproducible; the **mobile half of the matrix is not filled**, and
+camera permission denial fails. No combination is claimed as supported beyond
+what §3 and §10 measured.

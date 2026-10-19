@@ -39,10 +39,12 @@ test('combined artifact is test-only, ordered A then B and bound to the same sou
   for (const k of ['A', 'B']) assert.equal(c.sourceImageSha256[k], manifest.versions[k].sourceImageSha256);
 });
 
-test('recorded reproducibility checks all report byte-identical recompiles', () => {
+test('recorded reproducibility checks all report byte-identical recompiles, each with its environment', () => {
   const checks = manifest.reproducibilityChecks ?? [];
   assert.ok(checks.length > 0, 'at least one check recorded (npm run compile:verify)');
   assert.ok(checks.every((c) => c.match === true));
+  // A match is only meaningful together with the environment it was observed in.
+  assert.ok(checks.every((c) => c.environment?.node && c.environment?.platform && c.environment?.arch), 'every check records Node, OS and architecture');
 });
 
 test('prepared artifacts and private content are not reachable as public static files', async () => {

@@ -2,6 +2,7 @@
 // (no network, no camera). The first real run on a phone is the test; adjust only this file if the API differs.
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
+import { createRevealGuard, runGuardedReveal } from './reveal-guard.js';
 
 const KEY = 'spike.token';
 const $ = (id) => document.getElementById(id);
@@ -85,7 +86,11 @@ function chosen() {
   const useCombined = session.combined && document.querySelector('input[name=artifact]:checked')?.value === 'combined';
   return useCombined ? session.combined : session.version;
 }
-const artifactLabel = (art) => (art === session.combined ? 'combined A+B (test-only)' : `per-version ${session.scopeLabel}`);
+const artifactLabel = (art) => {
+  const base = art === session.combined ? 'combined A+B (test-only)' : `per-version ${session.scopeLabel}`;
+  // Never present an artifact whose origin could not be proven as if it were verified.
+  return art.provenance === 'manual-unverified' ? `${base}, manual-unverified` : base;
+};
 // The artifact is fixed when AR starts. Lock the choice while running so a late change cannot be mistaken for a test of it.
 const setArtifactChoiceLocked = (locked) => document.querySelectorAll('input[name=artifact]').forEach((r) => { r.disabled = locked; });
 document.querySelectorAll('input[name=artifact]').forEach((r) => r.addEventListener('change', () => {
@@ -107,28 +112,49 @@ function renderReveal(c) {
   box.hidden = false;
 }
 
-async function onFound(index, artifactId) {
+const revealGuard = createRevealGuard();
+
+// A reveal response may arrive after the target was lost or AR stopped; the guard turns such a response into a no-op.
+function onFound(index, artifactId) {
   log('target:found', { index });
-  const res = await fetch('/api/spike/reveal', {
-    method: 'POST',
-    headers: { ...auth(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ artifactId, targetIndex: index }),
-    cache: 'no-store',
-  });
-  if (res.ok) {
-    const c = await res.json();
-    log('reveal:ok', { versionLabel: c.versionLabel, index });
-    renderReveal(c);
-    setStatus('Target recognized and revealed.');
-  } else {
-    log('reveal:denied', { status: res.status, index });
-    $('reveal').hidden = true;
-    setStatus('This target has nothing to show in this session.');
-  }
+  return runGuardedReveal(
+    revealGuard,
+    {
+      fetchReveal: (signal) =>
+        fetch('/api/spike/reveal', {
+          method: 'POST',
+          headers: { ...auth(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ artifactId, targetIndex: index }),
+          cache: 'no-store',
+          signal,
+        }),
+    },
+    {
+      onOk(c) {
+        log('reveal:ok', { versionLabel: c.versionLabel, index });
+        renderReveal(c);
+        setStatus('Target recognized and revealed.');
+      },
+      onDenied(status) {
+        log('reveal:denied', { status, index });
+        $('reveal').hidden = true;
+        setStatus('This target has nothing to show in this session.');
+      },
+      onStale(why) {
+        log('reveal:stale-ignored', { index, why });
+      },
+      onError(err) {
+        log('reveal:error', { name: err?.name });
+        $('reveal').hidden = true;
+        setStatus('The reveal request failed. Use “View without camera” for the same content.');
+      },
+    },
+  );
 }
 
 async function start() {
   if (running) return;
+  revealGuard.invalidate();
   $('start').disabled = true;
   try {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
@@ -147,6 +173,7 @@ async function start() {
       const anchor = mindar.addAnchor(i);
       anchor.onTargetFound = () => onFound(i, art.artifactId);
       anchor.onTargetLost = () => {
+        revealGuard.invalidate();
         log('target:lost', { index: i });
         $('reveal').hidden = true;
         if (running) setStatus('Target lost. Scanning…');
@@ -158,7 +185,7 @@ async function start() {
     renderer.setAnimationLoop(() => renderer.render(scene, camera));
     $('stop').disabled = false;
     setStatus(`Scanning with the ${artifactLabel(art)} artifact. Point the camera at the target.`);
-    log('ar:started', { artifactId: art.artifactId, targetCount: art.targetCount, artifact: artifactLabel(art) });
+    log('ar:started', { artifactId: art.artifactId, shortId: art.shortId, provenance: art.provenance, targetCount: art.targetCount, artifact: artifactLabel(art) });
     updateCameraSummary();
   } catch (err) {
     log('ar:error', { name: err.name, message: String(err.message).slice(0, 120) });
@@ -175,6 +202,7 @@ async function start() {
 }
 
 async function stop(silent = false) {
+  revealGuard.invalidate();
   const r = running;
   running = null;
   if (r) {

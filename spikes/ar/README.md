@@ -18,7 +18,8 @@ Branch: `feature/I03-P02-synthetic-target-prototype`.
 | Recognition ≠ authorization (Q7) | Reveal needs the session scope plus the artifact/index that scope allows; artifacts are only served to an authorized session, never as public files | Yes | Yes (combined-artifact scan) |
 | Preparation failure | Missing / tampered artifact → `UNAVAILABLE`, fallback still works (`npm run fault`) | Yes | Optional |
 
-`npm test` (36 tests) covers the server, manifest, committed artifacts and module graph. **They are not AR evidence.**
+`npm test` (47 tests) covers the server, manifest, committed artifacts, module graph, static privacy checks of the page
+scripts and the installed MindAR build, fallback readability and port conformance. **They are not AR evidence.**
 P02's real-recognition criteria stay unchecked until the phone runs below are recorded in `evidence/`.
 
 ## Run it
@@ -27,8 +28,8 @@ Requirements: Node >= 22.2 and network access for the first install.
 
 ```bash
 cd spikes/ar
-npm ci --ignore-scripts        # mind-ar depends on native `canvas`: it is installed but NOT compiled with --ignore-scripts, and never loaded here
-npm test                       # 36 tests
+npm ci --ignore-scripts        # --ignore-scripts: mind-ar depends on native `canvas`, which this harness does not use
+npm test                       # 47 tests
 npm run compile:verify         # optional: recompile A, B and the combined artifact, record reproducibility, print feature counts
 SPIKE_ENABLE_COMBINED=1 npm start
 ```
@@ -128,20 +129,10 @@ DevTools/remote-inspector network trace once per device class (the page's off-or
 - Whether the harness page loads on a real device with the CSP (importmap hash, `wasm-unsafe-eval`, workers).
 - Real recognition quality of the synthetic images (distance, light, orientation).
 
-## Device observations so far (MEMBER_4, 2026-10-18, not yet in `evidence/`)
+## I03-P04 (privacy, fallback, provider port)
 
-Source: a test report by the I03-P03 owner against commit `166b7f9`. Redmi Note 13, Android 14 (HyperOS), Chrome, over an
-HTTPS tunnel; desktop Chrome 155 on Ubuntu for rendering.
-
-| Case | Result | Reading |
-| --- | --- | --- |
-| HTTPS load, camera permission, MindAR start | Works; tracks live, tracking runs | Infrastructure is viable |
-| Session A + `version-a.png` | Card A shown | Genuine recognition + version-bound reveal worked once |
-| Session A + `version-b.png` (per-version artifact) | Nothing shown | **Weak evidence**: that artifact contains only target A, so no request is ever made |
-| Session A + combined artifact + `version-b.png` | Nothing shown, expected the "nothing to show" message | **Not valid**: the artifact choice was changed after Start, so the per-version artifact was still in use |
-| Camera area | Black on desktop and phone | Fixed in this branch: `#container` had no stacking context (`z-index: 0`) |
-
-Fixes made after that report: camera area stacking context; the camera summary now updates on start and on track events;
-the artifact choice is locked while AR runs and the status names the artifact in use; the status shows loading and
-scanning progress. `test/ui-static.test.mjs` guards these. Case 4 must be re-run before it counts as evidence.
-Still not recorded anywhere: permission denied, unsupported browser, repeatability, light/distance/orientation, network trace.
+- Review and findings: `I03-P04-privacy-fallback-port-review.md`.
+- Port sketch (type-checks under `tsc --strict`, not compiled by the workspace): `port/ar-provider-port.ts`.
+- Real-device network, storage and readability record: `evidence/P04-observations-template.md`.
+- Tests: `test/privacy-static.test.mjs`, `test/fallback-readability.test.mjs`, `test/port-conformance.test.mjs`.
+  They inspect source and the installed library; they do not replace a real network trace.

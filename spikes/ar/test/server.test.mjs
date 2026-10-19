@@ -7,6 +7,8 @@ import { createServer } from '../src/server.mjs';
 import { createRegistry } from '../src/registry.mjs';
 import { registerArtifact, registerCombined } from '../src/manifest.mjs';
 
+const PROV = { status: 'manual-unverified', detail: 'synthetic test bytes, not a real .mind file' };
+
 const TOKEN_A = 'tokenAAAAAAAAAAAAAAAAAAAAAAAA';
 const TOKEN_B = 'tokenBBBBBBBBBBBBBBBBBBBBBBBB';
 let dir, manifest, server, base, idA, idB, idC;
@@ -41,9 +43,9 @@ before(async () => {
       B: { projectRevisionId: 'rev-B', sourceImageSha256: 'b'.repeat(64), artifact: null },
     },
   };
-  idA = registerArtifact(dir, manifest, { versionKey: 'A', buffer: Buffer.from('mind-A-bytes'), tool: 't', toolVersion: '1' }).artifactId;
-  idB = registerArtifact(dir, manifest, { versionKey: 'B', buffer: Buffer.from('mind-B-bytes'), tool: 't', toolVersion: '1' }).artifactId;
-  idC = registerCombined(dir, manifest, { buffer: Buffer.from('mind-AB-bytes'), order: ['A', 'B'], tool: 't', toolVersion: '1' }).artifactId;
+  idA = registerArtifact(dir, manifest, { versionKey: 'A', buffer: Buffer.from('mind-A-bytes'), tool: 't', toolVersion: '1', provenance: PROV }).artifactId;
+  idB = registerArtifact(dir, manifest, { versionKey: 'B', buffer: Buffer.from('mind-B-bytes'), tool: 't', toolVersion: '1', provenance: PROV }).artifactId;
+  idC = registerCombined(dir, manifest, { buffer: Buffer.from('mind-AB-bytes'), order: ['A', 'B'], tool: 't', toolVersion: '1', provenance: PROV }).artifactId;
   server = await boot(true);
   base = `http://127.0.0.1:${server.address().port}`;
 });

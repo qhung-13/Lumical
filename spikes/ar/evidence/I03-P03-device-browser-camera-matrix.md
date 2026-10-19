@@ -16,6 +16,57 @@ Synthetic data only. Failures and "nothing revealed" are valid results; do not o
 
 ---
 
+## Coverage against the ticket (start here)
+
+### Purpose — *"Make supported-device claims evidence-based."*
+
+Claimed combinations below are each tied to a measurement or marked **NOT
+TESTED**. Nothing is upgraded to "supported" without a result behind it.
+
+### Scope (8 items)
+
+| # | Scope item | Where | Status |
+| --- | --- | --- | --- |
+| 1 | Real device / OS / browser versions | §2, §3 | 🟡 **partial** — 2 desktop browsers measured; **no real device on this commit** |
+| 2 | HTTPS camera behavior | §11 | ⬜ **NOT TESTED** — localhost is a secure context, so no HTTPS/tunnel run happened here |
+| 3 | Lighting and distance | §11 | ⬜ **NOT TESTED** — synthetic camera has no lighting/distance |
+| 4 | Orientation | §11 | ⬜ **NOT TESTED** — synthetic camera has no orientation |
+| 5 | Camera permission denial | §5 | ✅ **tested — FAILS** (blocker, reported) |
+| 6 | Camera exit / cleanup | §4 | ✅ **PASS** on Chrome 155 + Firefox 158 |
+| 7 | Basic performance observations | §4, §11 | 🟡 **partial** — main-thread round-trip 0–1 ms during scan; no device FPS |
+| 8 | Repeat recognition scans | §6 | ✅ **measured** (desktop synthetic camera, caveats in §6) |
+
+### Acceptance Criteria (3)
+
+| AC | Status | Section |
+| --- | --- | --- |
+| *Actual supported combinations are documented.* | 🟡 partial — Chrome 155 / Firefox 158 documented as `partial`; mobile rows explicitly NOT TESTED | §3, §12 |
+| *Camera start, denial and exit is tested.* | 🟡 tested; **denial FAILS** | §4, §5 |
+| *Repeatability and unsupported cases have honest outcomes.* | ✅ done — failures recorded, not omitted | §5, §6 |
+
+### Tests / Evidence (2 required)
+
+| Required | Status | Section |
+| --- | --- | --- |
+| *Real mobile HTTPS/camera tests* | ⬜ **NOT DONE** — the remaining work for this ticket | §11 |
+| *Manual accessibility checks for start, exit and fallback* | ✅ 18/18 + fallback checks | §7, §8 |
+
+### Out of scope — not claimed anywhere in this file
+
+- *Production hosting rollout* — no deployment was performed.
+- *Universal browser/device support claims* — no row says "works on X" without a
+  measurement; untested combinations are written **NOT TESTED**.
+
+### Review focus — *"Real device evidence and correct camera-track cleanup"*
+
+- **Camera-track cleanup:** ✅ measured end to end in §4 (`1 created, 1 live` →
+  Stop → `1 created, 0 live`, 0 tracks) on two browsers.
+- **Real device evidence:** ⬜ **not available yet** — §11 and the unfilled
+  mobile block in §12 state this plainly rather than substituting desktop
+  results.
+
+---
+
 ## 1. How to reproduce (harness steps)
 
 ```bash

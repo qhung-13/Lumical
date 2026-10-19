@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>LumiCal AR spike (I03-P02)</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/three-addons/","mindar-image-three":"/vendor/mindar/mindar-image-three.prod.js"}}</script>
+</head>
+<body>
+  <main>
+    <h1>AR spike harness <small>synthetic data only</small></h1>
+    <p id="status" role="status" aria-live="polite">Loading session…</p>
+    <fieldset id="artifact-choice" hidden>
+      <legend>Prepared artifact</legend>
+      <label><input type="radio" name="artifact" value="version" checked> Per-version artifact</label>
+      <label><input type="radio" name="artifact" value="combined"> Combined A+B artifact (test-only)</label>
+    </fieldset>
+    <div class="actions">
+      <button id="start" type="button" disabled>Start AR</button>
+      <button id="stop" type="button" disabled>Stop AR</button>
+      <a id="fallback-link" href="/fallback">View without camera</a>
+    </div>
+    <div id="container" aria-label="Camera view"></div>
+    <section id="reveal" hidden aria-live="polite"></section>
+    <details open>
+      <summary>Evidence (copy into the device run record)</summary>
+      <p id="camera-summary">Camera tracks: none yet</p>
+      <button id="copy" type="button">Copy evidence JSON</button>
+      <pre id="log" tabindex="0"></pre>
+    </details>
+  </main>
+  <script type="module" src="/client.js"></script>
+</body>
+</html>

@@ -16,7 +16,13 @@
     "test": "pnpm -r --if-present test && pnpm --dir backend test:e2e",
     "test:db": "pnpm --dir backend test:db",
     "test:docker": "pnpm --dir backend test:docker",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:db",
-    "format": "pnpm -r --if-present format"
+    "contract:generate": "pnpm --dir backend build && node backend/scripts/export-openapi.mjs && pnpm --dir frontend exec openapi-typescript ../backend/openapi.json -o src/api/generated.ts",
+    "contract:check": "node backend/scripts/export-openapi.mjs --check && node frontend/scripts/check-contract.mjs",
+    "test:identity": "pnpm --dir backend test:identity",
+    "test:proxy": "node --test infra/proxy.test.mjs",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm contract:check && pnpm test:proxy && pnpm test:ui && pnpm test:db",
+    "format": "pnpm -r --if-present format",
+    "test:ui": "pnpm --dir frontend test:e2e",
+    "test:visual": "pnpm --dir frontend test:visual"
   }
 }

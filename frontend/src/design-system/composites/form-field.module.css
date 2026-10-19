@@ -1,0 +1,5 @@
+.field { display: grid; gap: var(--space-1); min-width: 0; margin-block-end: var(--space-5); }
+.field label { font-size: var(--type-label); line-height: var(--type-label-line); font-weight: 600; margin-block-end: var(--space-1); }
+.field p { margin: 0; }
+.help { color: var(--color-text-muted); }
+.field .error { color: var(--color-danger); }

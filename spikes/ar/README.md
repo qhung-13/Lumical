@@ -50,7 +50,7 @@ reviewed through the PR). Direct dependencies: `mind-ar@1.2.5` (MIT, last publis
   regenerates them (pixel-deterministic; PNG bytes may differ across zlib versions, so the committed files are the source
   of truth). Regenerating changes the source hashes and invalidates registered artifacts; run `npm run compile -- --force`
   afterwards.
-- `npm run compile` prepares artifacts in plain Node (no native `canvas`) and registers them in the manifest. The
+- `npm run compile` prepares artifacts in plain Node (the native `canvas` package is present but not compiled, and is not used) and registers them in the manifest. The
   committed result: 1024x1024 sources, about 3.7k matching feature points each, byte-identical on recompile.
 - The MindAR browser compile tool (<https://hiukim.github.io/mind-ar-js-doc/tools/compile>) remains a valid cross-check:
   `npm run register -- --version A --file ~/Downloads/targets.mind --tool-version "<date>"`, and

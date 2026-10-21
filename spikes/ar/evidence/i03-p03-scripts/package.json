@@ -1,0 +1,25 @@
+{
+  "name": "i03-p03-evidence-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Reproduction scripts for I03-P03 (device, browser and camera feasibility matrix). Self-contained: not part of the spike harness package, so it can be copied and run on its own.",
+  "engines": {
+    "node": ">=22.2"
+  },
+  "scripts": {
+    "lifecycle": "node p03-stop-diag.mjs",
+    "denial": "node p03-denial-stack.mjs",
+    "permission": "node p03-permission.mjs",
+    "a11y": "node p03-a11y.mjs",
+    "firefox": "node p03-firefox.mjs",
+    "firefox-deny": "node p03-firefox-deny.mjs",
+    "video:y4m": "node make-y4m.mjs",
+    "video:always": "node make-always.mjs",
+    "repeat": "node p03-repeat.mjs",
+    "trials": "node p03-trials.mjs"
+  },
+  "dependencies": {
+    "pngjs": "7.0.0",
+    "puppeteer-core": "24.34.0"
+  }
+}

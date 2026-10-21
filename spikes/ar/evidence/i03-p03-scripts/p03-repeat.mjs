@@ -1,11 +1,10 @@
 import puppeteer from 'puppeteer-core';
+import { ORIGIN, TOKEN_A as TOKEN, chrome, scratch } from './env.mjs';
 
-const TOKEN = 'devtokenA123456789';
-const ORIGIN = 'http://127.0.0.1:8787';
-const Y4M = '/tmp/opencode/ar-debug/target-a.y4m';
+const Y4M = scratch('target-a.y4m');
 
 const b = await puppeteer.launch({
-  executablePath: '/usr/bin/google-chrome', headless: false, protocolTimeout: 120000,
+  executablePath: chrome(), headless: false, protocolTimeout: 120000,
   defaultViewport: { width: 420, height: 920 },
   args: [
     '--no-sandbox',

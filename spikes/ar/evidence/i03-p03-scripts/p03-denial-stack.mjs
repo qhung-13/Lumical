@@ -1,10 +1,8 @@
 import puppeteer from 'puppeteer-core';
-
-const TOKEN = 'devtokenA123456789';
-const ORIGIN = 'http://127.0.0.1:8787';
+import { ORIGIN, TOKEN_A as TOKEN, chrome } from './env.mjs';
 
 const b = await puppeteer.launch({
-  executablePath: '/usr/bin/google-chrome', headless: false, protocolTimeout: 60000,
+  executablePath: chrome(), headless: false, protocolTimeout: 60000,
   defaultViewport: { width: 420, height: 920 },
   args: ['--no-sandbox', '--use-fake-device-for-media-stream'],  // KHÔNG fake-ui
 });
@@ -46,8 +44,8 @@ errs.forEach((e, i) => {
 
 console.log('\n── Evidence log (phần getUserMedia / ar:) ──');
 const ev = await p.evaluate(() => {
-  const el = document.getElementById('evidence');
-  return el ? el.textContent : '(không có #evidence)';
+  const el = document.getElementById('log');   // UI dùng #log, không phải #evidence
+  return el ? el.textContent : '(không có #log)';
 });
 console.log('  ' + ev.split('\n').filter(l => /getUserMedia|ar:|error/i.test(l)).join('\n  '));
 

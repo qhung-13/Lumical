@@ -1,16 +1,17 @@
 import puppeteer from 'puppeteer-core';
+import { ORIGIN, TOKEN_B, chrome, scratch } from './env.mjs';
 
-const ORIGIN = 'http://127.0.0.1:8787';
-const Y4M = process.argv[2] || '/tmp/opencode/ar-debug/b-cycle12.y4m';
+// node p03-video-diag.mjs [video.y4m] — xem camera thấy gì từ khung hình cho trước
+const Y4M = process.argv[2] || scratch('b-always.y4m');
 
 const b = await puppeteer.launch({
-  executablePath: '/usr/bin/google-chrome', headless: false, protocolTimeout: 90000,
+  executablePath: chrome(), headless: false, protocolTimeout: 90000,
   defaultViewport: { width: 420, height: 920 },
   args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
          `--use-file-for-fake-video-capture=${Y4M}`, '--window-size=440,960'],
 });
 const p = await b.newPage();
-await p.goto(`${ORIGIN}/#t=devtokenB123456789`, { waitUntil: 'networkidle2' });
+await p.goto(`${ORIGIN}/#t=${TOKEN_B}`, { waitUntil: 'networkidle2' });
 await new Promise(r => setTimeout(r, 1500));
 await p.evaluate(() => document.getElementById('start').click());
 

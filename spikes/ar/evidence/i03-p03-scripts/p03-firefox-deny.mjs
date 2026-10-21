@@ -1,12 +1,10 @@
 import puppeteer from 'puppeteer-core';
-
-const ORIGIN = 'http://127.0.0.1:8787';
-const TOKEN = 'devtokenA123456789';
+import { ORIGIN, TOKEN_A as TOKEN, firefox, scratch } from './env.mjs';
 const b = await puppeteer.launch({
   browser: 'firefox',
-  executablePath: '/tmp/opencode/ar-debug/firefox/linux-stable_158.0/firefox/firefox',
+  ...(firefox() ? { executablePath: firefox() } : {}),   // không set → Puppeteer dùng build Firefox của chính nó
   headless: true,
-  userDataDir: '/tmp/opencode/ar-debug/ff-profile2',
+  userDataDir: scratch('ff-profile2'),
   protocolTimeout: 60000,
   extraPrefsFirefox: { 'media.navigator.streams.fake': true, 'media.navigator.permission.disabled': false },
 });

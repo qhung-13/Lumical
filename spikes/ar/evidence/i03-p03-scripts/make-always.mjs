@@ -1,7 +1,9 @@
-import { PNG } from '/home/duc/Documents/Lumical-AR-spike/spikes/ar/node_modules/pngjs/lib/png.js';
+import { PNG } from 'pngjs';
 import fs from 'node:fs';
+import { scratch } from './env.mjs';
 // Video target LUÔN hiện diện (loop vô hạn, không có pha gray)
-const SRC = process.argv[2], OUT = process.argv[3];
+//   node make-always.mjs <version-a.png> [out.y4m]
+const SRC = process.argv[2], OUT = process.argv[3] ?? scratch('always.y4m');
 const W = 512, H = 512, N = 60, FPS = 30;
 const png = PNG.sync.read(fs.readFileSync(SRC));
 const rgb = new Uint8Array(W * H * 3);

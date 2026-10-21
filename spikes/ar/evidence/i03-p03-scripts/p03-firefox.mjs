@@ -1,13 +1,11 @@
 import puppeteer from 'puppeteer-core';
-
-const TOKEN = 'devtokenA123456789';
-const ORIGIN = 'http://127.0.0.1:8787';
+import { ORIGIN, TOKEN_A as TOKEN, firefox, scratch } from './env.mjs';
 
 const b = await puppeteer.launch({
   browser: 'firefox',
-  executablePath: '/tmp/opencode/ar-debug/firefox/linux-stable_158.0/firefox/firefox',
+  ...(firefox() ? { executablePath: firefox() } : {}),   // không set → Puppeteer dùng build Firefox của chính nó
   headless: true,
-  userDataDir: '/tmp/opencode/ar-debug/ff-profile',   // profile riêng — không đụng Firefox đang mở
+  userDataDir: scratch('ff-profile'),   // profile riêng — không đụng Firefox đang mở
   protocolTimeout: 60000,
   extraPrefsFirefox: {
     'media.navigator.streams.fake': true,          // fake camera trong Firefox
@@ -19,7 +17,7 @@ const p = await b.newPage();
 const errs = [];
 p.on('pageerror', e => errs.push(e.message.slice(0, 160)));
 
-console.log('═══ FIREFOX 157 — load trang ═══');
+console.log('═══ FIREFOX 158 — load trang ═══');
 await p.goto(`${ORIGIN}/#t=${TOKEN}`, { waitUntil: 'networkidle2', timeout: 30000 });
 await new Promise(r => setTimeout(r, 2000));
 console.log('  UA      :', (await p.evaluate(() => navigator.userAgent)).slice(0, 90));

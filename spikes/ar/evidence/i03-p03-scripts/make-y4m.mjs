@@ -1,11 +1,14 @@
 // Sinh video Y4M (YUV420p) feed vào Chrome --use-file-for-fake-video-capture
 // 3 pha lặp: TARGET A hiện → target biến mất (màu xám) → target hiện lại
 // → đo được found → lost → found = REPEAT SCAN (scope #8 của I03-P03)
-import { PNG } from '/home/duc/Documents/Lumical-AR-spike/spikes/ar/node_modules/pngjs/lib/png.js';
+import { PNG } from 'pngjs';
 import fs from 'node:fs';
+import { target, scratch } from './env.mjs';
 
-const SRC = '/home/duc/Documents/AR-targets/version-a.png';
-const OUT = '/tmp/opencode/ar-debug/target-a.y4m';
+// node make-y4m.mjs — tạo video target hiện → biến mất → hiện lại (scope #8)
+// Đặt target PNG bằng P03_TARGETS hoặc P03_SRC.
+const SRC = process.env.P03_SRC ?? target('version-a.png');
+const OUT = scratch('target-a.y4m');
 const W = 512, H = 512;
 const FRAMES_PER_PHASE = 90;   // 3 giây/pha @30fps
 const FPS = 30;

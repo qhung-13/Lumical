@@ -8,23 +8,61 @@ instead of taken on trust.
 > They drive a **desktop** browser with a fake camera. They are **not** a
 > substitute for the phone run required by *Real mobile HTTPS/camera tests*.
 
-## Start the server first
+## Setup (copy-paste)
 
 ```bash
-cd ../../          # spikes/ar
+# 1. dependencies for these scripts only (this folder is self-contained)
+cd spikes/ar/evidence/i03-p03-scripts
+npm ci
+
+# 2. start the spike server with FIXED tokens, so the scripts can log in
+cd ../../
 npm ci --ignore-scripts
-HOST=0.0.0.0 SPIKE_ENABLE_COMBINED=1 node src/server.mjs     # :8787
+SPIKE_TOKEN_A=devtokenA123456789 \
+SPIKE_TOKEN_B=devtokenB123456789 \
+HOST=0.0.0.0 SPIKE_ENABLE_COMBINED=1 \
+node src/server.mjs                                  # :8787
+
+# 3. run a script (from the scripts folder)
+cd evidence/i03-p03-scripts
+DISPLAY=:0 node p03-stop-diag.mjs
+```
+
+Without `SPIKE_TOKEN_A` / `SPIKE_TOKEN_B` the server mints a random token on
+every start and prints it on boot — the scripts would then log in with the
+wrong one and report `Session not available`.
+
+## Configuration (`env.mjs`)
+
+No script contains a machine-specific path, an absolute home directory or a
+hard-coded browser location. All of it lives in
+[`env.mjs`](env.mjs) and is read from the environment:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SPIKE_ORIGIN` | `http://127.0.0.1:8787` | URL of the running spike server |
+| `SPIKE_TOKEN_A` / `SPIKE_TOKEN_B` | `devtokenA…` / `devtokenB…` | session tokens; **must match the server's** |
+| `CHROME_PATH` | auto-detected | Chrome/Chromium binary. Auto-detects `/usr/bin/google-chrome`, `/usr/bin/chromium`, the macOS app bundle and the Windows install |
+| `FIREFOX_PATH` | *(unset)* | Firefox binary. Unset → puppeteer uses the build it manages itself |
+| `P03_TARGETS` | *(unset)* | directory holding `version-a.png` / `version-b.png` / unknown.png |
+| `P03_SCRATCH` | `$TMPDIR/i03-p03` | writable directory for generated `.y4m` videos and browser profiles |
+
+Firefox only:
+
+```bash
+npx @puppeteer/browsers install firefox@stable   # puppeteer picks it up when FIREFOX_PATH is unset
 ```
 
 ## What each script does
 
 | Script | Evidence section | What it measures |
 | --- | --- | --- |
+| `env.mjs` | — | shared configuration (see above) |
 | `p03-stop-diag.mjs` | §4 | camera **exit / track cleanup** — the ticket's review focus |
 | `p03-permission.mjs` | §5 | camera start when granted, and behaviour when **denied** |
 | `p03-denial-stack.mjs` | §5 | captures the exact stack trace of the denial crash |
 | `p03-mindar-reject.mjs` | §5 | isolates whether MindAR or the client rejects wrongly |
-| `p03-a11y.mjs` | §7 | accessibility of start / exit / fallback (18 checks) |
+| `p03-a11y.mjs` | §7 | **automated** accessibility + keyboard interaction (18 checks) |
 | `p03-firefox.mjs` | §3, §10 | same lifecycle on Firefox |
 | `p03-firefox-deny.mjs` | §5 | Firefox permission-denial behaviour |
 | `make-always.mjs` | §6b | builds a fake-camera video where the target never leaves frame |
@@ -36,7 +74,10 @@ HOST=0.0.0.0 SPIKE_ENABLE_COMBINED=1 node src/server.mjs     # :8787
 ## Typical run
 
 ```bash
-node make-always.mjs /path/to/version-a.png /tmp/a-always.y4m
+# fake-camera inputs (need P03_TARGETS)
+P03_TARGETS=/path/to/targets node make-y4m.mjs      # appear → disappear → reappear
+P03_TARGETS=/path/to/targets node make-always.mjs /path/to/version-a.png
+
 DISPLAY=:0 node p03-trials.mjs
 DISPLAY=:0 node p03-permission.mjs
 DISPLAY=:0 node p03-a11y.mjs
@@ -60,10 +101,13 @@ Driving them headless would silently produce false negatives.
    is read once inside `start()`.
 4. **System Firefox is a snap** and refuses to be driven
    (`Firefox is already running, but is not responding`). Use a puppeteer-managed
-   build: `npx @puppeteer/browsers install firefox@stable`.
+   build (see Configuration above).
+5. **The UI's evidence element is `#log`, not `#evidence`**, and the camera-free
+   link is `#fallback-link`, not `#fallback`. Querying the wrong id returns
+   `null` silently and looks like "no evidence was recorded".
 
 ## Temporary / not committed
 
-Target PNGs (`version-a.png`, `version-b.png`, `unknown.png`) and the generated
-`*.y4m` files are inputs, not repository content — regenerate them from the
-fixtures rather than committing multi-megabyte video.
+`node_modules/` (install with `npm ci`), target PNGs (`version-a.png`,
+`version-b.png`, `unknown.png`) and the generated `*.y4m` files are inputs, not
+repository content — regenerate them rather than committing megabytes.

@@ -1,8 +1,7 @@
 import puppeteer from 'puppeteer-core';
-
-const TOKEN = 'devtokenA123456789';
+import { ORIGIN, TOKEN_A as TOKEN, chrome } from './env.mjs';
 const b = await puppeteer.launch({
-  executablePath: '/usr/bin/google-chrome', headless: false,
+  executablePath: chrome(), headless: false,
   protocolTimeout: 60000,
   defaultViewport: { width: 420, height: 920 },
   args: ['--no-sandbox', '--use-fake-device-for-media-stream',
@@ -11,7 +10,7 @@ const b = await puppeteer.launch({
 const p = await b.newPage();
 p.on('console', m => { const t = m.text(); if (/error|fail/i.test(t)) console.log('  [page]', t.slice(0, 140)); });
 
-await p.goto(`http://127.0.0.1:8787/#t=${TOKEN}`, { waitUntil: 'networkidle2' });
+await p.goto(`${ORIGIN}/#t=${TOKEN}`, { waitUntil: 'networkidle2' });
 await new Promise(r => setTimeout(r, 1200));
 
 console.log('═══ Đo độresponsive của main thread TRƯỚC start ═══');

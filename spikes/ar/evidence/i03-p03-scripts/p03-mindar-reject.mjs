@@ -1,15 +1,14 @@
 import puppeteer from 'puppeteer-core';
-
-const ORIGIN = 'http://127.0.0.1:8787';
+import { ORIGIN, TOKEN_A, chrome } from './env.mjs';
 const b = await puppeteer.launch({
-  executablePath: '/usr/bin/google-chrome', headless: false, protocolTimeout: 60000,
+  executablePath: chrome(), headless: false, protocolTimeout: 60000,
   defaultViewport: { width: 420, height: 600 },
   args: ['--no-sandbox', '--use-fake-device-for-media-stream'],
 });
 const ctx = b.defaultBrowserContext();
 await ctx.overridePermissions(ORIGIN, []);   // TỪ CHỐI quyền camera
 const p = await b.newPage();
-await p.goto(`${ORIGIN}/#t=devtokenA123456789`, { waitUntil: 'networkidle2' });
+await p.goto(`${ORIGIN}/#t=${TOKEN_A}`, { waitUntil: 'networkidle2' });
 await new Promise(r => setTimeout(r, 1500));
 
 console.log('═══ MindAR.start() reject bằng CÁI GÌ khi bị từ chối quyền? ═══');

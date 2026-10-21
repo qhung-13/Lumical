@@ -1,12 +1,10 @@
 import puppeteer from 'puppeteer-core';
-
-const TOKEN = 'devtokenA123456789';
-const ORIGIN = 'http://127.0.0.1:8787';
+import { ORIGIN, TOKEN_A as TOKEN, chrome } from './env.mjs';
 
 // ── CASE A: permission ĐƯỢC CẤP ─────────────────────────────
 async function runA() {
   const b = await puppeteer.launch({
-    executablePath: '/usr/bin/google-chrome', headless: false, protocolTimeout: 60000,
+    executablePath: chrome(), headless: false, protocolTimeout: 60000,
     defaultViewport: { width: 420, height: 920 },
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
   });
@@ -38,7 +36,7 @@ async function runA() {
 // ── CASE B: permission BỊ TỪ CHỐI ──────────────────────────
 async function runB() {
   const b = await puppeteer.launch({
-    executablePath: '/usr/bin/google-chrome', headless: false, protocolTimeout: 60000,
+    executablePath: chrome(), headless: false, protocolTimeout: 60000,
     defaultViewport: { width: 420, height: 920 },
     args: ['--no-sandbox', '--use-fake-device-for-media-stream'],  // KHÔNG dùng fake-ui
   });
@@ -66,7 +64,7 @@ async function runB() {
   console.log('  → thông báo lỗi hiển thị:', denied ? '✅ CÓ' : '❌ KHÔNG (user không biết bị từ chối)');
   // Fallback có chạy không?
   const fb = await p.evaluate(() => {
-    const el = document.getElementById('fallback');
+    const el = document.getElementById('fallback-link');
     return el ? { exists: true, hidden: el.hidden } : { exists: false };
   });
   console.log('  fallback element:', JSON.stringify(fb));

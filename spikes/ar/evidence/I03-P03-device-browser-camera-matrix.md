@@ -42,14 +42,14 @@ TESTED**. Nothing is upgraded to "supported" without a result behind it.
 | --- | --- | --- |
 | *Actual supported combinations are documented.* | 🟡 partial — Chrome 155 / Firefox 158 documented as `partial`; mobile rows explicitly NOT TESTED | §3, §10 |
 | *Camera start, denial and exit is tested.* | 🟡 tested; **denial FAILS** | §4, §5 |
-| *Repeatability and unsupported cases have honest outcomes.* | ✅ done — failures recorded, not omitted | §5, §6 |
+| *Repeatability and unsupported cases have honest outcomes.* | 🟡 **partial** — desktop outcomes recorded honestly (§5, §6); the mobile unsupported cases are still untested (§9), so this is not closed | §5, §6, §9 |
 
 ### Tests / Evidence (2 required)
 
 | Required | Status | Section |
 | --- | --- | --- |
 | *Real mobile HTTPS/camera tests* | ⬜ **NOT DONE** — the remaining work for this ticket | §9 |
-| *Manual accessibility checks for start, exit and fallback* | ✅ 18/18 + fallback checks | §7, §8 |
+| *Manual accessibility checks for start, exit and fallback* | 🟡 **partial** — executed as **automated** DOM + keyboard interaction checks, **18 / 18 pass**; no manual or screen-reader pass yet | §7, §8 |
 
 ### Out of scope — not claimed anywhere in this file
 
@@ -251,10 +251,15 @@ recognizes"*.
 
 ---
 
-## 7. Accessibility — *manual accessibility checks for start, exit and fallback*
+## 7. Accessibility — *automated DOM + keyboard interaction checks*
 
-Measured with an automated pass over the DOM plus keyboard interaction
-(Chrome 155): **18 / 18 pass.**
+**These are automated, not manual.** `p03-a11y.mjs` drives Puppeteer over the
+DOM and keyboard (Chrome 155): **18 / 18 pass.**
+
+> The ticket's required test is *"manual accessibility checks for start, exit
+> and fallback"*. What is recorded here is machine-verified structure and
+> keyboard behaviour — **not** a manual pass and **not** a screen-reader pass.
+> That is why the Tests row above stays `partial` rather than `done`.
 
 | Check | Observed |
 | --- | --- |
@@ -370,7 +375,8 @@ honest state.
 
 ## Overall honest verdict
 
-**`partial` for this commit** — desktop evidence (Chrome 155, Firefox 158) is
-complete and reproducible; the **mobile half of the matrix is not filled**, and
-camera permission denial fails. No combination is claimed as supported beyond
-what §3 and §10 measured.
+**`partial` for this commit.** Every desktop row in §3 has a measurement behind
+it and the scripts reproduce them on another machine. Still open: the **mobile
+half of the matrix** (§9), the **camera permission denial failure** (§5), and a
+**manual / screen-reader accessibility pass** (§7 is automated only). No
+combination is claimed as supported beyond what §3 and §10 measured.

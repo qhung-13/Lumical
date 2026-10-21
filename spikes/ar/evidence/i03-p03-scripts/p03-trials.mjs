@@ -1,12 +1,11 @@
 import puppeteer from 'puppeteer-core';
-
-const ORIGIN = 'http://127.0.0.1:8787';
+import { ORIGIN, TOKEN_A, TOKEN_B, chrome, scratch } from './env.mjs';
 const TRIALS = 5;
 const WAIT_MS = 12000;   // thời gian chờ nhận diện mỗi trial
 
 async function trialSet(label, token, y4m) {
   const b = await puppeteer.launch({
-    executablePath: '/usr/bin/google-chrome', headless: false, protocolTimeout: 90000,
+    executablePath: chrome(), headless: false, protocolTimeout: 90000,
     defaultViewport: { width: 420, height: 920 },
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
            `--use-file-for-fake-video-capture=${y4m}`, '--window-size=440,960'],
@@ -43,8 +42,8 @@ async function trialSet(label, token, y4m) {
   return { label, hits, trials: TRIALS };
 }
 
-const A = await trialSet('TARGET A — phiên A, per-version A', 'devtokenA123456789', '/tmp/opencode/ar-debug/a-always.y4m');
-const B = await trialSet('TARGET B — phiên B, per-version B', 'devtokenB123456789', '/tmp/opencode/ar-debug/b-always.y4m');
+const A = await trialSet('TARGET A — phiên A, per-version A', TOKEN_A, scratch('a-always.y4m'));
+const B = await trialSet('TARGET B — phiên B, per-version B', TOKEN_B, scratch('b-always.y4m'));
 
 console.log('\n════════════════════════════════════════════');
 console.log('  📊 NHẬN DIỆN THEO TRIAL (target luôn hiện, 12s/trial)');

@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
 import { createRevealGuard, runGuardedReveal } from './reveal-guard.js';
+import { classifyStartFailure } from './start-failure.js';
 
 const KEY = 'spike.token';
 const $ = (id) => document.getElementById(id);
@@ -41,6 +42,14 @@ new PerformanceObserver((list) => {
   }
 }).observe({ type: 'resource', buffered: true });
 
+// The last error our getUserMedia wrapper saw. MindAR rejects start() with `undefined` on denial, so this is often the only
+// place the real cause (NotAllowedError, NotFoundError...) is still visible.
+let lastGetUserMediaError = null;
+
+async function queryCameraPermission() {
+  try { return (await navigator.permissions?.query({ name: 'camera' }))?.state ?? 'unknown'; } catch { return 'unknown'; }
+}
+
 const md = navigator.mediaDevices;
 if (md?.getUserMedia) {
   const orig = md.getUserMedia.bind(md);
@@ -56,7 +65,8 @@ if (md?.getUserMedia) {
       }
       return stream;
     } catch (err) {
-      log('getUserMedia:error', { name: err.name });
+      lastGetUserMediaError = err;
+      log('getUserMedia:error', { name: err?.name });
       throw err;
     }
   };
@@ -155,6 +165,7 @@ function onFound(index, artifactId) {
 async function start() {
   if (running) return;
   revealGuard.invalidate();
+  lastGetUserMediaError = null;
   $('start').disabled = true;
   try {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
@@ -188,16 +199,12 @@ async function start() {
     log('ar:started', { artifactId: art.artifactId, shortId: art.shortId, provenance: art.provenance, targetCount: art.targetCount, artifact: artifactLabel(art) });
     updateCameraSummary();
   } catch (err) {
-    log('ar:error', { name: err.name, message: String(err.message).slice(0, 120) });
+    // `err` may be undefined (MindAR 1.2.5 on denial); never dereference it directly.
+    const failure = classifyStartFailure({ error: err, lastGetUserMediaError, cameraPermission: await queryCameraPermission() });
+    log('ar:error', { name: failure.name, source: failure.source, rejectedWith: failure.rejectedWith, message: String(err?.message ?? '').slice(0, 120) });
     await stop(true);
-    const text = {
-      NotAllowedError: 'Camera permission was denied.',
-      NotFoundError: 'No camera was found.',
-      UnsupportedError: 'AR is not supported here (needs HTTPS and camera access).',
-      PreparationUnavailable: 'The prepared target is unavailable.',
-    }[err.name] ?? 'AR failed to start.';
-    setStatus(`${text} Use “View without camera” for the same content.`);
-    $('start').disabled = err.name === 'UnsupportedError';
+    setStatus(`${failure.text} Use “View without camera” for the same content.`);
+    $('start').disabled = failure.disableStart;
   }
 }
 

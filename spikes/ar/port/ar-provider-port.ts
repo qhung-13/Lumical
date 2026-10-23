@@ -1,5 +1,5 @@
 /**
- * I03-P04 — AR provider port SKETCH (revision 2, after review).
+ * I03-P04 — AR provider port SKETCH (revision 3, closeout clarification).
  *
  * Purpose: show that a provider-neutral boundary can preserve (a) the source version, (b) immutable artifact semantics,
  * (c) "recognition is not authorization", and (d) a camera-free path that does not depend on AR. It is a review aid for
@@ -35,7 +35,7 @@ export type Sha256Hex = Brand<string, 'Sha256Hex'>;
 // 1. Artifact BYTE identity. Knows nothing about orders, projects or revisions.
 // ---------------------------------------------------------------------------------------------------------------
 
-/** IMMUTABLE. Never updated in place; there is no update and no delete in P0. */
+/** IMMUTABLE in ordinary operations. Only separately authorized retention cleanup may purge it (BR-PRV-004/005). */
 export interface PreparedARArtifact {
   readonly artifactId: ArtifactId; // must equal 'ar-' + artifactSha256
   readonly artifactSha256: Sha256Hex;
@@ -83,7 +83,8 @@ export interface ARArtifactBinding {
 
 /**
  * Append-only. The same artifact bytes MAY be bound to several revisions (identical source image); one revision MAY be
- * re-bound to a new artifact (new toolchain, new image). Existing bindings are never changed, so an Order version that
+ * bound to another artifact after a toolchain change for the SAME source image. Changing image bytes advances the
+ * Project revision; it never redefines an existing source revision. Existing bindings are never changed, so an Order version that
  * referenced a binding keeps resolving to the same artifact bytes (BR-AR-002).
  */
 export interface ARBindingStore {
@@ -164,11 +165,11 @@ export interface AuthorizedShareScope {
 export type RevealResult =
   | { status: 'revealed'; content: RevealContent }
   | { status: 'not_found' }
-  /** Only for an AUTHORIZED scope whose own artifact cannot be served. Never returned by `content()`. */
-  | { status: 'unavailable' };
+  /** Only for an AUTHORIZED scope; missing media must not be replaced with unrelated content. */
+  | { status: 'unavailable'; reason: 'artifact-unavailable' | 'media-unavailable' };
 
-/** The camera-free path has no AR failure mode: it never reads or verifies an artifact. */
-export type ContentResult = { status: 'revealed'; content: RevealContent } | { status: 'not_found' };
+/** No AR failure mode: never reads an artifact. Media can still be unavailable (BR-AR-004). */
+export type ContentResult = { status: 'revealed'; content: RevealContent } | { status: 'not_found' } | { status: 'unavailable'; reason: 'media-unavailable' };
 
 export interface ARRevealService {
   /**

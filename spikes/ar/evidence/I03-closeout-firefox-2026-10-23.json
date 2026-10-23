@@ -1,0 +1,146 @@
+{
+  "kind": "automated-live-desktop-denial",
+  "browser": "firefox",
+  "environment": {
+    "platform": "win32",
+    "release": "10.0.26300",
+    "arch": "x64",
+    "node": "v24.21.0"
+  },
+  "scope": "localhost secure context; denied permission; no recognition or mobile acceptance",
+  "version": "157.0",
+  "stage": "complete",
+  "result": "PASS",
+  "denial": {
+    "status": "Camera permission was denied. Use “View without camera” for the same content.",
+    "summary": "Camera tracks: 0 created, 0 live; video elements with a stream: 0",
+    "startEnabled": true,
+    "stopDisabled": true,
+    "choiceUnlocked": true,
+    "getUserMediaDenied": true,
+    "stopped": true,
+    "noVideoStreams": true,
+    "fragmentRemoved": true
+  },
+  "fallback": {
+    "sameAuthorizedContent": true,
+    "imageLoaded": true
+  },
+  "storage": {
+    "sessionStorageKeys": [
+      "spike.token"
+    ],
+    "localStorageKeys": [],
+    "indexedDBNames": [],
+    "cacheKeys": [],
+    "serviceWorkers": 0
+  },
+  "cookies": [],
+  "requests": [
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/styles.css",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/client.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/vendor/three.module.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/vendor/mindar/mindar-image-three.prod.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/reveal-guard.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/start-failure.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/lifecycle.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/vendor/mindar/controller-mGt1s8dJ.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/vendor/three-addons/renderers/CSS3DRenderer.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/vendor/mindar/ui-fBadYuor.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/api/spike/session",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/api/spike/artifacts/ar-c9a3a21cc733aafb9c70662428608a28229ede3adbb6fa9a15f29c68d67b33d3",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/fallback",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/styles.css",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/fallback.js",
+      "bodyBytes": 0
+    },
+    {
+      "method": "GET",
+      "origin": "same",
+      "path": "/api/spike/content",
+      "bodyBytes": 0
+    }
+  ],
+  "pageErrors": [],
+  "offOriginRequests": 0,
+  "bodyBytes": 0
+}

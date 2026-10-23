@@ -131,6 +131,7 @@ INV-05/14 and BR-ORD/PRICE/CON: relational immutable snapshot, twelve Months, op
 - [ ] Snapshot has exactly twelve Months and optional events.
 - [ ] Price/content/artifacts are fixed atomically.
 - [ ] Failure rolls back Order, children and pins.
+- [ ] R1 V09: persist actual captured Order snapshot references and immutable media/target artifact pins atomically; historical content never resolves through a mutable current-artifact pointer.
 
 **Tests required:** T04/T05/T24 real-PostgreSQL rollback, mixed-edit race and before/after equality tests.
 
@@ -291,8 +292,11 @@ INV-05/14 and BR-ORD/PRICE/CON: relational immutable snapshot, twelve Months, op
 - [ ] One intended checkout creates one Order.
 - [ ] No mixed revision snapshot commits.
 - [ ] Later edits/deactivation cannot change history or exact USD values.
+- [ ] R1 V09: verify actual captured Order snapshot/pin persistence and historical stability across later Project/media/target edits using real PostgreSQL persistence paths and before/after equality checks.
 
 **Tests required:** T04–T08/T19/T24 real-DB races and focused browser checkout plus static gates.
+
+Transferred source: [R1 V09](../spikes/ar/I03-acceptance-boundary-revision.md#deferred-verification-register); I08 supplies immutable preparation artifacts before I09 capture. Failure reopens selection under R3/R5; integrated historical recipient validation remains at [I12-P06](I12-ar-signature-experience.md#i12-p06).
 
 **Out of scope:** Provider acceptance or full account completion.
 

@@ -11,10 +11,13 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const handoff = read('I03-P06-handoff.md');
 const record = read('evidence/P06-reproduction-record.md');
 
-test('no acceptance box of the handoff is ticked and the status admits the reproduction is not done', () => {
+test('revised handoff remains review-pending and never claims the transferred independent run is done', () => {
   assert.doesNotMatch(handoff, /- \[[xX]\]/);
   assert.match(handoff, /Handoff prepared; independent reproduction NOT done/);
-  assert.match(handoff, /PROVISIONAL/);
+  assert.match(handoff, /SELECT WITH CONDITIONS/);
+  assert.match(handoff, /READY FOR REVIEW/);
+  assert.match(handoff, /I08-P06\/I12-P05/);
+  assert.match(handoff, /review still pending/);
   assert.match(handoff, /conditional/);
 });
 

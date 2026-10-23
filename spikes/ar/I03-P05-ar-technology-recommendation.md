@@ -2,21 +2,27 @@
 
 ## 1. Decision status
 
-- **Status: PROVISIONAL** — not final/Done.
-- **Recommendation: PROVISIONAL SELECT WITH CONDITIONS — MindAR image tracking**.
-- Owner: LEAD; independent teammate review and final LEAD approval: **pending**.
-- Recorded: 2026-10-21, on `feature/I03-P05-ar-technology-recommendation`.
-- Evidence baseline: `6c252b84571ae1bb923f0dadb2f20452566ae2c9`; working tree clean before this document. P01–P04 are present.
-- P03 acceptance: **incomplete**. Its measured harness baseline is `0654135`; subsequent changes through the evidence baseline add P03 records/scripts, not harness fixes.
-- P06: **not yet unlocked** for accepted-direction reproduction.
+- **Decision: SELECT WITH CONDITIONS — MindAR image tracking** under the explicitly revised early-spike boundary.
+- **Repository status: IN_REVIEW / READY FOR CLOSEOUT REVIEW**, not DONE. Independent teammate, coordinated technical-authority and final repository acceptance remain **pending**.
+- Owner: LEAD. Direction/scope provenance: [boundary revision R1](I03-acceptance-boundary-revision.md), LEAD's explicit follow-up instruction; no independent sign-off is inferred.
+- Current baseline: `a6afcb8f54ab8f26106aeede6107a2605976a4b5` plus the preserved uncommitted closeout diff on `fix/I03-ar-spike-closeout`.
+- P03: feasibility/risk record ready for review; physical product acceptance remains NOT TESTED and assigned to I12.
+- P06: handoff package ready for review; independent execution is **not done**, explicitly transferred to I08-P06/I12-P05.
 
-LEAD authorized this provisional recommendation and documentation only. This record does **not** authorize production AR implementation, change an ADR, or establish supported mobile browsers. Planning dependencies remain gates, including inherited I00 acceptance; code/PR presence alone does not establish completion.
+**Decision history preserved:** the original 2026-10-21 record at `6c252b8` and the first 2026-10-23 closeout were
+PROVISIONAL SELECT WITH CONDITIONS because the then-current I03 gate required mobile/privacy/independent execution.
+The [closeout results](evidence/I03-closeout-2026-10-23.md) remain valid evidence. LEAD's subsequent R1 request intentionally
+changes verification timing, not those results: product/device/manual/privacy and independent checks move to named
+implementation gates, not to passed status. The reviewed technical documents/ADR addendum carry that proposal.
+
+No production implementation, mobile/browser support claim, privacy certification, Jira completion or I00 waiver follows
+from this decision. Admission still requires coordinated review, inherited acceptance and each downstream dependency.
 
 ## 2. Decision question
 
 Based on P01–P04 evidence, is MindAR an appropriate P0 AR direction for LumiCal, under what conditions and residual risks?
 
-[I03-P05 planning](../../planning/I03-early-ar-technology-spike.md#i03-p05) requires a recommendation citing real-device/privacy/license evidence, an explicit selected approach or blocker, reviewed downstream port/version/fallback implications, an evidence-completeness audit and teammate review. Production preparation, recipient integration and scope redesign are outside this decision record.
+[I03-P05 planning](../../planning/I03-early-ar-technology-spike.md#i03-p05) originally required real-device/privacy/license evidence before selection. R1 explicitly revises that timing to documented feasibility, limits, conditions and downstream verification ownership. Evidence audit, teammate/LEAD review and authority discipline remain required. Original requirements are retained in R1; no missing test becomes a pass.
 
 ## 3. Mandatory LumiCal constraints
 
@@ -29,7 +35,7 @@ Based on P01–P04 evidence, is MindAR an appropriate P0 AR direction for LumiCa
 | Provider details stay behind the AR boundary. Production application/server access control replaces spike bearer tokens and sessionStorage. | ADR-005; Architecture §§12/14/19; [API Contract §17, recipient endpoints](../../docs/API_CONTRACT.md#owner-sharing-and-recipient-access) |
 | Core P0 AR must not require paid SDK licensing, mandatory paid runtime access, recurring AR subscriptions, usage-based recognition fees or a required paid cloud AR service. Trials/temporary credits do not qualify. Ordinary application hosting is separate. | Explicit LEAD selection constraint authorizing this P05 record; not represented as an existing frozen BR/ADR amendment |
 
-Real mobile HTTPS acceptance follows [Testing Strategy §13](../../docs/TESTING_STRATEGY.md#13-ar-acceptancedevice-testing). Reviewed changes follow [Development Workflow §§7–9](../../docs/DEV_WORKFLOW.md#7-review). [Roadmap §3](../../docs/ROADMAP.md#3-milestones) separates I03 selection from I08 preparation and I12 recipient integration.
+Real mobile HTTPS product acceptance remains mandatory in I12 under the proposed [Testing Strategy §13 timing revision](../../docs/TESTING_STRATEGY.md#13-ar-acceptancedevice-testing). I08 retains production preparation/owner preview proof. Reviewed changes follow [Development Workflow §§7–9](../../docs/DEV_WORKFLOW.md#7-review); [Roadmap §3](../../docs/ROADMAP.md#3-milestones) and R1 coordinate the stage/owner changes without weakening product invariants.
 
 ## 4. Evidence register
 
@@ -73,7 +79,7 @@ Coverage exists in [real-artifact tests](test/real-artifacts.test.mjs), [identit
 
 **IMPLEMENTED/harness coverage:** same scoped content without artifact availability, readable DOM text/alt attributes, and stale-reveal abort/generation protection. Manual device readability, denied/unsupported flows and storage/network observations remain incomplete.
 
-**PROPOSED:** [provider port r2](port/ar-provider-port.ts) separates artifact byte identity from source binding and keeps provider indexes internal. It is not a production-approved API. Some [conformance tests](test/port-conformance.test.mjs) assert sketch text rather than execute a production adapter.
+**PROPOSED:** [provider port](port/ar-provider-port.ts), now revision 3, separates byte identity from source binding, keeps indexes internal and clarifies retention/source edits/media unavailability. It is not a production-approved API. Some conformance tests inspect sketch text rather than execute a production adapter; strict type-checking does not establish runtime authorization.
 
 ## 5. Decision matrix
 
@@ -81,19 +87,19 @@ Statuses describe current evidence, not final production acceptance. No numeric 
 
 | Criterion | Evidence | Status | Limitation / risk | Decision impact |
 | --- | --- | --- | --- | --- |
-| Recognition feasibility | P03 genuine engine events/reveals from synthetic video | PARTIAL | Small trials; resolution-sensitive | Continue; obtain physical mobile repeatability |
-| Mobile/browser feasibility | P03 mobile rows untested | OPEN | No current mobile support claim | Final-selection blocker |
+| Recognition feasibility | Actual engine events/reveals from synthetic video | PASS WITH CONDITION | Small trials; resolution-sensitive | Early feasibility established; physical proof V01/V02 at I12 |
+| Mobile/browser feasibility | P03 mobile rows untested | OPEN | No current mobile support claim | Mandatory I12 V01/V02 gate; R1/R2 failure reopens choice |
 | Camera lifecycle | P03 desktop Start/Stop, zero live tracks | PARTIAL | Mobile indicator/restart/exit evidence missing | Complete scoped lifecycle evidence |
-| Permission/error handling | P03 denial crash; unchanged client catch | FAIL | Undefined rejection; no validated workaround | Fix/disposition and retest before acceptance |
+| Permission/error handling | Historical crash; workaround and Firefox 157 live PASS | PASS WITH CONDITION | Chromium denial not exercised (NotSupportedError); mobile pending | I12 V04 must validate actual product path |
 | Artifact preparation | P02 artifacts, hashes and recorded recompiles | PASS WITH CONDITION | Environment-specific, internal compiler imports | Pin/record toolchain; retain bytes |
-| Source/version binding | Source provenance and immutable files; port sketch | PASS WITH CONDITION | Current pointer lacks durable history; stale-result handling downstream | Explicit I08/Order conditions |
+| Source/version binding | Source provenance and immutable files; port sketch | PASS WITH CONDITION | Current pointer lacks durable history; stale-result handling downstream | I08 preparation; I09 Order pins/history |
 | Authorization boundary | Scope-first registry; negative test coverage | PASS WITH CONDITION | Synthetic sessions lack real share/account lifecycle | Preserve approved application enforcement |
-| Runtime privacy | P04 static review | OPEN | No real network/storage capture | Final-selection blocker |
-| Fallback | Same scoped payload; no artifact dependency | PARTIAL | Manual/mobile/error-flow checks incomplete | Keep mechanism; close acceptance |
+| Runtime privacy | Static review and Firefox denied-session inspection | PARTIAL | No physical scanning trace | I12 V05 gate; R3 failure reopens choice |
+| Fallback | Same scoped payload; Firefox live denied fallback matches | PARTIAL | Manual/mobile checks incomplete | Keep mechanism; close acceptance |
 | Provider abstraction | P04 split records and index-free sketch | PASS WITH CONDITION | Not a reviewed production contract | Review contracts before implementation |
 | Mandatory paid AR cost | Recorded MIT inspection; self-hosted runtime/compiler | PASS | Monetary conclusion only | Hard cost gate met on repository evidence |
 | Licensing | Direct license metadata and documented upstream inspection | PARTIAL | Transitive obligations/redistribution review incomplete | Record applicable obligations and material restrictions |
-| Dependency/security | Overrides and passing lock checks | PARTIAL | Audit snapshots conflict; disclosure check fails | Reconcile evidence, not automatic SDK rejection |
+| Dependency/security | Overrides, passing disclosure/lock checks and full local suite | PASS WITH CONDITION | Saved audit is historical; no fresh audit here | Retain dated provenance and maintenance review |
 | Maintenance | Recorded old publication date; internal API coupling | PASS WITH CONDITION | Compatibility ownership needed; age alone does not prove abandonment | Assign owner and retest triggers |
 | Developer complexity | Documented Node/harness workflow | PARTIAL | Canvas install workaround; mobile loading/performance unknown | Assess bounded workflow during remaining evidence runs |
 
@@ -101,7 +107,11 @@ Statuses describe current evidence, not final production acceptance. No numeric 
 
 **Mandatory paid AR SDK/runtime cost: PASS**.
 
-This is a repository-based monetary conclusion: README §“Findings so far” records first-hand inspection of upstream MindAR's published MIT license; [package-lock.json](package-lock.json) identifies `mind-ar@1.2.5` as MIT. [The server](src/server.mjs) self-hosts vendor modules/artifacts and [the compiler](src/prepare.mjs) prepares targets locally. No required paid AR cloud API, runtime subscription, usage fee or license key is configured. P01's earlier upstream-license uncertainty is addressed by this later P02 evidence.
+This is a repository-based monetary conclusion: the installed MindAR 1.2.5 LICENSE was re-read in closeout and is MIT;
+[package-lock.json](package-lock.json) agrees. Preserve its copyright/permission notice in distributed copies. The self-hosted
+runtime and local compiler have no configured paid AR API, runtime subscription, usage fee or license key. Lock metadata
+also includes ISC, BSD-2/3-Clause, Apache-2.0, Apache-2.0 AND MIT, Python-2.0 and BlueOak-1.0.0. These are inventory facts,
+not completed obligation/compliance review. P01's initial upstream-license uncertainty has been addressed.
 
 | Category | Disposition |
 | --- | --- |
@@ -113,19 +123,22 @@ This is a repository-based monetary conclusion: README §“Findings so far” r
 
 No external licensing or price research was performed. Revisit the monetary gate if the selected path gains a service/key/subscription dependency.
 
-## 7. Current blockers to FINAL selection
+## 7. Review requirements and deferred product gates
 
-1. **Current physical mobile evidence:** genuine prepared image/message reveal over HTTPS, repeat scans, wrong/unknown/version-negative outcomes and recorded device/OS/browser/light/distance/orientation/performance observations are missing.
-2. **Runtime privacy:** no real inspector network/payload and storage observations for the intended device class; static review cannot close this gate.
-3. **Denial failure:** currently unresolved, not fixed/retested and not a validated application workaround. Normalize provider behavior and retest clear feedback, fallback and cleanup. This is not evidence that desktop Stop fails or that MindAR must be rejected.
-4. **Remaining P03 acceptance:** unsupported outcomes and required manual start/exit/fallback accessibility checks remain incomplete. Desktop fake-camera results cannot satisfy real-mobile acceptance.
-5. **Evidence closure:** reconcile dependency reports and the failing disclosure check before claiming the pack passes. This is an evidence/check closure item, not an independently established security failure; minor status/count wording does not justify rejecting an SDK.
+The former blockers are not silently waived: physical mobile/repeats/negative/conditions evidence is R1 V01–V04;
+runtime scanning privacy V05; manual accessibility/equivalent fallback V06/V07; production source/history proof V08/V09;
+independent execution V10/V11; dependency/license obligations V12. Each has an existing accountable task and reopen trigger.
+They remain OPEN at those mandatory implementation gates and are not claimed passed here.
 
-Production I08/I12 completion and exhaustive prototyping of all candidates are not P05 prerequisites.
+What still prevents repository closeout as DONE is independent/technical-authority review of the coordinated revision,
+final LEAD diff/closeout acceptance and the unchanged inherited I00 acceptance. Current evidence does not contradict a
+mandatory technical invariant: no unsupported-device claim is made, and production boundary work has not been implemented.
+If downstream verification proves an invariant cannot be met, reopen the choice rather than relax it.
 
 ## 8. Accepted risks / selection conditions
 
-These are **PROPOSED conditions for eventual selection**, not claims that risks have already received final acceptance:
+LEAD explicitly accepts selecting before physical/product validation under R1. That timing risk and the known evidence
+limits remain visible; repository approval is pending. These implementation conditions preserve the product requirements:
 
 - Bound target/resolution sensitivity using demonstrated mobile conditions; retain failed trials and target-quality limitations.
 - Claim only tested device/browser combinations, including honest unsupported/untested outcomes; no universal support promise.
@@ -147,15 +160,18 @@ These are **PROPOSED conditions for eventual selection**, not claims that risks 
 
 Native-only apps remain OUT; QR/link-only or mocked scans cannot replace genuine AR acceptance. No new candidate research is introduced.
 
-## 10. Provisional recommendation
+## 10. Conditional technology decision
 
-**PROVISIONAL SELECT WITH CONDITIONS — MindAR image tracking**.
+**SELECT WITH CONDITIONS — MindAR image tracking**.
 
 **Assessment:** MindAR has the strongest implemented evidence among the current candidates: a fee-free/self-hosted P0 path, demonstrated artifact preparation, observed recognition feasibility, version-scoped reveal, camera-free fallback and a plausible provider boundary. Completing its missing evidence is warranted before another prototype.
 
-This is not final because current mobile/privacy evidence is absent, denial recovery fails and acceptance/evidence closure remains open. Stronger selection requires §13; failed mandatory gates trigger reconsideration rather than scope relaxation or mock acceptance.
+This is the conditional direction under the requested early-feasibility boundary, not completed product acceptance or a
+merged/approved repository change. Review remains open in §13; actual product proof belongs to the traceable I08/I09/I12 gates.
+Explicit R1–R7 reopen triggers cover real-device/browser failure, privacy/security, mandatory paid AR dependency,
+authorization/version safety, fallback or material licensing restrictions. No second prototype is needed unless such evidence arises.
 
-## 11. Conditions for I08 / I12
+## 11. Conditions for I08 / I09 / I12
 
 These are handoff constraints, **not implementation authorization**. Approved Architecture/API/Database/BR boundaries govern; the P04 sketch does not replace them.
 
@@ -163,7 +179,7 @@ These are handoff constraints, **not implementation authorization**. Approved Ar
 2. Replace spike tokens/sessionStorage with real owner/recipient application access. Recheck authorized version, current share generation and active owner; no global target-to-private-content lookup (Architecture §§12/14; API Contract §17).
 3. Verify source bytes/hash and revision before preparation; reject stale results. A changed source image advances Project revision, rather than redefining an old revision. I08 owns preparation/retry outside DB transactions, not this spike.
 4. Retain full integrity hashes, verified preparation provenance and write-once artifact bytes. Verify delivered bytes before recognition as proposed by the sketch; current client blob loading is not that verification. Do not promote `manual-unverified` or hash-only harness `READY` to production readiness.
-5. Persist durable historical bindings and immutable Order references. Never resolve an Order using a mutable current-artifact pointer (BR-AR-002; Database §§7/14).
+5. I08 verifies immutable preparation artifacts and readiness for future Order pinning. I09-P02/P07 persist durable captured Order snapshot references/immutable pins and verify historical stability; I12-P06 retains integrated historical recipient validation. Never resolve an Order using a mutable current-artifact pointer (BR-AR-002; Database §§7/14).
 6. Preserve one designated P0 target. One target per production artifact is a proposed adapter restriction consistent with P0, not a universal business file-format rule; combined artifacts remain test-only.
 7. Keep same-authorized-content fallback independent of missing/corrupt AR artifacts. Missing media/revoked access remains an honest error; the sketch's restricted `ContentResult` cannot erase those outcomes (BR-AR-004/005).
 8. Normalize undefined/provider errors; clean up on Stop/failure/navigation; preserve [stale-reveal cancellation](public/reveal-guard.js) and [race coverage](test/stale-reveal.test.mjs). Measure camera-track release rather than assuming provider success.
@@ -172,48 +188,48 @@ These are handoff constraints, **not implementation authorization**. Approved Ar
 
 ## 12. Evidence inconsistencies / reconciliation backlog
 
-Source history is left unchanged in this documentation-only pass.
+The original 2026-10-21 audit is preserved below; current reconciliations are noted explicitly. This closeout also changes the isolated harness cleanup and proposed sketch, not production application code.
 
-| Source mismatch / interpretation risk | Severity | Blocks final P05? | Smallest reconciliation |
+| Source mismatch / interpretation risk | Severity | Current R1 disposition | Smallest reconciliation |
 | --- | --- | --- | --- |
-| I03 planning still says TODO/no evidence despite merged work | Low | Not SDK feasibility; formal acceptance still needs accurate status | Link reviewed evidence and update status without marking incomplete tasks Done |
-| README 47 tests versus P04 89; README “never run”/“not deployed or device-tested” snapshots | Low | Not by itself; cannot claim a current passing full suite | Attach dated commit/environment-specific results; distinguish desktop from missing mobile runs |
+| Historical I03 TODO/no evidence wording | Low | Research complete; revised packet IN_REVIEW | Formal review/closeout still pending, not inferred Done |
+| Historical 47/89/97 test counts and “never run” snapshots | Low | Resolved in current summaries | Current exact commands/counts live in closeout evidence; old device tables remain dated |
 | P04/P03 report clean dependencies; README describes 6–7 findings; saved audit contains 6 (4 moderate, 1 high, 1 critical) | Medium | Evidence reconciliation required; not proof of current vulnerability reachability | Label historical audit; attach dated current-lock audit and mitigation/compatibility disposition |
-| Dependency disclosure test fails while P04 says tests unchanged/passing | Medium | Check closure required; not SDK rejection | Add accurate override trade-off disclosure and rerun the focused check |
-| P04 historical Redmi anecdote versus P03 explicitly superseded pre-fix phone run | Medium | Yes if used as current mobile proof | Identify build/run; record a current real-mobile matrix instead of borrowing historical success |
-| P04 denial/fallback wording versus P03 crash and client catch | High functional | Yes until recovery disposition/retest | Separate reachable fallback from failed feedback; fix under separate authorization and retest |
-| P03 zero page errors “across all runs” versus recorded denial errors | Low wording | No separate blocker beyond denial defect | Restrict zero-error claim to successful scan runs |
-| Automated 18/18 accessibility versus required manual acceptance | Medium acceptance gap; P03 already labels it honestly | Missing required manual checks remain open | Record manual start/exit/fallback checks; do not relabel automation as screen-reader evidence |
-| Port/conformance sketch versus approved production contract | Medium adoption risk | Review required before dependent integration | Review against existing target IDs/API/schema; reconcile source-revision, media-unavailable and retention wording |
+| Historical dependency disclosure failure | Medium | Resolved: current check passes | Preserve dated 3/1 result below; current full-suite result supersedes it |
+| P04 historical Redmi anecdote versus superseded pre-fix P03 phone run | Medium | Not current support proof; V01/V02 open at I12 | Record actual product matrix rather than borrow old success |
+| Historical denial crash versus current workaround | High functional | Firefox desktop resolved; V04 product/device evidence open | Mobile/Chromium cannot inherit the Firefox pass |
+| P03 zero page errors “across all runs” versus denial errors | Low wording | Resolved | Scope zero-error statement to successful scans |
+| Automated 18/18 versus manual accessibility | Medium product-verification risk | V06 open at I12-P04/P05 | Record actual manual/assistive-tech results; no relabelled automated pass |
+| Port/conformance sketch versus approved production contract | Medium adoption risk | Actual contract review remains required | Sketch now clarifies revision/media/retention wording; it still cannot replace API/schema authority |
 
-**TESTED, read-only on 2026-10-21:** `node spikes/ar/test/dependencies.test.mjs` → 3 passed, 1 failed (README trade-off disclosure). Lockfile checks pass: tar 7.5.22, argparse 2.0.1, no sprintf-js. No fresh network audit, browser run, compilation or full suite was performed; spike dependencies are absent locally. Historical clean-audit reports and current lock mitigation are supporting evidence, not a new clean-audit assertion.
+**Historical TESTED result, 2026-10-21:** dependency check → 3 passed, 1 failed; dependencies were absent and the full suite/browser were not run then. **Current closeout:** the locked install and disclosure check pass; exact full-suite/browser results are linked above. Tar 7.5.22, argparse 2.0.1, no sprintf-js remain locked. No fresh advisory audit was run; historical clean reports are not today's audit assertion.
 
-## 13. Finalization gates
+## 13. Review gates under R1
 
-Conversion to **SELECT WITH CONDITIONS** requires recorded evidence and review; all gates below remain unchecked. P05 is not final/Done.
+The original physical/privacy/manual/independent finalization requirements are retained in R1's original-boundary table
+and V01–V12, with mandatory downstream gates; they are not checked as passed. The conditional direction is now recorded,
+but formal P05/I03 acceptance remains pending:
 
-- [ ] MEMBER_4 / P03: current genuine mobile HTTPS target-to-image/message proof, exact device/OS/browser matrix, repeated scans, recorded lighting/distance/orientation and performance observations; retain planned Mi Browser attempt and honest unsupported outcomes without inventing universal coverage.
-- [ ] P02/P03: correct/wrong/unknown/version-negative scenarios, including valid recognized-but-unauthorized combined-artifact checks; do not substitute “no recognition occurred” for server refusal.
-- [ ] P03: mobile Start/Stop/exit and track/OS-indicator observations; complete required manual start/exit/fallback accessibility and same-content failure-path evidence.
-- [ ] P02 owner with P03 retest: denial/provider-error disposition and validated recovery/cleanup; do not close on a proposed workaround alone.
-- [ ] P04 owner with device tester: real network/payload and storage observations for the intended device class; resolve findings and document processing/transfers compatible with privacy constraints.
-- [ ] LEAD with owners: reconcile dependency/audit/check evidence and material license obligations; retain mandatory-zero-cost PASS only while the chosen P0 path needs no paid AR dependency.
-- [ ] LEAD: review downstream port/version/fallback conditions, record residual-risk owners/retest triggers and verify inherited planning gates, including I00 acceptance.
-- [ ] Independent teammate: review the evidence-completeness audit and proposed decision under planning Review Rules / DEV_WORKFLOW §7.
-- [ ] LEAD: explicitly approve final selection and the coordinated technology-decision update after evidence closure; then update statuses through a separately authorized reviewed change.
+- [ ] Independent teammate reviews the feasibility evidence, selection conditions and explicit transfer; actual name/date pending.
+- [ ] Affected technical-authority owners review the coordinated Testing Strategy/Roadmap/Architecture/ADR addendum; no approval inferred.
+- [ ] LEAD reviews and approves final diff/closeout, including maintenance/obligation owners and R1–R7 reopen handling.
+- [ ] For formal I03 closure/admission, supply the unchanged inherited I00 acceptance record; it is not waived by changing AR verification timing.
 
-If a mandatory gate fails without credible mitigation, record a concrete blocker and reconsider P01 alternatives. Do not convert an incomplete record into a positive final decision.
+No product test result is manufactured to clear these review gates. Later failed mandatory verification reopens selection
+through R1–R7; it does not silently relax LumiCal's requirements.
 
 ## 14. ADR-005 disposition
 
-The accepted provider-boundary decision remains valid. Final technology selection may require a reviewed ADR-005 technology-selection clarification/update after P05 is accepted, preserving the frozen reveal/access/version/fallback rules and decision history (DEV_WORKFLOW §§8/9).
-
-**No ADR-005 content or status changes in this documentation change.**
+The accepted provider-boundary decision remains valid. This review package adds a minimal **R1 technology-selection/timing
+addendum** to ADR-005: SELECT WITH CONDITIONS as LEAD's direction, independent/coordinated approval pending. The original
+accepted decision/criteria remain historical; provider neutrality, authorization, versions, fallback, replacement and
+revisit triggers are preserved. No production implementation specification or false accepted status is added.
 
 ## 15. P06 readiness
 
-**P06 is NOT yet unlocked for accepted-direction reproduction.**
+**P06's reproducible package is READY FOR REVIEW under R1; actual independent execution is NOT DONE.**
 
-After final P05 acceptance, [I03-P06](../../planning/I03-early-ar-technology-spike.md#i03-p06) requires another member to reproduce the accepted candidate using clean synthetic artifacts: genuine repeat scans/reveal, correct source-version binding, same-content fallback and wrong-target checks. Hand off explicit preparation/integration constraints, supported environments, failed-device limits and license conditions to I07/I08/I12.
-
-Preparing instructions earlier is not accepted-direction reproduction. P06 does not substitute for missing P03 evidence, a production scanner, or final I12 recipient-access acceptance.
+Original I03-P06 execution requirements are explicitly retained and transferred: preparation/source-binding reproduction
+to MEMBER_4 / I08-P06 (V10), product repeat-scan/negative/fallback/lifecycle reproduction to MEMBER_4 / I12-P05 and LEAD
+I12-P06 review (V11). The actual human must differ from the primary implementer. The existing record remains blank;
+neither this document nor Codex verification supplies a signature. See [handoff](I03-P06-handoff.md) and R1 for exact gates.

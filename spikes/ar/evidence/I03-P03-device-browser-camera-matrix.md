@@ -2,6 +2,19 @@
 
 Synthetic data only. Failures and "nothing revealed" are valid results; do not omit them.
 
+> **Current closeout — 2026-10-23:** sections 1–10 below preserve the 2026-10-19 baseline, including its denial failure.
+> [Closeout evidence](I03-closeout-2026-10-23.md) and [Firefox output](I03-closeout-firefox-2026-10-23.json) supersede the
+> old "not fixed" statement for one scoped result: **WORKAROUND IMPLEMENTED AND LIVE RETESTED — PASS on Firefox 157 / Windows**.
+> This was automated browser interaction, not manual accessibility, a physical-camera scan or independent-person acceptance.
+> Chromium 156 returned NotSupportedError rather than denial; that denial result remains OPEN. Mobile rows remain NOT TESTED,
+> and overall P03 acceptance remains **PARTIAL / IN_PROGRESS**.
+
+> **Subsequent LEAD boundary revision R1:** [the decision record](../I03-acceptance-boundary-revision.md) now makes this
+> feasibility/risk inventory **READY FOR REVIEW**, rather than waiting for production device certification at I03.
+> Original sections 1–10 and the prior closeout paragraph remain historical evidence: no physical/mobile/manual row has
+> passed. V01–V07 assign actual Android/HTTPS/physical recognition/lifecycle/privacy/manual verification to the existing
+> I12-P02–P06 owners; independent execution is retained by V10/V11. Peer/authority review remains pending.
+
 - **Date / tester:** 2026-10-19 · `tranvanduc21092k6-netizen` (MEMBER_4)
 - **Ticket:** I03-P03 — *Device, browser and camera feasibility matrix* · Reviewer: LEAD
 - **Harness commit:** `0654135` (`dev`, after PR #15 / `939f739` camera fixes and PR #14)
@@ -339,7 +352,7 @@ were executed on a phone for this commit**, so no claim is made about them:
 - Permission prompt shown: not applicable (headless-permission override)
 - **Deny result: `NotAllowedError` produced by the browser, then `client.js:191` TypeError; status stuck at `Loading the target and starting the camera…`; no message, no evidence entry (§5)**
 - After Stop: **`1 created, 0 live`**; OS camera indicator: not applicable on desktop
-- Off-origin requests or CSP violations in the evidence log: **none observed** (0 CSP violations, 0 page errors across all runs)
+- Off-origin requests or CSP violations in the evidence log: **none observed** in the successful scan runs (the denied-permission runs separately recorded JS errors)
 - DevTools/inspector network capture done: **no** — not executed
 
 **Unsupported-device / runtime-failure case**

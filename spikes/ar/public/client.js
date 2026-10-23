@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
 import { createRevealGuard, runGuardedReveal } from './reveal-guard.js';
 import { classifyStartFailure } from './start-failure.js';
+import { releaseARResources } from './lifecycle.js';
 
 const KEY = 'spike.token';
 const $ = (id) => document.getElementById(id);
@@ -212,15 +213,9 @@ async function stop(silent = false) {
   revealGuard.invalidate();
   const r = running;
   running = null;
+  const cleanupFailures = await releaseARResources(r, tracks);
+  for (const failure of cleanupFailures) log('ar:stop-error', failure);
   if (r) {
-    try {
-      r.renderer.setAnimationLoop(null);
-      await r.mindar.stop();
-      r.renderer.dispose();
-    } catch (e) {
-      log('ar:stop-error', { name: e.name });
-    }
-    URL.revokeObjectURL(r.blobUrl);
     $('container').replaceChildren();
     $('reveal').hidden = true;
   }

@@ -3,11 +3,13 @@
 - Item: [I03 Early AR Technology Spike](../../planning/I03-early-ar-technology-spike.md)
 - Task: I03-P04 (owner MEMBER_3, reviewer LEAD). Depends on I03-P02; runs in parallel with I03-P03.
 - Branch: `feature/I03-P04-privacy-fallback-port`
-- Status: **IN_REVIEW, partial.** Harness-level and static evidence is complete. **Real-device evidence (network trace, storage, readability, denied/unsupported) is still to be recorded** in `evidence/P04-observations-template.md`. Nothing here selects an SDK; that is LEAD's decision in I03-P05.
+- Status: **IN_REVIEW — feasibility deliverable ready for review under R1.** Harness/static evidence and known unknowns are recorded. **Physical scanning/privacy/manual evidence remains unexecuted**, now assigned to I12-P01/P05/P06 and I12-P04 in [R1 V04–V07](I03-acceptance-boundary-revision.md#deferred-verification-register). Static reasoning is not runtime proof. The original mapping below is retained as history and downstream verification, not falsely passed I03 tests. Technology selection belongs to P05 and coordinated review.
 
 > Device input received since this draft (I03-P03 owner, 2026-10-18, Redmi Note 13 / Android 14 / Chrome over an HTTPS tunnel): camera permission, MindAR start and one genuine recognition with the version-bound reveal worked. The camera area was black until a CSS stacking-context fix, and the first combined-artifact run was invalid (artifact choice changed after Start); both are fixed in I03-P02. This confirms the camera path loads over HTTPS on one device class. It is **not** a network trace and does not change section 3: the claim "no frame leaves the device" still needs the trace in `evidence/P04-observations-template.md`.
 
 > Desktop input from the I03-P03 owner (2026-10-19, Chrome 155 and Firefox 158, synthetic camera, localhost): camera-track cleanup passed (`1 created, 0 live` after Stop) and the camera-free page and fail-closed API behaved as expected, but **permission denial failed** (finding 9, now fixed in the harness and awaiting a real re-run). Desktop results do not stand in for phone results.
+
+> **Closeout update — 2026-10-23:** the original paragraph is historical. [Automated live Firefox 157 evidence](evidence/I03-closeout-firefox-2026-10-23.json) now verifies denial feedback, zero live tracks and same-content fallback on Windows. Only the denied-camera session's network/storage was inspected; physical scanning/privacy, mobile denial and manual readability remain OPEN. Chromium 156 returned NotSupportedError, so its denial retest remains open. See [current closeout](evidence/I03-closeout-2026-10-23.md).
 
 > Distinction required by the task: everything below that says "harness" proves a property of this spike only. It is **not** a final I12 proof. Final recipient access, public/private media and cookie-based sessions belong to I02/I11/I12.
 
@@ -15,7 +17,7 @@
 
 | Criterion | Status | Evidence now | Still needed |
 | --- | --- | --- | --- |
-| No private unrelated target/content is exposed | Harness: met. Device: pending | Server tests: A never reveals B, other-version artifact, wrong index, no/invalid token, malformed input and the test-only combined artifact all give identical `404 NOT_FOUND`; content never appears in public files (`npm test`, 97 tests). Static review of page scripts (section 3) | Real scans of B in session A, of `unknown.png`, and of the combined artifact on a phone |
+| No private unrelated target/content is exposed | Harness: met. Device: pending | Server tests: A never reveals B, other-version artifact, wrong index, no/invalid token, malformed input and the test-only combined artifact all give identical `404 NOT_FOUND`; content never appears in public files (current exact test counts in closeout). Static review of page scripts (section 3) | Real scans of B in session A, of `unknown.png`, and of the combined artifact on a phone |
 | Fallback preserves readable image/message | Harness: met. Device: pending | Same payload for reveal and `/api/spike/content`; alt text; message is DOM text (not baked into the image); contrast of image text 4.5:1 or better; no camera/AR code loaded by the page | Zoom 200%, small screen and screen-reader check on devices; real denial and unsupported browser |
 | Proposed port preserves source version and immutable artifact semantics | Sketch: met. Not implemented | `port/ar-provider-port.ts` type-checks under `tsc --strict`; conformance tests against the real manifest and artifacts (section 5) | LEAD review; real port is I08/I12 work |
 
@@ -24,10 +26,10 @@ Tests required by the task:
 | Case | Harness coverage (automated) | Device run needed |
 | --- | --- | --- |
 | Wrong target | Yes: wrong artifact, wrong index, other session's artifact, combined-artifact B inside A | Yes: scan B in session A, `unknown.png`, B in session A with the combined artifact |
-| Denied camera | Page falls back to the camera-free view; same content (server test + readability test) | Yes: real permission denial |
+| Denied camera | Firefox 157 automated live denial PASS; fallback link opens the same authorized content (not an automatic redirect) | Mobile and current Chromium/Chrome denial still pending |
 | Unsupported | Insecure context / missing `mediaDevices` handled in page logic | Yes: real unsupported browser or device |
 | Frame observations | Static: no pixel-reading API, no extra network channel (section 3) | **Yes: DevTools / remote inspector trace** |
-| Network observations | Static: three same-origin fetch sites; CSP `connect-src 'self' blob:`; page logs off-origin requests and CSP violations | **Yes: DevTools / remote inspector trace** |
+| Network observations | Static: four same-origin fetch sites across scanner/fallback; CSP and origin logs supplement inspection. Firefox denied-camera session inspected | **Yes: trace during physical scanning** |
 
 ## 2. What was reviewed
 
@@ -44,7 +46,7 @@ Facts, with how each can be re-checked (`npm test` runs `test/privacy-static.tes
 | --- | --- | --- |
 | Page scripts read pixels or capture streams (`toBlob`, `toDataURL`, `getImageData`, `MediaRecorder`, `ImageCapture`, `createImageBitmap`) | None | Source only; the library itself processes frames on the device (below) |
 | Page scripts open other channels (`XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`, service workers, `localStorage`, `indexedDB`, cookies) | None. Only `sessionStorage` for the bearer token | Source only |
-| All `fetch` calls | Three call sites, all to `/api/spike/*` on this origin | Source only |
+| All `fetch` calls | Four call sites across client and fallback, all to `/api/spike/*` on this origin | Source only |
 | Data the page's own code sends after a recognition | `{ artifactId, targetIndex }` and nothing else (a test fails if the body changes). `targetIndex` is a harness API field; the proposed port has none | Source only; says nothing about what the recognizer library does |
 | Token in a URL | Never. `#t=` is moved to `sessionStorage` and removed from the address bar; requests use `Authorization`; pages send no Referer | Source only |
 | MindAR loaded modules reaching a remote host | None that are executed. Remaining URL strings are licence headers and tfjs doc-comment examples (`storage.googleapis.com`, `my-server`) | Static search of minified code; dynamic URLs cannot be excluded |
@@ -61,28 +63,28 @@ Facts, with how each can be re-checked (`npm test` runs `test/privacy-static.tes
 - `/fallback` loads no camera, AR or three.js code (test). It calls `/api/spike/content`, which applies the same authorization as the reveal and does not depend on the artifact, so it also works when preparation failed (`UNAVAILABLE`).
 - The text is inserted with `textContent` (no markup injection). Language, `role="status"` / `aria-live`, viewport meta and image alt are present (tests).
 - Not yet verified: zoom and reflow at 200%, landscape/small screens, screen-reader announcement order, keyboard focus order, and what a person sees when camera permission is denied versus the browser being unsupported.
-- Library caveat for the adapter: `MindARThree.start()` rejects with **`undefined`** on camera denial, so denial cannot be told from other failures through MindAR alone. This was **measured** by the I03-P03 owner on Chrome 155 and Firefox 158: the harness page read `err.name`, threw a TypeError inside its own `catch`, never cleaned up and left the status on "Loading…". The wrapper around `getUserMedia` existed but the failure path ignored it. The harness now classifies any rejection value (`public/start-failure.js`): the rejected value, else the last `getUserMedia` error recorded by the wrapper, else the browser's camera permission state, else an honest generic message that does not claim denial. Verified by unit and static tests only; a real denial run still has to confirm it. The real adapter must do the same and never dereference the rejected value.
+- Library caveat for the adapter: `MindARThree.start()` rejects with **`undefined`** on camera denial, so denial cannot be told from other failures through MindAR alone. This was **measured** by the I03-P03 owner on Chrome 155 and Firefox 158: the harness page read `err.name`, threw a TypeError inside its own `catch`, never cleaned up and left the status on "Loading…". The wrapper around `getUserMedia` existed but the failure path ignored it. The harness now classifies any rejection value (`public/start-failure.js`): the rejected value, else the last `getUserMedia` error recorded by the wrapper, else the browser's camera permission state, else an honest generic message that does not claim denial. Unit/static tests and the scoped Firefox 157 live denial check pass; other device/browser paths remain unverified. The real adapter must own this normalization.
 
 ## 5. Port feasibility
 
-`port/ar-provider-port.ts` (revision 2, after review) sketches `ARPreparationPort`, `ARArtifactStore`, `ARBindingStore`,
+`port/ar-provider-port.ts` (revision 3, closeout clarification) sketches `ARPreparationPort`, `ARArtifactStore`, `ARBindingStore`,
 `ARRecognizerPort` and `ARRevealService`. Artifact byte identity (`PreparedARArtifact`) and the source-revision binding
 (`ARArtifactBinding`) are separate append-only records. It preserves:
 
 | Requirement | How the sketch preserves it | Checked by |
 | --- | --- | --- |
-| Source version (BR-AR-002) | `ARArtifactBinding` records `sourceRevisionId`, `sourceImageSha256`, `artifactId` and provenance; a changed source or toolchain is a new artifact and a new binding, old bindings never change | Conformance test maps every manifest entry onto the two records; identical bytes bound to two revisions give one artifact and two bindings |
+| Source version (BR-AR-002) | Binding records revision, source hash, artifact id and provenance. Changed source bytes advance Project revision; new bindings preserve history. Artifact identity changes only if output bytes change | Conformance maps the two records; identical artifact bytes can be bound to two revisions |
 | Immutable artifact | `ArtifactId` is `ar-` + the full SHA-256; the store is append-only; `put` recomputes the hash and fails on mismatch or `id-collision`; `get` re-verifies | Tests: full-hash id, collision refused with the old file untouched, identical bytes idempotent, a short prefix never resolves |
 | Verified preparation | `prepare()` hashes `imageBytes` against the declared source hash before any work, guarantees one target and `artifactId === 'ar-' + sha256(bytes)` | Sketch text asserted by test; harness equivalent is `src/provenance.mjs` |
 | Recognition is not authorization (BR-AR-003, INV-08) | `RecognitionEvent` is `{ artifactId }` only; `reveal(scope, event)` treats it as a hint that must equal `scope.boundArtifactId`; one `not_found` shape for every non-match; no function maps a target to media | Server tests (harness level) |
 | No provider semantics at the boundary | No `targetIndex` or anchor in any shared type; a provider keeps its own index inside the adapter; multi-target artifacts are a test-only adapter extension | Test asserts `RecognitionEvent` has no index; `tsc` rejects a `targetIndex` field |
-| Camera-free path (BR-AR-004) | `content(scope)` returns `ContentResult` (`revealed` or `not_found`), never `unavailable`, and never reads an artifact | `tsc` rejects `unavailable` in `ContentResult`; server tests show content works while the artifact is UNAVAILABLE |
+| Camera-free path (BR-AR-004) | `content(scope)` never reads an artifact; `media-unavailable` remains possible, while `artifact-unavailable` is excluded | Port conformance and strict type-check; server tests show content works while the artifact is UNAVAILABLE |
 | Provider metadata stays in the adapter (ADR-005) | `providerMetadata: unknown`, never in DTOs | Review |
 
 Gaps found in the **harness** that the real port must not copy:
 
 1. `manifest.mjs` keeps only the current `artifact` pointer per version, so a replaced artifact leaves no record in the manifest (the files stay, because ids are content-addressed). The real binding store must be append-only; the Order version must reference a binding or `ArtifactId`, never "the current artifact of the project".
-2. The harness API carries `targetIndex` in `/api/spike/reveal` and the test-only combined artifact has more than one target. Both exist only to make the tracker recognize B inside session A; production artifacts have exactly one target (BR-AR-001) and the port has no index.
+2. The harness API carries `targetIndex` and a test-only combined artifact to recognize B inside session A. The sketch proposes exactly one target per production artifact and keeps indexes internal; BR-AR-001 itself specifies one designated P0 target, not an artifact file format.
 3. A `.mind` file stores target sizes and features, not the source pixels, so provenance cannot be proven by comparing pixels. The harness proves it by hash-checking the source, checking structure, and comparing with a recompile in the recorded toolchain; anything else is `manual-unverified` and is never shown as verified.
 4. `MindARThree.stop()` does not report released camera tracks; `ARRecognizerPort.stop()` returns `liveTracks` so this stays observable whatever the provider.
 
@@ -99,8 +101,8 @@ Feasibility verdict for the port itself: **no provider-specific type is required
 | 5 | Face chunk fetches WASM from a CDN | None now | Test guards that the image entry cannot reach it; re-review if scope grows |
 | 6 | CSP allows `style-src 'unsafe-inline'` | Low | Harness convenience; review before production reuse |
 | 7 | Artifact is a plain file whose exposure grants recognition only | Low | Recognition is not authorization; the backend check is the control (P01 section 5). Serving only to an authorized session is defense in depth |
-| 8 | Upstream MindAR last published 2024-01-16; its dependency tree had 6 audit findings (`canvas`/`tar` chain and `tfjs`/`argparse`/`sprintf-js` chain) | Medium for P05 | Mitigated in the harness with `overrides` (`tar`, `argparse`), audit now clean, tests and recompile unchanged; see README for the trade-off. The maintenance risk of an unmaintained upstream remains for LEAD to weigh |
-| 9 | MindAR rejects `start()` with `undefined` on camera denial; the harness crashed on it (measured on Chrome 155 and Firefox 158, status stuck, no message, no cleanup) | High for the denied-camera case until re-verified | Fixed in the harness (`start-failure.js`, tests). Not yet confirmed on a real denial run. Adapter must own `getUserMedia` error handling and never trust the rejected value |
+| 8 | Recorded upstream publication date 2024-01-16; the pre-override tree had 6 audit findings | Medium for P05 | Overrides and current dependency checks pass; README explains the historical clean-after-install report and compatibility trade-off. The saved audit is pre-override evidence, not today's result; no fresh audit was run in this closeout. Old publication/internal API coupling needs maintenance ownership, not an unsupported claim of abandonment |
+| 9 | Historical undefined-rejection crash on denied permission | Mobile/current Chromium validation open | Workaround implemented and live retested: Firefox 157 PASS, bounded to desktop. Chromium 156 returned NotSupportedError, not a validated denial. Cleanup attempts are isolated when provider Stop throws; the real adapter still owns error/lifecycle handling |
 | 10 | A late `/api/spike/reveal` response could render after the target was lost or AR stopped | Medium (could show content for a target no longer in view) | Fixed in the harness: abort plus generation guard (`public/reveal-guard.js`) with tests for found, lost or stop, late response. Real adapter must keep the same rule |
 | 11 | Artifact id was only 16 hex of the SHA-256 and a name collision could overwrite a file | Medium for immutability | Fixed in the harness: full SHA-256 id, write-once files, collision refused. Port requires the same |
 | 12 | An artifact could be bound to a revision without proof it came from that image | Medium for BR-AR-002 | Fixed in the harness: source hash and structure checks, provenance status, `manual-unverified` surfaced in session, page and log. A `.mind` has no source pixels, so full proof is not possible |

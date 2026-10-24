@@ -1,0 +1,27 @@
+.eyebrow { font-size: var(--type-caption); line-height: var(--type-caption-line); font-weight: 700; }
+.lead { font-size: var(--type-body-lg); line-height: var(--type-body-lg-line); }
+.notice { border-inline-start: 2px solid var(--color-info); padding-inline-start: var(--space-4); }
+.section { margin-block-start: var(--space-12); }
+.adminSection { margin-block-start: var(--space-8); }
+.actionLink { display: inline-flex; align-items: center; min-height: var(--control-lg); padding: var(--space-3) var(--space-5); border-radius: var(--radius-control); background: var(--color-brand); color: var(--color-text-inverse); font-weight: 600; }
+.actionLink:hover { background: var(--color-brand-hover); }
+.actionLink:active { background: var(--color-brand-active); }
+.links, .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.links a { display: inline-flex; align-items: center; min-height: var(--control-md); }
+.formColumn { max-width: var(--layout-content-max); }
+.table { width: 100%; border-collapse: collapse; text-align: start; }
+.table caption { text-align: start; margin-block-end: var(--space-4); }
+.table :is(td, th) { text-align: start; padding: var(--space-4); border-bottom: 1px solid var(--color-border); }
+.table th { font-size: var(--type-label); line-height: var(--type-label-line); }
+.table td { font-size: var(--type-body-sm); line-height: var(--type-body-sm-line); }
+.ready { color: var(--color-success); }
+.dataList { display: none; }
+@media (max-width: 959px) {
+  .table { display: none; }
+  .dataList { display: grid; list-style: none; padding: 0; gap: var(--space-6); }
+  .dataList li { padding-block-end: var(--space-4); border-bottom: 1px solid var(--color-border); }
+  .dataList h3 { margin-block: 0 var(--space-4); }
+  .dataList dt { font-weight: 600; margin-block-start: var(--space-3); }
+  .dataList dd { margin: var(--space-1) 0 0; }
+}
+@media (min-width: 960px) { .section { margin-block-start: var(--space-16); } .adminSection { margin-block-start: var(--space-10); } }

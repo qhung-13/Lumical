@@ -94,6 +94,15 @@ Cloudinary defaults and private/authenticated distinctions require care; verify 
 
 ## 12. AR architecture boundary
 
+**R1 technology/timing proposal — ready for coordinated review:** [boundary revision](../spikes/ar/I03-acceptance-boundary-revision.md)
+and [P05](../spikes/ar/I03-P05-ar-technology-recommendation.md) record LEAD's MindAR image-tracking direction as
+SELECT WITH CONDITIONS, with repository/independent approval still pending. This does not change provider neutrality,
+authorization or historical-data rules. I03 supplies feasibility/risk/handoff; production preparation is verified in I08,
+and actual device/HTTPS/privacy/accessibility/recipient acceptance in I12. Required independent execution is retained at
+I08-P06/I12-P05. Other implementation dependencies and I00 acceptance are not waived.
+
+**Original accepted boundary and R04 timing (preserved history; new technology detail remains subject to review):**
+
 No SDK is selected. **ARPreparation** port prepares a target artifact and reports version-bound readiness; **ARRecognition** integration supplies recognition evidence within an authorized owner/recipient experience. A client recognizer may run on-device if the spike proves it; recognition is not authorization. The backend resolves only a target belonging to the authorized version and returns scoped reveal content/media paths. Never expose a public global target→private-media lookup. Captured target artifacts and their provider metadata stay immutable for an Order.
 
 Early I03 spike proves HTTPS/camera behavior, supported mobile browsers, recognition reliability, licensing, privacy, artifact preparation, version binding and fallback. It must test an image+message reveal; video/audio are permitted alternatives, not required invariants. Technology-specific metadata may be opaque inside the adapter, but IDs/readiness/API remain provider-neutral. A missing target or wrong-version match fails closed. Same authorized text/media is available without camera.

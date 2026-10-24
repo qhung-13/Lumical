@@ -43,8 +43,21 @@ jobs:
       - name: Check peer dependencies
         run: pnpm peers check
 
+      - name: Install browser test runtimes
+        run: pnpm --dir frontend exec playwright install --with-deps --only-shell chromium firefox webkit
+
       - name: Run quality gate
         run: pnpm verify
+
+      - name: Preserve browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-browser-failure
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
 
   docker-build:
     name: docker-build
@@ -67,3 +80,32 @@ jobs:
 
       - name: Build images and smoke isolated PostgreSQL stack
         run: pnpm test:docker
+
+  foundation-visual:
+    name: foundation-visual
+    runs-on: windows-2025
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - name: Install pnpm and dependencies
+        run: |
+          npm install --global pnpm@11.22.0
+          pnpm install --frozen-lockfile
+      - name: Install visual browser runtime
+        run: pnpm --dir frontend exec playwright install --only-shell chromium
+      - name: Build and compare reviewed Windows visual baselines
+        run: |
+          pnpm --dir frontend build
+          pnpm test:visual
+      - name: Preserve visual evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-visual-failure
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/

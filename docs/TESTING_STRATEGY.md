@@ -52,6 +52,17 @@ Before milestone sign-off, run genuine sandbox approval and backend-verified com
 
 ## 13. AR acceptance/device testing
 
+**R1 timing revision — ready for coordinated review:** [I03 boundary decision](../spikes/ar/I03-acceptance-boundary-revision.md)
+records LEAD's explicit request and pending independent/authority review. I03 demonstrates early technical feasibility,
+prototype recognition/preparation, version-safe scope separation, fallback/provider feasibility and a conditional decision
+with known limits. It does not certify product devices. I08 owns source/provenance/integrity/stale-result/durable preparation
+acceptance; I12 owns actual product mobile HTTPS, physical scans, environments, lifecycle/denial/indicator/performance,
+network/payload/storage privacy, equivalent fallback and manual accessibility. V01–V12 assign existing owners and gates.
+Independent preparation/device execution formerly required by I03-P06 moves explicitly to I08-P06/I12-P05 and review in
+I12-P06; an unexecuted handoff is not a pass. Product/security requirements remain mandatory before product acceptance.
+
+**Original R04 verification timing (retained history; superseded only when the R1 review package is approved):**
+
 Mandatory early I03 spike: at least one genuine prepared target recognized in supported mobile browsers over HTTPS, bound to the correct authorized version. Record device/OS/browser/version, lighting/distance/orientation, preparation metadata, license constraints and successful reveal evidence. Test image+meaningful message; optionally video/audio as supported alternatives. Wrong owner's target, ambiguous/no target, permission denied, unsupported device and runtime failure never reveal unrelated content. Fallback returns same meaningful authorized content, and revoked share blocks both. Retest the selected adapter in final AR milestone; no SDK selected by this document.
 
 ## 14. Visual regression

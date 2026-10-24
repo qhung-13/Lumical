@@ -28,6 +28,11 @@ LEAD, MEMBER_4, MEMBER_2. Support means contract review, cross-feature integrati
 
 ## Dependencies
 
+**I03 R1 handoff — review package:** [boundary revision](../spikes/ar/I03-acceptance-boundary-revision.md) transfers actual
+product-device/runtime and independent execution requirements here, with V01–V12 source/owner/gate/reopen mapping.
+The conditional MindAR decision content is ready; formal I03/revision approval is pending. I08/I11 and all existing
+prerequisites remain. No I12 status is completed or whole ticket unlocked by this note.
+
 - Hard dependencies: [I03](I03-early-ar-technology-spike.md); [I08](I08-preview-and-readiness-and-target-preparation.md); [I11](I11-recipient-sharing-and-fallback.md)
 - Soft/helpful dependencies: None beyond the hard gates.
 - Blocked by: [I03](I03-early-ar-technology-spike.md); [I08](I08-preview-and-readiness-and-target-preparation.md); [I11](I11-recipient-sharing-and-fallback.md) until their acceptance artifacts are available.
@@ -98,8 +103,13 @@ Only accepted I03 recognizer and I08 immutable artifacts; authorization precedes
 - [ ] Selected approach matches accepted evidence.
 - [ ] Recipient permission remains backend-owned.
 - [ ] Private frame/artifact/media handling is reviewed before runtime wiring.
+- [ ] V05/V12: actual scanning trace/storage evidence is assigned for I12-P05 and reviewed in I12-P06; applicable license/notice/redistribution obligations, zero mandatory paid AR cost, compatibility ownership and retest triggers are dispositioned before runtime use.
 
 **Tests required:** Design/API threat-case review against T14–T17/T20 and ADR-005 criteria.
+
+Source: original I03-P04/P05 privacy/license criteria and ADR-005; R1 V05/V12. LEAD owns review. Do not equate static/CSP
+or denied-session observations with scanning privacy. Unsatisfied privacy, cost or material-license requirements reopen
+selection (R3/R4/R7), rather than silently relax the product.
 
 **Out of scope:** AR provider reselection by preference or expanded target count.
 
@@ -130,6 +140,7 @@ Only accepted I03 recognizer and I08 immutable artifacts; authorization precedes
 - [ ] Current ordered artifact drives recognition.
 - [ ] Unknown/wrong-version target reveals nothing unrelated.
 - [ ] Private runtime/artifact paths respect no-store and session checks.
+- [ ] V03: genuine correct/wrong/unknown/ambiguous/version-negative scenarios are exercised against actual scoped backend access; a no-match is distinguished from recognized-but-unauthorized refusal. Combined artifacts remain test-only.
 
 **Tests required:** Adapter target/revoke/unavailable tests and real-device recognized-target check.
 
@@ -162,6 +173,7 @@ Only accepted I03 recognizer and I08 immutable artifacts; authorization precedes
 - [ ] Camera starts only after explicit action.
 - [ ] Exit/unmount stops tracks.
 - [ ] Denied/unsupported/no-match paths are explained.
+- [ ] V04: actual Android/browser denied/retry, Start/Stop/navigation/unmount, track release and OS camera indicator are observed; record unsupported/runtime outcomes honestly. The Firefox desktop workaround result cannot be reused as mobile acceptance.
 
 **Tests required:** Component state/camera lifecycle tests plus actual mobile permission/exit tests.
 
@@ -194,6 +206,7 @@ Only accepted I03 recognizer and I08 immutable artifacts; authorization precedes
 - [ ] Camera and fallback use the same authorized pinned content.
 - [ ] Readable alternatives and controls are present.
 - [ ] Revoked/unavailable state never substitutes another asset.
+- [ ] V06/V07: manual Start/exit/fallback, keyboard/focus/status/readable alternatives, zoom/reflow and actual assistive-technology results are recorded separately from automation; artifact-unavailable fallback, missing-media errors and access revocation remain correct.
 
 **Tests required:** T17/T20 component/media/keyboard tests and recipient browser flow.
 
@@ -226,8 +239,17 @@ Only accepted I03 recognizer and I08 immutable artifacts; authorization precedes
 - [ ] Prepared paid target genuinely reveals intended content.
 - [ ] Supported limits and camera failure cases are recorded.
 - [ ] Fallback and camera exit remain usable on tested devices.
+- [ ] V01/V02: record current Android/device/exact browser matrix (including planned Redmi/Chrome and Mi Browser attempt where available), real product HTTPS flow, physical target, repeated scans, lighting/distance/orientation, attempts/results and practical performance; preserve NOT TESTED and failed rows, without invented pass thresholds.
+- [ ] V05: capture/redact actual scanning/reveal/loss/Stop/fallback network origins, request payloads including same-origin, and browser/device storage; denied-camera traces alone do not satisfy this gate.
+- [ ] V11: another named human, different from the primary runtime implementer, executes the product repeat-scan/reveal/negative/fallback/lifecycle scenarios on their own setup and fills actual environment/results/sign-offs in the linked reproduction record or equivalent referenced evidence.
 
 **Tests required:** Testing Strategy §13 genuine HTTPS mobile tests and manual T21 checks.
+
+Transferred sources: original I03-P02/P03/P04 mobile/privacy/manual tests and I03-P06 independent live execution, retained
+in [R1 V01–V07/V11](../spikes/ar/I03-acceptance-boundary-revision.md#deferred-verification-register). MEMBER_4 owns device
+evidence and independent reproduction coordination; MEMBER_3 fixes runtime/preparation integration; MEMBER_2 owns readable
+fallback. The [blank P06 record](../spikes/ar/evidence/P06-reproduction-record.md) is a template, not a pass. LEAD reviews
+with I12-P06; adverse results block I12 acceptance and invoke R1–R7 as applicable. No SDK reselection without reviewed evidence.
 
 **Out of scope:** Universal device support promise or certification.
 
@@ -246,6 +268,12 @@ Only accepted I03 recognizer and I08 immutable artifacts; authorization precedes
 - Can run in parallel with: No independent task within this item is named; eligible external tracks remain listed in Dependencies.
 
 **Purpose:** Approve core access/version invariants in the final signature experience.
+
+R1 V03/V05/V07/V09/V11 acceptance: LEAD reviews real product wrong/unknown/version/recognized-but-unauthorized cases,
+revoke/rotate/disable behavior, historical content after Project/media edits, genuine scanning network/payload/storage
+evidence and the independent person's execution. Pair deterministic DB/API tests with genuine device observations;
+Codex automation is not the human reproducer. Privacy/security/version/fallback failure blocks sign-off and reopens the
+provider decision (R3/R5/R6); do not remove a frozen invariant to obtain a pass.
 
 **Scope:** Wrong-owner target, unknown match, revoked/rotated/disabled access and Project/media replacement after Order.
 

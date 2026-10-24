@@ -1,0 +1,8 @@
+# Installed by `npm ci` — see README.md
+# package-lock.json is committed on purpose: `npm ci` needs it and it pins the
+# exact puppeteer-core version used to collect the evidence.
+node_modules/
+
+# Firefox downloaded by `npx @puppeteer/browsers install firefox@stable`.
+# ~100 MB of browser binaries — never commit this.
+firefox/

@@ -17,6 +17,7 @@ const STATIC = {
   '/fallback.js': { file: 'public/fallback.js', type: 'text/javascript; charset=utf-8' },
   '/reveal-guard.js': { file: 'public/reveal-guard.js', type: 'text/javascript; charset=utf-8' },
   '/start-failure.js': { file: 'public/start-failure.js', type: 'text/javascript; charset=utf-8' },
+  '/lifecycle.js': { file: 'public/lifecycle.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'public/styles.css', type: 'text/css; charset=utf-8' },
 };
 const VENDOR = {

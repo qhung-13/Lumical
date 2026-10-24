@@ -95,7 +95,8 @@ test('the port sketch verifies hashes in prepare and the store, and content() ca
   assert.match(sketch, /id-collision/);
   const contentResult = body(/export type ContentResult = ([^\n]*)\n/);
   assert.match(contentResult, /not_found/);
-  assert.doesNotMatch(contentResult, /unavailable/);
+  assert.match(contentResult, /reason: 'media-unavailable'/, 'missing media remains an honest unavailable outcome');
+  assert.doesNotMatch(contentResult, /artifact-unavailable/, 'AR artifact failure cannot disable fallback');
   assert.match(sketch, /content\(scope: AuthorizedShareScope \| undefined\): Promise<ContentResult>/);
 });
 

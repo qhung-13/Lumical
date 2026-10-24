@@ -18,15 +18,16 @@ Record every request from page load to Stop. Group identical requests.
 | # | Method | Origin | Path | Size | Initiator | Expected? |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | GET | same | `/` | | | yes |
-| 2 | GET | same | `/client.js`, `/styles.css` | | | yes |
+| 2 | GET | same | `/client.js`, `/start-failure.js`, `/lifecycle.js`, `/reveal-guard.js`, `/styles.css` | | | yes |
 | 3 | GET | same | `/vendor/three.module.js`, `/vendor/mindar/*` | | | yes |
 | 4 | GET | same | `/api/spike/session` | | | yes |
 | 5 | GET | same | `/api/spike/artifacts/<id>` | | | yes |
 | 6 | POST | same | `/api/spike/reveal` (request body only `artifactId`, `targetIndex`) | | | yes |
-| 7 | any | **other origin** | | | | **no: report** |
-| 8 | any | same | anything else (WebSocket, beacon, image, `.wasm`, model files) | | | **no: report** |
+| 7 | GET | same | `/fallback`, `/fallback.js`, `/api/spike/content` when opening fallback | | | yes |
+| 8 | any | **other origin** | | | | **no: report** |
+| 9 | any | same | anything else (WebSocket, beacon, image, `.wasm`, model files) | | | **no: report** |
 
-- Total requests after Start that are not in rows 1-6:
+- Total requests after Start that are not in rows 1-7:
 - Any request whose body is larger than a few hundred bytes (possible frame data)? yes / no (if yes, describe):
 - Off-origin origins listed by the page's own log / evidence JSON (`origins`):
 - CSP violations reported by the page (`csp:violation` events):

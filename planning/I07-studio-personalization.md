@@ -28,6 +28,11 @@ LEAD, MEMBER_3, MEMBER_4. Support means contract review, cross-feature integrati
 
 ## Dependencies
 
+**I03 R1 decision input:** [boundary revision](../spikes/ar/I03-acceptance-boundary-revision.md) records the conditional
+MindAR choice and evidence limitations, ready for review. Once that coordinated decision/closeout is approved, I03's
+technology-choice input can be consumed here without waiting for I12 product-device certification. Formal I03/I00 approval,
+I05/I06 and all task prerequisites remain; this note does not unlock the whole I07 ticket or authorize implementation.
+
 - Hard dependencies: [I05](I05-calendar-project-twelve-months.md); [I06](I06-private-media-pipeline.md); [I03](I03-early-ar-technology-spike.md)
 - Soft/helpful dependencies: None beyond the hard gates.
 - Blocked by: [I05](I05-calendar-project-twelve-months.md); [I06](I06-private-media-pipeline.md); [I03](I03-early-ar-technology-spike.md) until their acceptance artifacts are available.

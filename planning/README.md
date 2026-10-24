@@ -22,6 +22,12 @@ Historical DONE entries reflect repository/history and the earlier I00 evidence,
 
 ## Team Ownership
 
+**I03 R1 closeout review — 2026-10-23:** LEAD explicitly requests early-feasibility/conditional-selection scope with product
+preparation acceptance in I08 and device/privacy/manual/independent acceptance in I12. [The revision record](../spikes/ar/I03-acceptance-boundary-revision.md)
+retains original requirements/provenance and exact owners/gates. I03 is IN_REVIEW, not DONE; coordinated/independent/LEAD
+review and unchanged I00 acceptance remain pending. This authorized review package includes technical-authority proposals;
+the original planning-pack prohibition on authority edits is not used to claim those proposals already accepted.
+
 | Role | Primary ownership | Architecture authority | Review responsibility |
 | --- | --- | --- | --- |
 | LEAD | Core model/database, identity/security, Calendar Project invariants, immutable Orders, exact pricing/payment, AR decision/final integration | Owns implementation architecture **within** frozen authorities; coordinates scope/business/visual authority-owner decisions; cannot unilaterally rewrite them | Final review of every implementation MR; sensitive boundary approval; requires independent teammate review for own work |
@@ -51,7 +57,7 @@ Names are the exact canonical ROADMAP names. Ixx primary owner coordinates integ
 | [I00](I00-repository-project-foundation.md) | Repository / Project Foundation | M0 | LEAD | MEMBER_2, MEMBER_4, MEMBER_3 | LEAD | R04 accepted; explicit full-scope LEAD authorization | P0 | IN_REVIEW |
 | [I01](I01-database-foundation.md) | Database Foundation | M1 | LEAD | MEMBER_2, MEMBER_3, MEMBER_4 | LEAD | I00 | P0 | IN_REVIEW |
 | [I02](I02-identity-and-sessions.md) | Identity & Sessions | M1 | LEAD | MEMBER_2, MEMBER_3, MEMBER_4 | LEAD | I01 | P0 | IN_REVIEW |
-| [I03](I03-early-ar-technology-spike.md) | Early AR Technology Spike | M1 | MEMBER_3 | LEAD, MEMBER_4 | LEAD | I00 | P0 | TODO |
+| [I03](I03-early-ar-technology-spike.md) | Early AR Technology Spike | M1 | MEMBER_3 | LEAD, MEMBER_4 | LEAD | I00 | P0 | IN_REVIEW |
 | [I04](I04-template-catalog-and-admin-templates.md) | Template Catalog + Admin Templates | M2 | MEMBER_2 | MEMBER_4, MEMBER_3, LEAD | LEAD | I01; I02 | P0 | TODO |
 | [I05](I05-calendar-project-twelve-months.md) | Calendar Project / Twelve Months | M2 | LEAD | MEMBER_2, MEMBER_4, MEMBER_3 | LEAD | I02; I04 | P0 | TODO |
 | [I06](I06-private-media-pipeline.md) | Private Media Pipeline | M2 | MEMBER_3 | LEAD, MEMBER_2, MEMBER_4 | LEAD | I02; I01 | P0 | TODO |

@@ -2,7 +2,7 @@
 
 - Item: [I03 Early AR Technology Spike](../../planning/I03-early-ar-technology-spike.md)
 - Task: I03-P01 (owner MEMBER_3, reviewer LEAD)
-- Status: **IN_REVIEW** (evaluation only, no code, no dependency added), revision r2
+- Status: **DONE — research deliverable** (2026-10-23 closeout reconciliation; evaluation only, no SDK selected), revision r2
 - Branch: `feature/I03-P01-ar-candidate-evaluation`
 - Date of web research: 2026-10-15 (all `[Sx]` sources below were accessed on this date)
 

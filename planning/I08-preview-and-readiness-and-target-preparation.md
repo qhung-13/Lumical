@@ -28,6 +28,12 @@ LEAD, MEMBER_2, MEMBER_4. Support means contract review, cross-feature integrati
 
 ## Dependencies
 
+**I03 R1 handoff — review package:** [acceptance boundary revision](../spikes/ar/I03-acceptance-boundary-revision.md)
+records the conditional MindAR direction and transfers production preparation verification here. Decision content is ready;
+formal I03/technical-authority review and inherited acceptance remain pending. I07 and every existing prerequisite still
+apply. No I08 task is implemented or unlocked by this note; V08/V10/V12 below are mandatory at this item's acceptance.
+I08 supplies V09 preparation prerequisites; captured Order persistence/history proof follows at I09-P02/P07, then integrated recipient validation at I12-P06.
+
 - Hard dependencies: [I07](I07-studio-personalization.md); [I03](I03-early-ar-technology-spike.md)
 - Soft/helpful dependencies: None beyond the hard gates.
 - Blocked by: [I07](I07-studio-personalization.md); [I03](I03-early-ar-technology-spike.md) until their acceptance artifacts are available.
@@ -130,8 +136,15 @@ Preview-ready, AR-ready and Order-ready are distinct. Incomplete preview is vali
 - [ ] Preparation uses accepted I03 approach.
 - [ ] Ready artifact pins source revision.
 - [ ] Failure/retry never fabricates readiness.
+- [ ] V08: source bytes/hash and current Project revision, verified provenance, full artifact integrity, immutable identity and readiness for future Order pinning are verified; stale preparation cannot replace current/pinned content.
+- [ ] V12: applicable compiler/dependency license/notice obligations and compatibility limits are recorded; mandatory paid AR SDK/runtime/service is not required. Material restrictions trigger R1 reconsideration.
 
 **Tests required:** Adapter fake failures plus real preparation/device proof and PostgreSQL stale-result/race tests.
+
+Transferred source: original I03-P02/P04 preparation/version requirements and ADR-005 criteria; see R1 V08/V09/V12.
+V09 actual captured Order snapshot/pin persistence and historical stability are verified at [I09-P02](I09-order-snapshot-and-checkout.md#i09-p02)/[I09-P07](I09-order-snapshot-and-checkout.md#i09-p07), with integrated historical recipient validation at [I12-P06](I12-ar-signature-experience.md#i12-p06).
+MEMBER_3 owns implementation; MEMBER_4 verifies through I08-P06. Failure to preserve source/history safety reopens selection
+(R5), and a required payment/material license restriction triggers R4/R7. These are acceptance gates, not optional TODOs.
 
 **Out of scope:** Public target storage or advanced effects.
 
@@ -258,8 +271,14 @@ Preview-ready, AR-ready and Order-ready are distinct. Incomplete preview is vali
 - [ ] Genuine accepted target/reveal is demonstrated.
 - [ ] Zero-event ready Project passes reviewed eligibility.
 - [ ] Wrong/stale/unready mappings fail safely.
+- [ ] V10: a named human other than the primary preparation implementer independently executes fresh setup, preparation, source binding, correct owner reveal/fallback and failure/negative cases; record commit/toolchain, MATCH/DIFFER and actual reviewer acceptance.
 
 **Tests required:** T16/T17/T19/T20/T21 and actual adapter/device run plus static gates.
+
+This explicitly receives the preparation/source-version portion of original I03-P06 independent execution. A procedure,
+Codex rerun or another person's recording is not that acceptance. MEMBER_4 coordinates the reproducer; LEAD reviews.
+No identity/result is pre-filled. Failure blocks I08 and triggers R1/R5 review; existing genuine owner-preview and I09
+admission requirements remain intact.
 
 **Out of scope:** Payment/sharing acceptance or video-only requirement.
 

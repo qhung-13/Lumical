@@ -2,7 +2,9 @@
 
 Isolated harness. Not in `pnpm-workspace.yaml`, touches neither `frontend/` nor `backend/` nor `docs/`, and adds no root
 dependency. Synthetic data only. **No SDK is selected by this folder**; it prototypes C1 (MindAR) first, as ordered in the
-P01 evaluation §8. LEAD still decides in I03-P05.
+P01 evaluation §8. [P05](I03-P05-ar-technology-recommendation.md) now records LEAD's **SELECT WITH CONDITIONS — MindAR image tracking**
+direction under [explicit boundary revision R1](I03-acceptance-boundary-revision.md); coordinated repository review remains
+pending. The harness itself does not grant product-device support or production acceptance.
 
 Branch: `feature/I03-P02-synthetic-target-prototype`.
 
@@ -18,10 +20,12 @@ Branch: `feature/I03-P02-synthetic-target-prototype`.
 | Recognition ≠ authorization (Q7) | Reveal needs the session scope plus the artifact/index that scope allows; artifacts are only served to an authorized session, never as public files | Yes | Yes (combined-artifact scan) |
 | Preparation failure | Missing / tampered artifact → `UNAVAILABLE`, fallback still works (`npm run fault`) | Yes | Optional |
 
-`npm test` (97 tests) covers the server, manifest, committed artifacts, module graph, UI regressions, static privacy checks of
+`npm test` covers the server, manifest, committed artifacts, module graph, UI regressions, static privacy checks of
 the page scripts and the installed MindAR build, fallback readability, port conformance, stale-reveal handling, artifact
 identity, provenance and wording guards. **They are not AR evidence.**
-P02's real-recognition criteria stay unchecked until the phone runs below are recorded in `evidence/`.
+The phone questions below preserve original verification expectations. Under R1, I03 evaluates actual engine/preparation
+feasibility (including measured desktop synthetic-camera recognition); physical product recognition belongs to I12's
+mandatory gate. The transfer is explicit, not a claim that those missing tests passed.
 
 ## Run it
 
@@ -30,7 +34,7 @@ Requirements: Node >= 22.2 and network access for the first install.
 ```bash
 cd spikes/ar
 npm ci --ignore-scripts        # mind-ar depends on native `canvas`: it is installed but NOT compiled with --ignore-scripts, and never loaded here
-npm test                       # 97 tests
+npm test                       # exact current counts: evidence/I03-closeout-2026-10-23.md
 npm run compile:verify         # optional: recompile A, B and the combined artifact, record reproducibility, print feature counts
 SPIKE_ENABLE_COMBINED=1 npm start
 ```
@@ -149,21 +153,25 @@ DevTools/remote-inspector network trace once per device class (the page's off-or
   the status on "Loading…" with no message. Fixed in `client.js` + `public/start-failure.js`: the cause is taken from the
   rejected value, else the last `getUserMedia` error the wrapper saw, else the browser's camera permission state, else an
   honest generic message; `test/start-failure.test.mjs` covers it. That fix is verified by unit and static tests only; a real
-  denial run must confirm it. The library also registers a window `resize` listener it never removes.
+  denial run was still pending at that revision. **2026-10-23:** an automated live Firefox 157 / Windows denial run now
+  passes (clear message, no page JS exception, zero live tracks, retry and same-content fallback). Chromium 156 instead
+  returned `NotSupportedError`; its denial path is NOT validated. No current phone denial is claimed. See
+  [closeout evidence](evidence/I03-closeout-2026-10-23.md). Cleanup now attempts renderer disposal and track release even
+  when the provider's Stop throws after partial startup (`public/lifecycle.js`). The library also registers a window
+  `resize` listener it never removes; production navigation/disposal remains an adapter obligation.
 - Artifacts are plain files; per P01 §1 the control is the backend authorization check, not hiding the artifact.
   Serving them only to an authorized session is defense in depth.
 
-## Known unverified points (first real run settles them)
+## Remaining unverified points
 
-- `public/client.js` follows MindAR's documented `MindARThree` API (`addAnchor`, `onTargetFound/Lost`, `start`, `stop`,
-  `uiLoading/uiScanning/uiError`) and has never run in a browser. If the API differs, only `client.js` changes.
+- The client has executed in desktop browsers (P03 and the closeout); current physical-mobile acceptance remains missing.
 - Whether `mindar.stop()` releases every camera track is exactly what the evidence panel measures. On desktop it did
   (`1 created, 0 live` on Chrome 155 and Firefox 158, per the I03-P03 report); a phone and the OS camera indicator are still open.
-- Whether the denial fix above shows the right message on a real denial (Chrome, Firefox, and the Redmi Note 13).
+- Denial on current Chromium/Chrome and Redmi Note 13; Firefox desktop has a scoped live PASS, not universal support.
 - Whether the harness page loads on a real device with the CSP (importmap hash, `wasm-unsafe-eval`, workers).
 - Real recognition quality of the synthetic images (distance, light, orientation).
 
-## Device observations so far (MEMBER_4, 2026-10-18, not yet in `evidence/`)
+## Historical device observations (MEMBER_4, 2026-10-18; superseded build)
 
 Source: a test report by the I03-P03 owner against commit `166b7f9`. Redmi Note 13, Android 14 (HyperOS), Chrome, over an
 HTTPS tunnel; desktop Chrome 155 on Ubuntu for rendering.
@@ -179,9 +187,12 @@ HTTPS tunnel; desktop Chrome 155 on Ubuntu for rendering.
 Fixes made after that report: camera area stacking context; the camera summary now updates on start and on track events;
 the artifact choice is locked while AR runs and the status names the artifact in use; the status shows loading and
 scanning progress. `test/ui-static.test.mjs` guards these. Case 4 must be re-run before it counts as evidence.
-Still not recorded anywhere: permission denied, unsupported browser, repeatability, light/distance/orientation, network trace.
+Missing at that historical point: permission denied, unsupported browser, repeatability, light/distance/orientation, network trace.
+The merged P03 matrix and closeout evidence below supersede that statement where they contain actual results.
 
-### Desktop run, I03-P03 owner, 2026-10-19 (harness commit `0654135` on `dev`, synthetic camera, not yet in `evidence/`)
+### Historical desktop run, I03-P03 owner, 2026-10-19 (harness `0654135`, synthetic camera)
+
+Recorded in [the P03 matrix](evidence/I03-P03-device-browser-camera-matrix.md). The table describes that build, not the closeout revision.
 
 Chrome 155 and Firefox 158 on Ubuntu 26.04.1, Node 24.21.0, localhost (a secure context, so no HTTPS run). Reported results:
 
@@ -197,6 +208,24 @@ Chrome 155 and Firefox 158 on Ubuntu 26.04.1, Node 24.21.0, localhost (a secure 
 
 Not done and not claimed: any real phone run on this commit, HTTPS camera prompt, OS camera indicator, light, distance,
 orientation, and a network capture. The combined-artifact rows were not recognized in that rig and are left blank.
+
+## Closeout verification and remaining human work
+
+[2026-10-23 closeout record](evidence/I03-closeout-2026-10-23.md) contains exact local commands/results, bounded desktop
+runtime observations, I00 acceptance status and the phone/manual/independent checklist. Its pre-R1 provisional verdict is
+historical; R1/P05 now propose SELECT WITH CONDITIONS, ready for review. P06 has a handoff package, not independent results;
+execution moves explicitly to I08-P06/I12-P05. Do not infer physical recognition from server or fake-camera tests.
+
+Optional desktop regression (uses the already declared frontend Playwright install and its installed browser; adds no dependency):
+
+```bash
+node scripts/verify-browser.mjs firefox
+node scripts/verify-browser.mjs chromium
+```
+
+The script starts/stops an ephemeral localhost harness, explicitly denies camera permission, checks real getUserMedia
+failure feedback/cleanup/fallback and reports redacted network/storage observations. Failure is reported honestly; a
+non-denial camera error does not become a denial PASS. It does not exercise recognition, mobile HTTPS or manual accessibility.
 
 ## I03-P04 (privacy, fallback, provider port)
 

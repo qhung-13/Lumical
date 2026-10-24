@@ -2,9 +2,10 @@ import { PNG } from 'pngjs';
 import fs from 'node:fs';
 import { scratch } from './env.mjs';
 // Video target LUÔN hiện diện (loop vô hạn, không có pha gray)
-//   node make-always.mjs <version-a.png> [out.y4m]
+//   node make-always.mjs <version-a.png> [out.y4m] [kích thước vuông, mặc định 512]
 const SRC = process.argv[2], OUT = process.argv[3] ?? scratch('always.y4m');
-const W = 512, H = 512, N = 60, FPS = 30;
+const SIZE = Number(process.argv[4] || 512);
+const W = SIZE, H = SIZE, N = 60, FPS = 30;
 const png = PNG.sync.read(fs.readFileSync(SRC));
 const rgb = new Uint8Array(W * H * 3);
 for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {

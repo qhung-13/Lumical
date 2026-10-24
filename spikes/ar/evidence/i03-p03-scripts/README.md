@@ -93,10 +93,13 @@ Driving them headless would silently produce false negatives.
    1 ms. The evidence `<pre>` prepends lines continuously, so the button never
    satisfies puppeteer's "stable for two frames" check. This is a **harness**
    artefact, not a product hang — cleanup is verified by DOM click + track counts.
-2. **A down-scaled fake camera changes the answer.** Target B scored `0/5` at
-   512×512 and `3/5` at its native 1024×1024 with everything else identical.
-   Reporting `version B fails` from the 512 px run would have been a false
-   finding against someone else's artifact.
+2. **Do not explain a one-off result by inventing a mechanism.** An early run
+   recorded target B at `0/5` with the frame scaled to 512 px while 1024 px
+   gave `3/5`, which was read as *"version B fails when downscaled"*. On
+   re-measurement the artifacts hashed identically and the MindAR bundle was
+   unchanged, yet 512 px gave **15/15 across three runs** and 256 px and
+   1024 px both gave 5/5. The resolution story was wrong — it was run-to-run
+   variation. Always re-run before attributing a result to a variable.
 3. **`p.click` on the artifact radio before `Start` is mandatory** — the choice
    is read once inside `start()`.
 4. **System Firefox is a snap** and refuses to be driven

@@ -29,10 +29,11 @@ export class TemplateController {
   @Get()
   @ApiOperation({ operationId: 'listTemplates', summary: 'List active, complete published templates' })
   @ApiQuery({ name: 'category', required: false, enum: TEMPLATE_CATEGORIES })
-  @ApiQuery({ name: 'query', required: false, description: 'Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL.' })
-  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'query', required: false, description: 'Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL.', schema: { type: 'string', maxLength: 100 } })
+  @ApiQuery({ name: 'cursor', required: false, schema: { type: 'string', maxLength: 512 } })
   @ApiQuery({ name: 'limit', required: false, minimum: 1, maximum: 50, default: 20 })
   @ApiResponse({ status: 200, description: 'Public catalog page.', schema: { type: 'object', additionalProperties: false, required: ['data', 'meta'], properties: { data: { type: 'array', items: templateSchema }, meta: { type: 'object', additionalProperties: false, required: ['nextCursor', 'hasMore'], properties: { nextCursor: { type: 'string', nullable: true }, hasMore: { type: 'boolean' } } } } } })
+  @ApiResponse({ status: 422, description: 'Invalid filter, cursor, or limit.' })
   async list(@Query() raw: Record<string, string | undefined>): Promise<TemplateListResult> {
     const allowed = new Set(['category', 'query', 'cursor', 'limit']);
     if (Object.keys(raw).some((key) => !allowed.has(key))) throw new BadRequestException();
@@ -57,6 +58,7 @@ export class TemplateController {
   @ApiOperation({ operationId: 'getTemplate', summary: 'Get an active, complete published template' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Public published template.', schema: { type: 'object', additionalProperties: false, required: ['data'], properties: { data: templateSchema } } })
+  @ApiResponse({ status: 422, description: 'Invalid Template UUID.' })
   @ApiResponse({ status: 404, description: 'Template is unavailable.' })
   get(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) { return this.catalog.get(id); }
 }

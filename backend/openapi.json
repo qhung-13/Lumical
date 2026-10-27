@@ -1245,6 +1245,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string",
               "maxLength": 512
             }
           },
@@ -1254,6 +1255,7 @@
             "in": "query",
             "description": "Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL.",
             "schema": {
+              "type": "string",
               "maxLength": 100
             }
           },

@@ -1117,9 +1117,9 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: unknown;
-                cursor?: unknown;
+                cursor?: string;
                 /** @description Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL. */
-                query?: unknown;
+                query?: string;
                 category?: "IMAGE" | "VIDEO" | "AUDIO";
             };
             header?: never;

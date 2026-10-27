@@ -1,0 +1,14 @@
+# I04-P01 contract decisions
+
+These are implementation decisions for the current public catalog slice. They do not claim prior approval beyond the category decision recorded in the task request.
+
+| Decision | Basis | Consequence |
+| --- | --- | --- |
+| `Template.category` uses the existing `MediaCategory` enum and is directly filtered. | LEAD-confirmed decision supplied with I04-P01. | Required Prisma field and indexed migration column; existing rows are never assigned a guessed category. The migration fails clearly if operators have not backfilled existing Templates. |
+| Public responses project only the active current published revision, bilingual copy, identity/version, category, curated layout/presets, and USD price. | BR-TPL-001/002, BR-PRICE-001, API Contract DTO and no-Prisma-serialization rules. | Inactive, missing, or incomplete current revisions are absent from list and return 404 on detail. Project/order writes remain out of this slice. |
+| Layout v1 is exactly `{version:1,monthCount:12,imageSlotsPerMonth:4}`. Approved preset IDs are `classic`, `minimal`, and `vibrant`; each preset carries VI/EN display labels. | No canonical layout/preset catalogue existed in authority or code. This is the smallest explicit starting-design shape supported by the twelve-month/four-image-slot product model. | Domain projection and query completeness checks reject extra layout keys, unknown/duplicate presets, blank labels, unsupported layout versions, and empty preset lists. This allowlist requires review before future Admin publication accepts content. |
+| Search is trimmed, case-insensitive substring matching over VI/EN names and descriptions; it is accent-sensitive under current PostgreSQL collation. SQL wildcards are escaped. | API Contract allowlisted query filter; PostgreSQL has no configured `unaccent` extension. | No extension/locale behavior is introduced. |
+| Catalog order is `nameVi ASC, Template UUID ASC`; the opaque base64url cursor carries both. Empty/null names are incomplete. | Task-level contract requirement and stable keyset pagination. | No arbitrary sort input; cursor shape and UUID are validated. |
+| Price must be USD, positive, and at most `Number.MAX_SAFE_INTEGER` minor units. | BR-PRICE-001 and safe JSON integer contract. | BigInt is converted only after range validation; Prisma/internal fields do not enter DTOs. |
+
+Migration strategy: the category column has no business default. The expand migration adds it nullable; the enforcement migration requires it non-null. Since the current repository has no published catalog and synthetic seeds run after migrations, empty databases migrate directly. For a non-empty legacy catalog, apply the expand migration, explicitly map every row to IMAGE/VIDEO/AUDIO using reviewed catalog knowledge, then rerun `migrate deploy`; enforcement fails with a clear message while any row remains unmapped. No runtime catalog use should be enabled between these phases.

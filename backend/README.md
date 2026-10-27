@@ -16,14 +16,15 @@ Development loads an optional `backend/.env` using Node's native env-file suppor
 All REST routes use `/api/v1`; `GET /api/v1/health` returns
 `{"status":"ok","service":"lumical-backend"}`. It is a technical liveness check.
 
-`src/modules/health` is the only HTTP module. `src/common` holds future shared
+`src/modules/health` and the public `src/modules/templates` catalog are HTTP modules. `src/common` holds future shared
 technical code; `src/config` holds app configuration. Future business modules use
 the interface/application/domain/infrastructure boundaries from
 [Backend Standards](../docs/BACKEND_STANDARDS.md) and
 [Architecture](../docs/ARCHITECTURE.md).
 
-Auth (I02), AR technology selection (I03) and provider integrations remain
-deferred. There are no business endpoints or runtime OpenAPI endpoints yet.
+AR technology selection (I03), Template publication commands and provider
+integrations remain deferred. Public Template list/detail endpoints read only
+complete active published revisions.
 
 ## I01 persistence implementation
 
@@ -36,7 +37,8 @@ build/typecheck/test. No frontend or application port imports Prisma types.
 `prisma.config.ts` supplies migration configuration; generation needs no DB URL.
 
 Migration order preserves I01 slices: current work (P03), commerce/history
-(P04), access/execution (P05), then runtime grants/row guards. PostgreSQL bootstrap
+(P04), access/execution (P05), runtime grants/row guards, then I04-P01 Template
+category expand/enforcement. PostgreSQL bootstrap
 creates the `lumical` schema owned by `lumical_migration`; neither migration nor
 runtime role is superuser, can create databases, or administer roles. Only the
 migration role owns schema objects. `DATABASE_URL` requires `lumical_runtime`;

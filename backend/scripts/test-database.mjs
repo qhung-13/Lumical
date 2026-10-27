@@ -30,6 +30,8 @@ const {
   seedSynthetic,
   syntheticIds,
 } = require('../dist/platform/database/infrastructure/synthetic-seed.js');
+const { PrismaTemplateCatalog } = require('../dist/modules/templates/infrastructure/prisma-template-catalog.js');
+const { PublicTemplateCatalog } = require('../dist/modules/templates/application/template-catalog.js');
 const backend = fileURLToPath(new URL('..', import.meta.url));
 const firstMigration = '20261012000100_current_work';
 
@@ -90,7 +92,7 @@ try {
                 'SELECT count(*) FROM lumical._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL',
               )
             ).rows[0].count,
-            '4',
+            '6',
           );
           assert.equal(
             (
@@ -100,6 +102,11 @@ try {
             ).rows[0].count,
             '30',
           );
+          const category = await bootstrap.query(`SELECT is_nullable, column_default FROM information_schema.columns
+            WHERE table_schema='lumical' AND table_name='templates' AND column_name='category'`);
+          assert.deepEqual(category.rows, [{ is_nullable: 'NO', column_default: null }]);
+          assert.equal((await bootstrap.query(`SELECT count(*) FROM pg_indexes WHERE schemaname='lumical'
+            AND indexname='templates_catalog_category_availability_idx'`)).rows[0].count, '1');
           assert.equal(
             (
               await bootstrap.query(
@@ -122,7 +129,7 @@ try {
           );
         },
       );
-      for (const name of ['lumical_i01_repeat', 'lumical_i01_upgrade']) {
+      for (const name of ['lumical_i01_repeat', 'lumical_i01_upgrade', 'lumical_i04_legacy']) {
         // Identifiers are fixed literals; only newly created databases in our owned container.
         await bootstrap.query(`CREATE DATABASE ${name}`);
         const admin = await connection(url('bootstrap', name));
@@ -209,6 +216,48 @@ try {
           }
         },
       );
+      await check('legacy Template category expand → explicit PostgreSQL backfill → NOT NULL enforcement', async () => {
+        const directory = await mkdtemp(path.join(tmpdir(), 'lumical-i04-legacy-'));
+        const migrations = path.join(directory, 'migrations');
+        const config = path.join(directory, 'prisma.config.ts');
+        const env = { MIGRATION_DATABASE_URL: url('migration', 'lumical_i04_legacy') };
+        const templateId = '05000000-0000-4000-8000-000000000001';
+        try {
+          await cp(path.join(backend, 'prisma/migrations', firstMigration), path.join(migrations, firstMigration), { recursive: true });
+          await cp(path.join(backend, 'prisma/migrations/migration_lock.toml'), path.join(migrations, 'migration_lock.toml'));
+          await writeFile(config, `export default {schema:${JSON.stringify(path.join(backend, 'prisma/schema.prisma'))}, migrations:{path:${JSON.stringify(migrations)}}, datasource:{url:process.env.MIGRATION_DATABASE_URL}};`);
+          const deploy = () => cli(['node_modules/prisma/build/index.js', 'migrate', 'deploy', '--config', config], env);
+          await deploy();
+          const migration = await connection(env.MIGRATION_DATABASE_URL);
+          try {
+            await migration.query("INSERT INTO lumical.templates(id,availability,version,updated_at) VALUES($1,'INACTIVE',1,now())", [templateId]);
+            const expand = '20261027000100_template_catalog';
+            await cp(path.join(backend, 'prisma/migrations', expand), path.join(migrations, expand), { recursive: true });
+            await deploy();
+            const expanded = await migration.query('SELECT category FROM lumical.templates WHERE id=$1', [templateId]);
+            assert.deepEqual(expanded.rows, [{ category: null }]);
+            const nullable = await migration.query(`SELECT is_nullable FROM information_schema.columns
+              WHERE table_schema='lumical' AND table_name='templates' AND column_name='category'`);
+            assert.equal(nullable.rows[0].is_nullable, 'YES');
+
+            // This explicit classification stands in for reviewed operator mapping.
+            await migration.query("UPDATE lumical.templates SET category='VIDEO' WHERE id=$1", [templateId]);
+            const enforce = '20261027000200_template_category_required';
+            await cp(path.join(backend, 'prisma/migrations', enforce), path.join(migrations, enforce), { recursive: true });
+            await deploy();
+            const enforced = await migration.query(`SELECT t.category::text AS category, c.is_nullable, c.column_default
+              FROM lumical.templates t JOIN information_schema.columns c ON c.table_schema='lumical'
+                AND c.table_name='templates' AND c.column_name='category' WHERE t.id=$1`, [templateId]);
+            assert.deepEqual(enforced.rows, [{ category: 'VIDEO', is_nullable: 'NO', column_default: null }]);
+          } finally {
+            await migration.end();
+          }
+        } finally {
+          assert.equal(path.dirname(directory), tmpdir());
+          assert.ok(path.basename(directory).startsWith('lumical-i04-legacy-'));
+          await rm(directory, { recursive: true });
+        }
+      });
     } finally {
       await bootstrap.end();
     }
@@ -254,6 +303,52 @@ try {
           );
         },
       );
+      await check('PostgreSQL public catalog availability, category, filtering, stable cursor, projection and revision immutability', async () => {
+        const migration = await connection(url('migration', 'lumical_i01_blank'));
+        const ids = [1, 2, 3, 4].map((number) => ({
+          template: `03000000-0000-4000-8000-${String(number).padStart(12, '0')}`,
+          revision: `04000000-0000-4000-8000-${String(number).padStart(12, '0')}`,
+        }));
+        try {
+          for (const [index, item] of ids.entries()) {
+            await migration.query(`INSERT INTO lumical.templates(id,category,availability,version,updated_at)
+              VALUES($1,'IMAGE','INACTIVE',1,now())`, [item.template]);
+            await migration.query(`INSERT INTO lumical.template_revisions(id,template_id,revision,name_vi,name_en,description_vi,description_en,
+              layout_definition,style_presets,unit_price_minor,currency,published_at)
+              VALUES($1,$2,1,'Bằng nhau','Same name',$3,$4,
+                '{"version":1,"monthCount":12,"imageSlotsPerMonth":4}'::jsonb,
+                '[{"id":"classic","nameVi":"Cổ điển","nameEn":"Classic"}]'::jsonb,1450,'USD',now())`,
+            [item.revision, item.template, index === 0 ? '100%_ token' : 'Mô tả', index === 3 ? '' : 'Description']);
+            await migration.query('UPDATE lumical.templates SET current_published_revision_id=$2,availability=\'ACTIVE\' WHERE id=$1', [item.template, item.revision]);
+          }
+          const repository = new PrismaTemplateCatalog(database);
+          const catalog = new PublicTemplateCatalog(repository);
+          const page1 = await catalog.list({ category: 'IMAGE', limit: 2 });
+          assert.equal(page1.data.length, 2);
+          assert.equal(page1.meta.hasMore, true);
+          assert.ok(page1.meta.nextCursor);
+          assert.deepEqual(page1.data.map(({ id }) => id), ids.slice(0, 2).map(({ template }) => template));
+          const page2 = await catalog.list({ category: 'IMAGE', limit: 2, cursor: page1.meta.nextCursor ?? undefined });
+          assert.deepEqual(page2.data.map(({ id }) => id), [ids[2].template]);
+          assert.equal(page2.meta.hasMore, false);
+          assert.equal(page1.data.some(({ id }) => id === ids[3].template), false);
+          assert.equal((await catalog.list({ category: 'VIDEO' })).data.length, 0);
+          assert.deepEqual((await catalog.list({ query: '100%_' })).data.map(({ id }) => id), [ids[0].template]);
+          const detail = await catalog.get(ids[0].template);
+          assert.equal(detail.data.publishedRevision.price.unitPriceMinor, 1450);
+          assert.equal('templateId' in detail.data.publishedRevision, false);
+          await rejectsSql(runtime, 'UPDATE lumical.template_revisions SET name_en=$2 WHERE id=$1', [ids[0].revision, 'Changed'], '42501');
+          await migration.query("UPDATE lumical.templates SET availability='INACTIVE' WHERE id=$1", [ids[0].template]);
+          await assert.rejects(catalog.get(ids[0].template), (error) => error.status === 404);
+          assert.deepEqual((await catalog.list({ category: 'IMAGE' })).data.map(({ id }) => id), [ids[1].template, ids[2].template]);
+          await assert.rejects(catalog.get(ids[3].template), (error) => error.status === 404);
+        } finally {
+          await migration.query("UPDATE lumical.templates SET current_published_revision_id=NULL, availability='INACTIVE' WHERE id = ANY($1::uuid[])", [ids.map(({ template }) => template)]);
+          await migration.query('DELETE FROM lumical.template_revisions WHERE template_id = ANY($1::uuid[])', [ids.map(({ template }) => template)]);
+          await migration.query('DELETE FROM lumical.templates WHERE id = ANY($1::uuid[])', [ids.map(({ template }) => template)]);
+          await migration.end();
+        }
+      });
       const owner = syntheticIds.owners[0];
       const other = syntheticIds.owners[1];
       const project = await projectFixture(

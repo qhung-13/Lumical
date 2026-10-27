@@ -154,6 +154,7 @@ model Session {
 
 model Template {
   id                         String               @id @default(uuid()) @db.Uuid
+  category                   MediaCategory
   availability               TemplateAvailability @default(INACTIVE)
   currentPublishedRevisionId String?              @map("current_published_revision_id") @db.Uuid
   version                    Int                  @default(1)
@@ -163,6 +164,7 @@ model Template {
   publishedRevision          TemplateRevision?    @relation("Template_publishedRevision", fields: [currentPublishedRevisionId, id], references: [id, templateId], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([availability])
+  @@index([category, availability, id], map: "templates_catalog_category_availability_idx")
   @@map("templates")
   @@schema("lumical")
 }

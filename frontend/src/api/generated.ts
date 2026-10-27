@@ -132,6 +132,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active, complete published templates */
+        get: operations["listTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an active, complete published template */
+        get: operations["getTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1076,6 +1110,165 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
+            };
+        };
+    };
+    listTemplates: {
+        parameters: {
+            query?: {
+                limit?: unknown;
+                cursor?: unknown;
+                /** @description Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL. */
+                query?: unknown;
+                category?: "IMAGE" | "VIDEO" | "AUDIO";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public catalog page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            category: "IMAGE" | "VIDEO" | "AUDIO";
+                            publishedRevision: {
+                                /** Format: uuid */
+                                id: string;
+                                version: number;
+                                /** Format: date-time */
+                                publishedAt: string;
+                                name: {
+                                    vi: string;
+                                    en: string;
+                                };
+                                description: {
+                                    vi: string;
+                                    en: string;
+                                };
+                                layout: {
+                                    /** @enum {integer} */
+                                    version: 1;
+                                    /** @enum {integer} */
+                                    monthCount: 12;
+                                    /** @enum {integer} */
+                                    imageSlotsPerMonth: 4;
+                                };
+                                presets: {
+                                    /** @enum {string} */
+                                    id: "classic" | "minimal" | "vibrant";
+                                    name: {
+                                        vi: string;
+                                        en: string;
+                                    };
+                                }[];
+                                price: {
+                                    /** @enum {string} */
+                                    currency: "USD";
+                                    unitPriceMinor: number;
+                                };
+                            };
+                        }[];
+                        meta: {
+                            nextCursor: string | null;
+                            hasMore: boolean;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid filter, cursor, or limit. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public published template. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            category: "IMAGE" | "VIDEO" | "AUDIO";
+                            publishedRevision: {
+                                /** Format: uuid */
+                                id: string;
+                                version: number;
+                                /** Format: date-time */
+                                publishedAt: string;
+                                name: {
+                                    vi: string;
+                                    en: string;
+                                };
+                                description: {
+                                    vi: string;
+                                    en: string;
+                                };
+                                layout: {
+                                    /** @enum {integer} */
+                                    version: 1;
+                                    /** @enum {integer} */
+                                    monthCount: 12;
+                                    /** @enum {integer} */
+                                    imageSlotsPerMonth: 4;
+                                };
+                                presets: {
+                                    /** @enum {string} */
+                                    id: "classic" | "minimal" | "vibrant";
+                                    name: {
+                                        vi: string;
+                                        en: string;
+                                    };
+                                }[];
+                                price: {
+                                    /** @enum {string} */
+                                    currency: "USD";
+                                    unitPriceMinor: number;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description Template is unavailable. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid Template UUID. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

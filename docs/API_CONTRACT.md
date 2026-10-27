@@ -129,10 +129,12 @@ Actors: **G** Guest; **U** active User; **O** owner of requested object; **A** a
 
 ### Templates and Projects
 
+`PublicTemplate` is an explicit projection: `{id,category,publishedRevision:{id,version,publishedAt,name:{vi,en},description:{vi,en},layout,presets,price:{currency:"USD",unitPriceMinor}}}`. Catalog order is Vietnamese name ascending then Template UUID ascending. Cursor encodes those keys only. Search trims input and performs case-insensitive substring matching on both-language names and descriptions; PostgreSQL's current comparison is accent-sensitive. `%`, `_`, and the escape character are treated literally. Incomplete or unsupported revisions are omitted/404. See [I04-P01 decisions](DECISIONS_I04_P01.md) for the version-1 layout and curated preset set.
+
 | Method / path | Actor / purpose | Request | Response | Business rules | Errors | Replay/concurrency |
 | --- | --- | --- | --- | --- | --- | --- |
-| GET `/templates` | G; discover active catalog | query/filter/cursor/limit | 200 public Template list + meta | BR-TPL-001 | invalid filter | Public cache permitted, availability rechecked at create |
-| GET `/templates/{id}` | G; active Template details | ID | 200 public published Template/presets/USD price | BR-TPL-001 | 404 inactive/absent | Public cache does not grant orderability |
+| GET `/templates` | G; discover active catalog | `category?`, `query?`, `cursor?`, `limit?` | `{data:[PublicTemplate],meta:{nextCursor,hasMore}}` | BR-TPL-001 | invalid filter/cursor/limit 422 | `limit` defaults 20/max 50; public cache permitted, availability rechecked at create |
+| GET `/templates/{id}` | G; active Template details | UUID ID | `{data:PublicTemplate}` | BR-TPL-001 | 404 inactive/absent/incomplete | Public cache does not grant orderability |
 | POST `/projects` | U; create owned twelve-Month work | ProjectCreate | 201 Project | BR-PRJ-001/002/003, BR-TPL-001/002 | TEMPLATE_UNAVAILABLE 409 | K; atomic baseline/twelve Months |
 | GET `/projects` | U; own account work list | state/cursor/limit | 200 Project summaries + meta | BR-PRJ-001, BR-ORD-005 | invalid filter | Owner scope before query |
 | GET `/projects/{id}` | O; reopen own work | ID | 200 Project + ETag | BR-PRJ-001/004 | — | No-store |

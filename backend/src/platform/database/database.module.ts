@@ -11,7 +11,8 @@ import { PrismaTransactions } from './infrastructure/prisma-transactions';
     { provide: DatabaseAvailability, useExisting: PrismaDatabase },
     { provide: Transactions, useExisting: PrismaTransactions },
   ],
-  // Export ports only; generated models/clients remain infrastructure-owned.
-  exports: [DatabaseAvailability, Transactions],
+  // PrismaDatabase is exported only for feature-owned infrastructure adapters;
+  // generated models/clients remain private to infrastructure code.
+  exports: [DatabaseAvailability, Transactions, PrismaDatabase],
 })
 export class DatabaseModule {}

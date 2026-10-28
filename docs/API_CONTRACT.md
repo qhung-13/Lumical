@@ -22,6 +22,7 @@ Requests/responses use `application/json` with UTF-8 camelCase DTO fields; opaqu
 | --- | --- |
 | Account / role | `ACTIVE`, `DISABLED`; account role `USER`, `ADMIN`, assigned by backend/operator |
 | Template availability | `ACTIVE`, `INACTIVE`, `ARCHIVED`; only complete published revision is active/selectable |
+| Template category | `GENERAL`, `BIRTHDAY`, `ANNIVERSARY`, `HOLIDAY`; one topic category per Template |
 | Project | `WORKING`, `ARCHIVED` |
 | Order | `PLACED`, `CANCELLED`, `CLOSED` |
 | PaymentAttempt | `INITIATED`, `AWAITING_APPROVAL`, `VERIFYING`, `COMPLETED`, `CANCELLED`, `FAILED` |
@@ -129,7 +130,7 @@ Actors: **G** Guest; **U** active User; **O** owner of requested object; **A** a
 
 ### Templates and Projects
 
-`PublicTemplate` is an explicit projection: `{id,category,publishedRevision:{id,version,publishedAt,name:{vi,en},description:{vi,en},layout,presets,price:{currency:"USD",unitPriceMinor}}}`. Catalog order is Vietnamese name ascending then Template UUID ascending. Cursor encodes those keys only. Search trims input and performs case-insensitive substring matching on both-language names and descriptions; PostgreSQL's current comparison is accent-sensitive. `%`, `_`, and the escape character are treated literally. Incomplete or unsupported revisions are omitted/404. See [I04-P01 decisions](DECISIONS_I04_P01.md) for the version-1 layout and curated preset set.
+`PublicTemplate` is an explicit projection: `{id,category,publishedRevision:{id,version,publishedAt,name:{vi,en},description:{vi,en},layout,presets,price:{currency:"USD",unitPriceMinor}}}`. Template category is a single topic value from `GENERAL`, `BIRTHDAY`, `ANNIVERSARY`, or `HOLIDAY`; it is distinct from `MediaCategory`. The optional catalog `category` filter accepts only those values. Catalog order is Vietnamese name ascending then Template UUID ascending. Cursor encodes those keys only. Search trims input and performs case-insensitive substring matching on both-language names and descriptions; PostgreSQL's current comparison is accent-sensitive. `%`, `_`, and the escape character are treated literally. Layout is versioned and supports `PHOTO_FOCUS` or `COLLAGE`; both preserve 12 months and at most four images per month. Incomplete or unsupported revisions are omitted/404. See [I04-P01 decisions](DECISIONS_I04_P01.md) for layout and curated preset details.
 
 | Method / path | Actor / purpose | Request | Response | Business rules | Errors | Replay/concurrency |
 | --- | --- | --- | --- | --- | --- | --- |

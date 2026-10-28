@@ -1,5 +1,8 @@
-export const TEMPLATE_CATEGORIES = ['IMAGE', 'VIDEO', 'AUDIO'] as const;
+export const TEMPLATE_CATEGORIES = ['GENERAL', 'BIRTHDAY', 'ANNIVERSARY', 'HOLIDAY'] as const;
 export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+export const TEMPLATE_LAYOUT_TYPES = ['PHOTO_FOCUS', 'COLLAGE'] as const;
+export type TemplateLayoutType = (typeof TEMPLATE_LAYOUT_TYPES)[number];
 
 export const TEMPLATE_PRESET_IDS = ['classic', 'minimal', 'vibrant'] as const;
 export type TemplatePresetId = (typeof TEMPLATE_PRESET_IDS)[number];
@@ -34,7 +37,7 @@ export interface PublicTemplateDto {
     publishedAt: string;
     name: { vi: string; en: string };
     description: { vi: string; en: string };
-    layout: { version: 1; monthCount: 12; imageSlotsPerMonth: 4 };
+    layout: { version: 1; type: TemplateLayoutType; monthCount: 12; maxImagesPerMonth: 4 };
     presets: { id: TemplatePresetId; name: { vi: string; en: string } }[];
     price: { currency: 'USD'; unitPriceMinor: number };
   };
@@ -47,7 +50,7 @@ const safeIntegerMax = BigInt(Number.MAX_SAFE_INTEGER);
 export function projectPublicTemplate(record: PublicTemplateRecord): PublicTemplateDto {
   const revision = record.revision;
   const strings = [revision.nameVi, revision.nameEn, revision.descriptionVi, revision.descriptionEn];
-  if (record.category !== 'IMAGE' && record.category !== 'VIDEO' && record.category !== 'AUDIO') {
+  if (!TEMPLATE_CATEGORIES.includes(record.category)) {
     throw new TemplateCatalogValidationError('Invalid category');
   }
   if (revision.id.length === 0 || revision.templateId !== record.id || !Number.isSafeInteger(revision.revision) || revision.revision < 1 ||
@@ -58,7 +61,8 @@ export function projectPublicTemplate(record: PublicTemplateRecord): PublicTempl
   }
 
   const layout = revision.layoutDefinition as Record<string, unknown> | null;
-  if (!layout || layout.version !== 1 || layout.monthCount !== 12 || layout.imageSlotsPerMonth !== 4 || Object.keys(layout).length !== 3) {
+  if (!layout || layout.version !== 1 || !TEMPLATE_LAYOUT_TYPES.includes(layout.type as TemplateLayoutType) ||
+      layout.monthCount !== 12 || layout.maxImagesPerMonth !== 4 || Object.keys(layout).length !== 4) {
     throw new TemplateCatalogValidationError('Unsupported layout definition');
   }
   if (!Array.isArray(revision.stylePresets) || revision.stylePresets.length === 0) {
@@ -85,7 +89,12 @@ export function projectPublicTemplate(record: PublicTemplateRecord): PublicTempl
       publishedAt: revision.publishedAt.toISOString(),
       name: { vi: revision.nameVi, en: revision.nameEn },
       description: { vi: revision.descriptionVi, en: revision.descriptionEn },
-      layout: { version: 1, monthCount: 12, imageSlotsPerMonth: 4 },
+      layout: {
+        version: 1,
+        type: layout.type as TemplateLayoutType,
+        monthCount: 12,
+        maxImagesPerMonth: 4,
+      },
       presets,
       price: { currency: 'USD', unitPriceMinor: Number(revision.unitPriceMinor) },
     },

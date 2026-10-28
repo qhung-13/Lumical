@@ -69,7 +69,7 @@ erDiagram
 | --- | --- | --- |
 | User / P0 | normalized email, password hash, account role, active/disabled condition, audit timestamps | Identity/security only; no transfer of Project ownership. |
 | Session / P0 | user, session digest, CSRF binding, created/last activity/idle and absolute expiry, revokedAt | Revocable durable account session. |
-| Template / P0 | stable identity, `MediaCategory`, publication condition, current published revision | Availability pointer; no hard delete. Category is assigned directly and has no business default. |
+| Template / P0 | stable identity, required `TemplateCategory` (`GENERAL`, `BIRTHDAY`, `ANNIVERSARY`, `HOLIDAY`), publication condition, current published revision | Availability pointer; no hard delete. Template topic category is separate from `MediaAsset.category` and has no default. |
 | TemplateRevision / P0 | revision number, name/VI-EN managed copy, layout/preset definitions, positive USD unit price | Published revisions immutable; new edits create new revision. |
 | CalendarProject / P0 | owner, Working/Archived, title/year/recipient context, baseline revision/name/style/unitPriceMinor, current version | Owner edits current work; baseline/owner stable. |
 | CalendarMonth / P0 | project, monthNumber 1–12, optional message | One per Month, no arbitrary missing months. |

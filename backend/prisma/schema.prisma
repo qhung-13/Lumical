@@ -54,6 +54,16 @@ enum MediaCategory {
   @@schema("lumical")
 }
 
+enum TemplateCategory {
+  GENERAL
+  BIRTHDAY
+  ANNIVERSARY
+  HOLIDAY
+
+  @@map("template_category")
+  @@schema("lumical")
+}
+
 enum MediaStatus {
   PENDING
   READY
@@ -154,7 +164,7 @@ model Session {
 
 model Template {
   id                         String               @id @default(uuid()) @db.Uuid
-  category                   MediaCategory
+  category                   TemplateCategory
   availability               TemplateAvailability @default(INACTIVE)
   currentPublishedRevisionId String?              @map("current_published_revision_id") @db.Uuid
   version                    Int                  @default(1)

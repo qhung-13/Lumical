@@ -43,7 +43,7 @@ export async function seedSynthetic(database: PrismaDatabase): Promise<void> {
       data: [
         {
           id: syntheticIds.template,
-          category: 'IMAGE',
+          category: 'GENERAL',
           availability: 'INACTIVE',
           createdAt,
           updatedAt: createdAt,
@@ -61,7 +61,7 @@ export async function seedSynthetic(database: PrismaDatabase): Promise<void> {
           nameEn: 'Synthetic calendar',
           descriptionVi: 'Dữ liệu tổng hợp dành cho phát triển.',
           descriptionEn: 'Synthetic development data.',
-          layoutDefinition: { version: 1, monthCount: 12, imageSlotsPerMonth: 4 },
+          layoutDefinition: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 },
           stylePresets: [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' }],
           unitPriceMinor: 1450n,
           currency: 'USD',
@@ -83,7 +83,7 @@ export async function seedSynthetic(database: PrismaDatabase): Promise<void> {
       revision.nameEn !== 'Synthetic calendar' ||
       revision.nameVi !== 'Lịch mẫu tổng hợp' ||
       template.availability !== 'INACTIVE' ||
-      template.category !== 'IMAGE' ||
+      template.category !== 'GENERAL' ||
       template.currentPublishedRevisionId !== null
     ) {
       throw new Error(

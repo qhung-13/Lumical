@@ -23,15 +23,29 @@ export class PublicTemplateCatalog {
       if (error instanceof TemplateCatalogValidationError) throw new BadRequestException();
       throw error;
     }
-    const rows = await this.catalog.list({ category: input.category, query: query || undefined, after, take: limit + 1 });
-    const visible: PublicTemplateRecord[] = [];
-    for (const row of rows) {
-      try { projectPublicTemplate(row); visible.push(row); } catch (error) {
-        if (!(error instanceof TemplateCatalogValidationError)) throw error;
+    const take = limit + 1;
+    const visible: PublicTemplateDto[] = [];
+    let scanAfter = after;
+    let exhausted = false;
+
+    // Keep scanning past invalid rows so a post-query domain rejection cannot
+    // shrink the page or make the next cursor skip valid catalog entries.
+    while (visible.length <= limit && !exhausted) {
+      const rows = await this.catalog.list({ category: input.category, query: query || undefined, after: scanAfter, take });
+      if (rows.length === 0) break;
+
+      for (const row of rows) {
+        scanAfter = { nameVi: row.revision.nameVi, id: row.id };
+        try { visible.push(projectPublicTemplate(row)); }
+        catch (error) {
+          if (!(error instanceof TemplateCatalogValidationError)) throw error;
+        }
       }
+      exhausted = rows.length < take;
     }
+
     const hasMore = visible.length > limit;
-    const page = visible.slice(0, limit).map(projectPublicTemplate);
+    const page = visible.slice(0, limit);
     const last = page.at(-1);
     return { data: page, meta: { nextCursor: hasMore && last ? encodeCursor({ nameVi: last.publishedRevision.name.vi, id: last.id }) : null, hasMore } };
   }

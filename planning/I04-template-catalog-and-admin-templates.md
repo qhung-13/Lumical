@@ -86,7 +86,7 @@ BR-TPL-001–004 and BR-PRICE-001: only active complete published revisions star
 
 **Purpose:** Provide typed published starting designs.
 
-**Scope:** Template queries/domain policies, complete immutable revision projections, allowlisted filtering/paging and managed VI/EN copy.
+**Scope:** Template queries/domain policies, complete immutable revision projections, allowlisted topic-category/query filtering and paging, managed VI/EN copy, versioned `PHOTO_FOCUS`/`COLLAGE` layout contracts and curated style presets.
 
 **Expected areas/files/modules:** Backend Templates interface/application/domain/infrastructure; generated frontend contract. These are implementation areas, not a prescription of new filenames.
 
@@ -95,7 +95,8 @@ BR-TPL-001–004 and BR-PRICE-001: only active complete published revisions star
 **Acceptance criteria:**
 
 - [ ] Only active published complete Templates are visible.
-- [ ] Positive USD minor-unit price and approved presets are projected.
+- [ ] One allowlisted TemplateCategory is projected and filtered; it is separate from MediaCategory.
+- [ ] Positive USD minor-unit price, approved presets and supported versioned layouts are projected.
 - [ ] Pagination/filtering matches API_CONTRACT.
 
 **Tests required:** Jest/Supertest plus PostgreSQL availability/revision and serialization tests.

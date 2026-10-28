@@ -1,7 +1,7 @@
 import { BadRequestException, Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PublicTemplateCatalog, type TemplateListResult } from '../application/template-catalog';
-import { TEMPLATE_CATEGORIES } from '../domain/template-catalog';
+import { TEMPLATE_CATEGORIES, TEMPLATE_LAYOUT_TYPES } from '../domain/template-catalog';
 
 const templateSchema = {
   type: 'object', additionalProperties: false, required: ['id', 'category', 'publishedRevision'],
@@ -13,7 +13,7 @@ const templateSchema = {
         id: { type: 'string', format: 'uuid' }, version: { type: 'integer', minimum: 1 }, publishedAt: { type: 'string', format: 'date-time' },
         name: { type: 'object', additionalProperties: false, required: ['vi', 'en'], properties: { vi: { type: 'string' }, en: { type: 'string' } } },
         description: { type: 'object', additionalProperties: false, required: ['vi', 'en'], properties: { vi: { type: 'string' }, en: { type: 'string' } } },
-        layout: { type: 'object', additionalProperties: false, required: ['version', 'monthCount', 'imageSlotsPerMonth'], properties: { version: { type: 'integer', enum: [1] }, monthCount: { type: 'integer', enum: [12] }, imageSlotsPerMonth: { type: 'integer', enum: [4] } } },
+        layout: { type: 'object', additionalProperties: false, required: ['version', 'type', 'monthCount', 'maxImagesPerMonth'], properties: { version: { type: 'integer', enum: [1] }, type: { type: 'string', enum: [...TEMPLATE_LAYOUT_TYPES] }, monthCount: { type: 'integer', enum: [12] }, maxImagesPerMonth: { type: 'integer', enum: [4] } } },
         presets: { type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, required: ['id', 'name'], properties: { id: { type: 'string', enum: ['classic', 'minimal', 'vibrant'] }, name: { type: 'object', additionalProperties: false, required: ['vi', 'en'], properties: { vi: { type: 'string' }, en: { type: 'string' } } } } } },
         price: { type: 'object', additionalProperties: false, required: ['currency', 'unitPriceMinor'], properties: { currency: { type: 'string', enum: ['USD'] }, unitPriceMinor: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } },
       },
@@ -31,7 +31,7 @@ export class TemplateController {
   @ApiQuery({ name: 'category', required: false, enum: TEMPLATE_CATEGORIES })
   @ApiQuery({ name: 'query', required: false, description: 'Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL.', schema: { type: 'string', maxLength: 100 } })
   @ApiQuery({ name: 'cursor', required: false, schema: { type: 'string', maxLength: 512 } })
-  @ApiQuery({ name: 'limit', required: false, minimum: 1, maximum: 50, default: 20 })
+  @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } })
   @ApiResponse({ status: 200, description: 'Public catalog page.', schema: { type: 'object', additionalProperties: false, required: ['data', 'meta'], properties: { data: { type: 'array', items: templateSchema }, meta: { type: 'object', additionalProperties: false, required: ['nextCursor', 'hasMore'], properties: { nextCursor: { type: 'string', nullable: true }, hasMore: { type: 'boolean' } } } } } })
   @ApiResponse({ status: 422, description: 'Invalid filter, cursor, or limit.' })
   async list(@Query() raw: Record<string, string | undefined>): Promise<TemplateListResult> {

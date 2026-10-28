@@ -8,10 +8,10 @@ import { DatabaseAvailability } from '../src/platform/database/application/datab
 import { TEMPLATE_CATALOG } from '../src/modules/templates/application/template-catalog';
 import type { PublicTemplateRecord } from '../src/modules/templates/domain/template-catalog';
 
-const publicRecord: PublicTemplateRecord = { id: '11111111-1111-4111-8111-111111111111', category: 'IMAGE', revision: {
+const publicRecord: PublicTemplateRecord = { id: '11111111-1111-4111-8111-111111111111', category: 'GENERAL', revision: {
   id: '22222222-2222-4222-8222-222222222222', templateId: '11111111-1111-4111-8111-111111111111', revision: 2,
   nameVi: 'Lịch A', nameEn: 'Calendar A', descriptionVi: 'Mô tả', descriptionEn: 'Description',
-  layoutDefinition: { version: 1, monthCount: 12, imageSlotsPerMonth: 4 }, stylePresets: [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' }],
+  layoutDefinition: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 }, stylePresets: [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' }],
   unitPriceMinor: 1450n, currency: 'USD', publishedAt: new Date('2026-01-01T00:00:00Z'),
 } };
 
@@ -85,17 +85,17 @@ describe('Public templates (e2e)', () => {
   });
 
   it('returns explicit public DTO list and pagination envelope with safe integer money', async () => {
-    const response = await request(app.getHttpServer()).get('/api/v1/templates?category=IMAGE&query=%20A%20').expect(200);
-    expect(catalog.list).toHaveBeenCalledWith({ category: 'IMAGE', query: 'A', after: undefined, take: 21 });
-    expect(response.body).toEqual({ data: [{ id: publicRecord.id, category: 'IMAGE', publishedRevision: expect.objectContaining({
-      id: publicRecord.revision.id, version: 2, price: { currency: 'USD', unitPriceMinor: 1450 },
+    const response = await request(app.getHttpServer()).get('/api/v1/templates?category=GENERAL&query=%20A%20').expect(200);
+    expect(catalog.list).toHaveBeenCalledWith({ category: 'GENERAL', query: 'A', after: undefined, take: 21 });
+    expect(response.body).toEqual({ data: [{ id: publicRecord.id, category: 'GENERAL', publishedRevision: expect.objectContaining({
+      id: publicRecord.revision.id, version: 2, layout: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 }, price: { currency: 'USD', unitPriceMinor: 1450 },
     }) }], meta: { nextCursor: null, hasMore: false } });
     expect(JSON.stringify(response.body)).not.toContain('templateId');
     expect(JSON.stringify(response.body)).not.toContain('layoutDefinition');
   });
 
   it('rejects invalid filters and limits, and rejects overlong input', async () => {
-    await request(app.getHttpServer()).get('/api/v1/templates?category=DOCUMENT').expect(422);
+    await request(app.getHttpServer()).get('/api/v1/templates?category=IMAGE').expect(422);
     await request(app.getHttpServer()).get('/api/v1/templates?limit=51').expect(422);
     await request(app.getHttpServer()).get(`/api/v1/templates?query=${'x'.repeat(101)}`).expect(422);
     await request(app.getHttpServer()).get('/api/v1/templates?limit=50').expect(200);
@@ -103,6 +103,7 @@ describe('Public templates (e2e)', () => {
     await request(app.getHttpServer()).get('/api/v1/templates?query=%20%20').expect(200);
     expect(catalog.list).toHaveBeenLastCalledWith({ category: undefined, query: undefined, after: undefined, take: 21 });
     await request(app.getHttpServer()).get('/api/v1/templates?cursor=not-a-cursor').expect(422);
+    await request(app.getHttpServer()).get('/api/v1/templates/not-a-uuid').expect(422);
   });
 
   it('serves active detail and hides absent/inactive detail with 404', async () => {

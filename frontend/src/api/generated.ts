@@ -1116,11 +1116,11 @@ export interface operations {
     listTemplates: {
         parameters: {
             query?: {
-                limit?: unknown;
+                limit?: number;
                 cursor?: string;
                 /** @description Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL. */
                 query?: string;
-                category?: "IMAGE" | "VIDEO" | "AUDIO";
+                category?: "GENERAL" | "BIRTHDAY" | "ANNIVERSARY" | "HOLIDAY";
             };
             header?: never;
             path?: never;
@@ -1139,7 +1139,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             /** @enum {string} */
-                            category: "IMAGE" | "VIDEO" | "AUDIO";
+                            category: "GENERAL" | "BIRTHDAY" | "ANNIVERSARY" | "HOLIDAY";
                             publishedRevision: {
                                 /** Format: uuid */
                                 id: string;
@@ -1157,10 +1157,12 @@ export interface operations {
                                 layout: {
                                     /** @enum {integer} */
                                     version: 1;
+                                    /** @enum {string} */
+                                    type: "PHOTO_FOCUS" | "COLLAGE";
                                     /** @enum {integer} */
                                     monthCount: 12;
                                     /** @enum {integer} */
-                                    imageSlotsPerMonth: 4;
+                                    maxImagesPerMonth: 4;
                                 };
                                 presets: {
                                     /** @enum {string} */
@@ -1215,7 +1217,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             /** @enum {string} */
-                            category: "IMAGE" | "VIDEO" | "AUDIO";
+                            category: "GENERAL" | "BIRTHDAY" | "ANNIVERSARY" | "HOLIDAY";
                             publishedRevision: {
                                 /** Format: uuid */
                                 id: string;
@@ -1233,10 +1235,12 @@ export interface operations {
                                 layout: {
                                     /** @enum {integer} */
                                     version: 1;
+                                    /** @enum {string} */
+                                    type: "PHOTO_FOCUS" | "COLLAGE";
                                     /** @enum {integer} */
                                     monthCount: 12;
                                     /** @enum {integer} */
-                                    imageSlotsPerMonth: 4;
+                                    maxImagesPerMonth: 4;
                                 };
                                 presets: {
                                     /** @enum {string} */

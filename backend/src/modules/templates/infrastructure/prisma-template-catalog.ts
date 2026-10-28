@@ -18,14 +18,14 @@ export class PrismaTemplateCatalog implements TemplateCatalog {
     const where = [Prisma.sql`t.availability = 'ACTIVE'::lumical.template_availability`, Prisma.sql`r.revision > 0`,
       Prisma.sql`length(btrim(r.name_vi)) > 0 AND length(btrim(r.name_en)) > 0 AND length(btrim(r.description_vi)) > 0 AND length(btrim(r.description_en)) > 0`,
       Prisma.sql`r.currency = 'USD' AND r.unit_price_minor BETWEEN 1 AND 9007199254740991`,
-      Prisma.sql`jsonb_typeof(r.layout_definition) = 'object' AND r.layout_definition = '{"version":1,"monthCount":12,"imageSlotsPerMonth":4}'::jsonb`,
+      completeLayoutSql(),
       Prisma.sql`CASE WHEN jsonb_typeof(r.style_presets) = 'array' THEN jsonb_array_length(r.style_presets) > 0 AND NOT EXISTS (
         SELECT 1 FROM jsonb_array_elements(r.style_presets) p
         WHERE jsonb_typeof(p) <> 'object' OR p->>'id' NOT IN ('classic','minimal','vibrant')
           OR length(btrim(COALESCE(p->>'nameVi',''))) = 0 OR length(btrim(COALESCE(p->>'nameEn',''))) = 0
           OR CASE WHEN jsonb_typeof(p) = 'object' THEN (SELECT count(*) FROM jsonb_object_keys(p)) <> 3 ELSE TRUE END
       ) AND (SELECT count(DISTINCT p->>'id') FROM jsonb_array_elements(r.style_presets) p) = jsonb_array_length(r.style_presets) ELSE FALSE END`];
-    if (input.category) where.push(Prisma.sql`t.category = ${input.category}::lumical.media_category`);
+    if (input.category) where.push(Prisma.sql`t.category = ${input.category}::lumical.template_category`);
     if (input.query) {
       const pattern = `%${escapeLike(input.query)}%`;
       where.push(Prisma.sql`(r.name_vi ILIKE ${pattern} ESCAPE E'\\\\' OR r.name_en ILIKE ${pattern} ESCAPE E'\\\\' OR r.description_vi ILIKE ${pattern} ESCAPE E'\\\\' OR r.description_en ILIKE ${pattern} ESCAPE E'\\\\')`);
@@ -51,7 +51,7 @@ export class PrismaTemplateCatalog implements TemplateCatalog {
         AND r.revision > 0 AND length(btrim(r.name_vi)) > 0 AND length(btrim(r.name_en)) > 0
         AND length(btrim(r.description_vi)) > 0 AND length(btrim(r.description_en)) > 0
         AND r.currency = 'USD' AND r.unit_price_minor BETWEEN 1 AND 9007199254740991
-        AND r.layout_definition = '{"version":1,"monthCount":12,"imageSlotsPerMonth":4}'::jsonb
+        AND ${completeLayoutSql()}
         AND CASE WHEN jsonb_typeof(r.style_presets) = 'array' THEN jsonb_array_length(r.style_presets) > 0
         AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(r.style_presets) p WHERE jsonb_typeof(p) <> 'object'
           OR p->>'id' NOT IN ('classic','minimal','vibrant') OR length(btrim(COALESCE(p->>'nameVi',''))) = 0
@@ -60,6 +60,13 @@ export class PrismaTemplateCatalog implements TemplateCatalog {
       LIMIT 1`;
     return rows[0] ? mapRow(rows[0]) : null;
   }
+}
+
+function completeLayoutSql() {
+  return Prisma.sql`jsonb_typeof(r.layout_definition) = 'object' AND (
+    r.layout_definition = '{"version":1,"type":"PHOTO_FOCUS","monthCount":12,"maxImagesPerMonth":4}'::jsonb OR
+    r.layout_definition = '{"version":1,"type":"COLLAGE","monthCount":12,"maxImagesPerMonth":4}'::jsonb
+  )`;
 }
 
 function mapRow(row: CatalogRow): PublicTemplateRecord {

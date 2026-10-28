@@ -1225,6 +1225,507 @@
           "identity"
         ]
       }
+    },
+    "/api/v1/templates": {
+      "get": {
+        "operationId": "listTemplates",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          {
+            "name": "query",
+            "required": false,
+            "in": "query",
+            "description": "Trimmed case-insensitive search across VI/EN names and descriptions; accents are compared as stored by PostgreSQL.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "GENERAL",
+                "BIRTHDAY",
+                "ANNIVERSARY",
+                "HOLIDAY"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public catalog page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "id",
+                          "category",
+                          "publishedRevision"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "GENERAL",
+                              "BIRTHDAY",
+                              "ANNIVERSARY",
+                              "HOLIDAY"
+                            ]
+                          },
+                          "publishedRevision": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "id",
+                              "version",
+                              "publishedAt",
+                              "name",
+                              "description",
+                              "layout",
+                              "presets",
+                              "price"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "version": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "publishedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "name": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "vi",
+                                  "en"
+                                ],
+                                "properties": {
+                                  "vi": {
+                                    "type": "string"
+                                  },
+                                  "en": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "description": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "vi",
+                                  "en"
+                                ],
+                                "properties": {
+                                  "vi": {
+                                    "type": "string"
+                                  },
+                                  "en": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "layout": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "version",
+                                  "type",
+                                  "monthCount",
+                                  "maxImagesPerMonth"
+                                ],
+                                "properties": {
+                                  "version": {
+                                    "type": "integer",
+                                    "enum": [
+                                      1
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PHOTO_FOCUS",
+                                      "COLLAGE"
+                                    ]
+                                  },
+                                  "monthCount": {
+                                    "type": "integer",
+                                    "enum": [
+                                      12
+                                    ]
+                                  },
+                                  "maxImagesPerMonth": {
+                                    "type": "integer",
+                                    "enum": [
+                                      4
+                                    ]
+                                  }
+                                }
+                              },
+                              "presets": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "enum": [
+                                        "classic",
+                                        "minimal",
+                                        "vibrant"
+                                      ]
+                                    },
+                                    "name": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "vi",
+                                        "en"
+                                      ],
+                                      "properties": {
+                                        "vi": {
+                                          "type": "string"
+                                        },
+                                        "en": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "price": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "currency",
+                                  "unitPriceMinor"
+                                ],
+                                "properties": {
+                                  "currency": {
+                                    "type": "string",
+                                    "enum": [
+                                      "USD"
+                                    ]
+                                  },
+                                  "unitPriceMinor": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "nextCursor",
+                        "hasMore"
+                      ],
+                      "properties": {
+                        "nextCursor": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "hasMore": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid filter, cursor, or limit."
+          }
+        },
+        "summary": "List active, complete published templates",
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/v1/templates/{id}": {
+      "get": {
+        "operationId": "getTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public published template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "id",
+                        "category",
+                        "publishedRevision"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "GENERAL",
+                            "BIRTHDAY",
+                            "ANNIVERSARY",
+                            "HOLIDAY"
+                          ]
+                        },
+                        "publishedRevision": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "version",
+                            "publishedAt",
+                            "name",
+                            "description",
+                            "layout",
+                            "presets",
+                            "price"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "publishedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "name": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "vi",
+                                "en"
+                              ],
+                              "properties": {
+                                "vi": {
+                                  "type": "string"
+                                },
+                                "en": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "description": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "vi",
+                                "en"
+                              ],
+                              "properties": {
+                                "vi": {
+                                  "type": "string"
+                                },
+                                "en": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "layout": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "version",
+                                "type",
+                                "monthCount",
+                                "maxImagesPerMonth"
+                              ],
+                              "properties": {
+                                "version": {
+                                  "type": "integer",
+                                  "enum": [
+                                    1
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "PHOTO_FOCUS",
+                                    "COLLAGE"
+                                  ]
+                                },
+                                "monthCount": {
+                                  "type": "integer",
+                                  "enum": [
+                                    12
+                                  ]
+                                },
+                                "maxImagesPerMonth": {
+                                  "type": "integer",
+                                  "enum": [
+                                    4
+                                  ]
+                                }
+                              }
+                            },
+                            "presets": {
+                              "type": "array",
+                              "minItems": 1,
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "enum": [
+                                      "classic",
+                                      "minimal",
+                                      "vibrant"
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "vi",
+                                      "en"
+                                    ],
+                                    "properties": {
+                                      "vi": {
+                                        "type": "string"
+                                      },
+                                      "en": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "price": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "currency",
+                                "unitPriceMinor"
+                              ],
+                              "properties": {
+                                "currency": {
+                                  "type": "string",
+                                  "enum": [
+                                    "USD"
+                                  ]
+                                },
+                                "unitPriceMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 9007199254740991
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template is unavailable."
+          },
+          "422": {
+            "description": "Invalid Template UUID."
+          }
+        },
+        "summary": "Get an active, complete published template",
+        "tags": [
+          "templates"
+        ]
+      }
     }
   },
   "info": {

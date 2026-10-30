@@ -3,21 +3,13 @@ import { ApiBody, ApiCookieAuth, ApiHeader, ApiOperation, ApiParam, ApiResponse,
 import type { Request, Response } from 'express';
 import { IdentityService, type AuthResult, type BrowserContext } from '../application/identity-service';
 import { IdentityPolicy } from '../application/ports';
-import { invalid } from '../domain/identity';
+import { accountCookie, invalid } from '../domain/identity';
 import { AccountStatusChangeDto, AccountStatusResponseDto, AuthResponseDto, CredentialsDto, ErrorResponseDto, PrincipalResponseDto, SessionResponseDto } from './dto';
 
 const errors = () => applyDecorators(...[401,403,404,409,412,413,422,428,429,500,503].map((status) => ApiResponse({ status, type: ErrorResponseDto })));
 const origin = () => ApiHeader({ name: 'Origin', required: true, schema: { type: 'string' } });
 const csrf = () => ApiHeader({ name: 'X-CSRF-Token', required: true, schema: { type: 'string' } });
 const intent = () => ApiHeader({ name: 'Idempotency-Key', required: true, schema: { type: 'string', pattern: '^[A-Za-z0-9_-]{16,128}$' } });
-
-// Cookie parsing is transport-only and accepts just one expected account cookie.
-export function accountCookie(header: string | undefined, name: string): string | undefined {
-  const matches = (header ?? '').split(';').map((value) => value.trim()).filter((value) => value.startsWith(`${name}=`));
-  if (matches.length !== 1) return undefined;
-  const value = matches[0].slice(name.length + 1);
-  return /^[A-Za-z0-9_-]{43}$/.test(value) ? value : undefined;
-}
 
 @ApiTags('identity')
 @Controller()

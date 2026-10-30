@@ -12,12 +12,17 @@ import { usePreferences } from '../../design-system/foundations/preferences-prov
 import { PreferenceControls } from '../../design-system/foundations/preference-controls';
 import { Button } from '../../design-system/primitives/button';
 import { FormField } from '../../design-system/composites/form-field';
+import { safeReturnTo, safeTemplateId } from './safe-return';
+import { templateCopy } from '../../i18n/templates';
 
-export function IdentityScreen({ mode }: { mode: 'register' | 'login' | 'account' }) {
+export function IdentityScreen({ mode, returnTo = '/account', templateId }: { mode: 'register' | 'login' | 'account'; returnTo?: string; templateId?: string }) {
   const { manager, state } = useIdentity();
   const router = useRouter();
   const { locale, theme } = usePreferences();
   const copy = identityCopy[locale];
+  const safeDestination = safeReturnTo(returnTo);
+  const selectedTemplateId = safeTemplateId(templateId);
+  const authReturnParam = safeDestination === '/account' ? '' : `?next=${encodeURIComponent(safeDestination)}`;
   const account = useQuery({ queryKey: privateKey(state.principal?.id ?? 'guest', 'account'),
     queryFn: () => manager.api.ownAccount(), enabled: mode === 'account' && state.phase === 'authenticated' && state.mutationReady });
   const [email, setEmail] = useState('');
@@ -42,7 +47,7 @@ export function IdentityScreen({ mode }: { mode: 'register' | 'login' | 'account
     intent.current ??= crypto.randomUUID();
     try {
       await manager.authenticate(mode === 'register' ? 'register' : 'login', { email, password }, intent.current);
-      setPassword(''); router.replace('/account');
+      setPassword(''); router.replace(safeDestination);
     } catch (error) {
       setError(error instanceof ApiError ? error.code : 'PROVIDER_UNAVAILABLE');
       if (error instanceof ApiError) setFields({ email: error.fields.some(field => field.path === 'email'), password: error.fields.some(field => field.path === 'password') });
@@ -67,11 +72,16 @@ export function IdentityScreen({ mode }: { mode: 'register' | 'login' | 'account
     {state.phase === 'authenticated' && state.principal && <section aria-label={copy.account}>
       <p>{state.principal.email}</p>
       {account.isError && <p role="status">{copy.unavailable} <Button onClick={() => void account.refetch()}>{copy.retry}</Button></p>}
-      {mode !== 'account' && <p><Link href="/account">{copy.account}</Link></p>}
+      {mode !== 'account' && <p><Link href={safeDestination}>{copy.account}</Link></p>}
+      {mode === 'account' && selectedTemplateId && <section className={styles.handoff} aria-label={templateCopy[locale].selectedTemplate}>
+        <h2>{templateCopy[locale].handoffTitle}</h2>
+        <p>{templateCopy[locale].handoffBody}</p>
+        <Link href={`/templates/${encodeURIComponent(selectedTemplateId)}`}>{templateCopy[locale].returnToTemplate}</Link>
+      </section>}
       <Button disabled={!state.mutationReady} loading={pending} loadingLabel={copy.pending} onClick={() => void logout()}>{copy.logout}</Button>
     </section>}
     {state.phase === 'unauthenticated' && (mode === 'account' ? <section>
-      <p>{copy.guest}</p><Link href="/login">{copy.login}</Link>
+      <p>{copy.guest}</p><Link href={`/login${authReturnParam}`}>{copy.login}</Link>
     </section> : <form onSubmit={event => void submit(event)} noValidate>
       <p>{copy.hint}</p>
       <fieldset disabled={pending}>
@@ -83,7 +93,7 @@ export function IdentityScreen({ mode }: { mode: 'register' | 'login' | 'account
           onChange={event => { change(); setPassword(event.target.value); }} />
         <Button variant="primary" type="submit" loading={pending} loadingLabel={copy.pending}>{heading}</Button>
       </fieldset>
-      <p><Link href={mode === 'register' ? '/login' : '/register'}>{mode === 'register' ? copy.login : copy.register}</Link></p>
+      <p><Link href={`${mode === 'register' ? '/login' : '/register'}${authReturnParam}`}>{mode === 'register' ? copy.login : copy.register}</Link></p>
     </form>)}
   </main>;
 }

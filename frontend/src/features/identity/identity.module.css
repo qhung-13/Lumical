@@ -5,3 +5,5 @@
 .identity fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .cluster { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
 .error { padding: var(--space-4); margin-block: var(--space-6); background: var(--color-danger-bg); color: var(--color-danger); }
+.handoff { margin-block: var(--space-6); padding: var(--space-5); border: 1px solid var(--color-info); border-radius: var(--radius-card); background: var(--color-info-bg); }
+.handoff h2 { margin-block: 0 var(--space-3); font-size: var(--type-h3); line-height: var(--type-h3-line); }

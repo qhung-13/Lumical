@@ -39,6 +39,12 @@ export class TemplateAdminService {
         const raw = metadata && typeof metadata === 'object' ? metadata as { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } : undefined;
         const sqlCode = raw?.code ?? raw?.driverAdapterError?.cause?.originalCode;
         if ((code === 'P2034' || code === 'P2010' && (sqlCode === '40001' || sqlCode === '40P01')) && attempt < 2) continue;
+        // A unique violation here is usually an equivalent request that committed concurrently,
+        // most often on the idempotency record. Every command re-checks its replay record before
+        // doing any work, so retrying lets that check serve the winner's stored outcome instead of
+        // a bare conflict the caller would answer by re-sending a mutation that already happened.
+        // Once the retries are spent it is a genuine conflict.
+        if (code === 'P2002' && attempt < 2) continue;
         if (code === 'P2002') throw conflict();
         throw unavailable();
       }

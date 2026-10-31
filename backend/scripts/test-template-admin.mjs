@@ -183,11 +183,13 @@ try {
         }
         // Limit and state are validated in the domain, not silently clamped.
         for (const query of ['?limit=0', '?limit=51', '?limit=1.5', '?limit=many', '?state=PAUSED', '?state=active',
-          '?cursor=not-a-cursor']) {
+          '?cursor=not-a-cursor', '?cursor=']) {
           const rejected = await list(operator, query).expect(422);
           assert.equal(rejected.body.error.code, 'VALIDATION_FAILED');
           assert.equal(rejected.body.error.retryable, false);
         }
+        // Regression: `?cursor=` used to be collapsed into "absent" and silently served page one.
+        assert.equal((await list(operator, '?cursor=')).body.error.fieldErrors[0].path, 'cursor');
         assert.equal((await runtime.query('SELECT count(*) FROM lumical.admin_audit_events')).rows[0].count, auditsBefore,
           'an operational read must not append to the audit trail');
       });
@@ -264,6 +266,56 @@ try {
         assert.equal(replay[0].replay_expires_at, null, 'availability outcomes are deduplicated permanently');
         assert.equal(JSON.stringify(replay[0].safe_result).includes(password), false);
         assert.equal((await runtime.query('SELECT count(*) FROM lumical.templates WHERE id=$1', [id])).rows[0].count, '1');
+      });
+
+      await check('two concurrent requests sharing one Idempotency-Key commit exactly one mutation', async () => {
+        const key = randomUUID();
+        const payload = { category: 'GENERAL', revision: revision() };
+        const before = {
+          templates: Number((await runtime.query('SELECT count(*) FROM lumical.templates')).rows[0].count),
+          audits: Number((await runtime.query('SELECT count(*) FROM lumical.admin_audit_events')).rows[0].count),
+        };
+        // Without a barrier these two calls simply run one after the other and the second one just
+        // replays — which proves nothing. Holding an ACCESS EXCLUSIVE lock on the table both must
+        // insert into parks both transactions mid-flight, after the replay check and before the
+        // idempotency record exists. Releasing it releases them together, so they genuinely race.
+        //
+        // The barrier is verified by observing that neither call has settled while the lock is
+        // held. Reading wait_event_type from pg_stat_activity cannot do this: the migration role
+        // cannot see another backend's wait state, so that query reports zero no matter what.
+        const left = create(operator, payload, key);
+        const right = create(operator, payload, key);
+        const settled = { left: false, right: false };
+        left.then(() => { settled.left = true; }, () => { settled.left = true; });
+        right.then(() => { settled.right = true; }, () => { settled.right = true; });
+        await migration.query('BEGIN');
+        try {
+          await migration.query('LOCK TABLE lumical.templates IN ACCESS EXCLUSIVE MODE');
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          assert.deepEqual(settled, { left: false, right: false },
+            'both requests must still be in flight while the barrier is held');
+        } finally {
+          await migration.query('COMMIT');
+        }
+        const responses = await Promise.all([left, right]);
+        const statuses = responses.map((response) => response.status).sort((a, b) => a - b);
+        const after = {
+          templates: Number((await runtime.query('SELECT count(*) FROM lumical.templates')).rows[0].count),
+          audits: Number((await runtime.query('SELECT count(*) FROM lumical.admin_audit_events')).rows[0].count),
+        };
+        // The invariant that must hold however the race lands: one mutation, not two.
+        assert.equal(after.templates - before.templates, 1, 'exactly one template may be created');
+        assert.equal(after.audits - before.audits, 1, 'exactly one audit row may be written');
+        assert.equal((await runtime.query('SELECT count(*) FROM lumical.idempotency_records WHERE key=$1', [key])).rows[0].count, '1',
+          'exactly one idempotency record may exist');
+        assert.ok(statuses.includes(201), 'the winning request must report 201');
+        const winner = responses.find((response) => response.status === 201);
+        const loser = responses.find((response) => response !== winner);
+        console.log(`      ↳ kết quả đua thật: ${statuses.join(' + ')} · người thua: ${loser.status} ${loser.body?.error?.code ?? '(trả bản lưu)'}`);
+        // A caller that lost the write must still be served the winner's stored outcome — never a
+        // bare conflict that makes it retry a mutation that already happened.
+        assert.equal(loser.status, 201, 'the loser must be served the stored outcome, not an error');
+        assert.deepEqual(loser.body, winner.body, 'a replayed request must return the stored body');
       });
 
       await check('audit insertion failure rolls back the availability change and its idempotency record', async () => {

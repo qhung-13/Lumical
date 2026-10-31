@@ -54,8 +54,10 @@ export class AdminTemplateController {
   @ApiResponse({ status: 200, type: TemplateAdminListResponseDto })
   async list(@Query() raw: Record<string, string | undefined>, @Req() req: Request, @Res() res: Response) {
     // Query strings arrive as text; the domain owns the real validation and names the bad field.
+    // `cursor` is forwarded verbatim: `|| undefined` would turn `?cursor=` into "no cursor" and
+    // silently serve page one, hiding a request the domain must reject as 422.
     const digits = (value: string | undefined) => value !== undefined && /^\d+$/.test(value) ? Number(value) : value;
-    const result = await this.service.list({ state: raw.state, cursor: raw.cursor || undefined, limit: digits(raw.limit) },
+    const result = await this.service.list({ state: raw.state, cursor: raw.cursor, limit: digits(raw.limit) },
       this.context(req, res));
     res.status(200).json({ data: result.data.map(TemplateAdminDataDto.from), meta: result.meta });
   }

@@ -302,11 +302,24 @@ describe('TemplateAdminService idempotency', () => {
 });
 
 describe('TemplateAdminService transaction failures', () => {
-  it('maps a unique-constraint race to the safe conflict', async () => {
+  it('maps a unique-constraint race to the safe conflict once the retries are spent', async () => {
     const { transactions, service } = harness();
-    transactions.run.mockRejectedValueOnce({ code: 'P2002' });
+    // A unique violation is first treated as a concurrent equivalent request and retried, so the
+    // replay check can serve the winner's stored outcome. Only when every retry is spent does it
+    // become the safe conflict.
+    transactions.run.mockRejectedValueOnce({ code: 'P2002' }).mockRejectedValueOnce({ code: 'P2002' })
+      .mockRejectedValueOnce({ code: 'P2002' });
     await expect(service.list({}, browser)).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
-    expect(transactions.run).toHaveBeenCalledTimes(1);
+    expect(transactions.run).toHaveBeenCalledTimes(3);
+  });
+
+  it('serves the winner outcome when a unique violation was a concurrent equivalent request', async () => {
+    const { transactions, service } = harness({ list: jest.fn().mockResolvedValue([state()]) });
+    // First attempt loses the write race; the retry finds the winner's replay record and returns
+    // the stored page instead of a conflict the caller would wrongly retry.
+    transactions.run.mockRejectedValueOnce({ code: 'P2002' });
+    await expect(service.list({}, browser)).resolves.toMatchObject({ data: [expect.objectContaining({ id: TEMPLATE_ID })] });
+    expect(transactions.run).toHaveBeenCalledTimes(2);
   });
 
   it('retries serialization failures and succeeds on the third attempt', async () => {

@@ -21,7 +21,9 @@ test.beforeEach(async ({ page }) => {
 async function mockTemplateApi(page: Page) {
   await page.route('**/api/v1/templates**', route => {
     const detail = new URL(route.request().url()).pathname.endsWith(`/${templateId}`);
-    return route.fulfill({ json: { data: detail ? templateFixture : { data: [templateFixture], meta: { nextCursor: null, hasMore: false } } } });
+    return route.fulfill({ json: detail
+      ? { data: templateFixture }
+      : { data: [templateFixture], meta: { nextCursor: null, hasMore: false } } });
   });
 }
 

@@ -16,7 +16,7 @@ const sample: PublicTemplate = {
     price: { currency: 'USD', unitPriceMinor: 1450 },
   },
 };
-const envelope = (data: unknown, status = 200) => new Response(JSON.stringify({ data }), { status, headers: { 'Content-Type': 'application/json' } });
+const apiResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const clients: QueryClient[] = [];
 const client = () => {
   const value = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -27,7 +27,7 @@ afterEach(() => { clients.forEach(queryClient => queryClient.clear()); clients.l
 
 describe('typed public Template API and query integration', () => {
   it('requests a filtered cursor page with generated contract parameters and returns only its data/meta projection', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(envelope({ data: [sample], meta: { nextCursor: 'opaque-next', hasMore: true } }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(apiResponse({ data: [sample], meta: { nextCursor: 'opaque-next', hasMore: true } }));
     const result = await templateApi(fetcher).list({ category: 'BIRTHDAY', query: '  party  ', cursor: 'opaque', limit: 7 });
     const [url, init] = fetcher.mock.calls[0];
     expect(url).toBe('/api/v1/templates?category=BIRTHDAY&query=++party++&cursor=opaque&limit=7');
@@ -36,7 +36,7 @@ describe('typed public Template API and query integration', () => {
   });
 
   it('loads detail by an encoded ID and maps unavailable detail to a safe 404 error', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(envelope(sample))
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(apiResponse({ data: sample }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'NOT_FOUND' } }), { status: 404 }));
     expect(await templateApi(fetcher).detail(sample.id)).toEqual(sample);
     expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/templates/${sample.id}`);
@@ -47,7 +47,26 @@ describe('typed public Template API and query integration', () => {
   it('rejects malformed DTOs and malformed envelopes without exposing response contents', async () => {
     const bad = structuredClone(sample) as { publishedRevision: { price: { currency: string; unitPriceMinor: number } } };
     bad.publishedRevision.price.unitPriceMinor = 0;
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(envelope({ data: [bad], meta: { nextCursor: null, hasMore: false } }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(apiResponse({ data: [bad], meta: { nextCursor: null, hasMore: false } }));
+    await expect(templateApi(fetcher).list()).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
+  });
+
+  it.each([
+    ['empty preset list', (value: PublicTemplate) => { value.publishedRevision.presets = []; }],
+    ['zero revision version', (value: PublicTemplate) => { value.publishedRevision.version = 0; }],
+    ['blank Vietnamese name', (value: PublicTemplate) => { value.publishedRevision.name.vi = '   '; }],
+    ['blank English name', (value: PublicTemplate) => { value.publishedRevision.name.en = ''; }],
+    ['blank Vietnamese description', (value: PublicTemplate) => { value.publishedRevision.description.vi = ''; }],
+    ['blank English description', (value: PublicTemplate) => { value.publishedRevision.description.en = '   '; }],
+    ['blank Vietnamese preset translation', (value: PublicTemplate) => { value.publishedRevision.presets[0].name.vi = ''; }],
+    ['blank preset translation', (value: PublicTemplate) => { value.publishedRevision.presets[0].name.en = '  '; }],
+    ['duplicate preset ID', (value: PublicTemplate) => { value.publishedRevision.presets.push(structuredClone(value.publishedRevision.presets[0])); }],
+  ])('rejects a public DTO with %s', async (_caseName, invalidate) => {
+    const bad = structuredClone(sample);
+    invalidate(bad);
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(apiResponse({
+      data: [bad], meta: { nextCursor: null, hasMore: false },
+    }));
     await expect(templateApi(fetcher).list()).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
   });
 
@@ -61,12 +80,28 @@ describe('typed public Template API and query integration', () => {
 
   it('retries transient list failures and returns cursor metadata for load-more orchestration', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(null, { status: 503 }))
-      .mockResolvedValueOnce(envelope({ data: [sample], meta: { nextCursor: 'next', hasMore: true } }));
+      .mockResolvedValueOnce(apiResponse({ data: [sample], meta: { nextCursor: 'next', hasMore: true } }));
     const queryClient = client();
     const page = await queryClient.fetchQuery(templateListOptions({ limit: 1 }, fetcher));
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(page.meta).toEqual({ nextCursor: 'next', hasMore: true });
     expect('previousCursor' in page.meta).toBe(false);
+  });
+
+  it('decodes successive catalog pages and sends the returned cursor on the next request', async () => {
+    const next = 'opaque-page-two';
+    const second: PublicTemplate = { ...sample, id: '33333333-3333-4333-8333-333333333333' };
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(apiResponse({ data: [sample], meta: { nextCursor: next, hasMore: true } }))
+      .mockResolvedValueOnce(apiResponse({ data: [second], meta: { nextCursor: null, hasMore: false } }));
+
+    const firstPage = await templateApi(fetcher).list({ limit: 1 });
+    expect(firstPage).toEqual({ data: [sample], meta: { nextCursor: next, hasMore: true } });
+    const secondPage = await templateApi(fetcher).list({ limit: 1, cursor: firstPage.meta.nextCursor ?? undefined });
+
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/templates?limit=1');
+    expect(fetcher.mock.calls[1][0]).toBe(`/api/v1/templates?cursor=${next}&limit=1`);
+    expect(secondPage).toEqual({ data: [second], meta: { nextCursor: null, hasMore: false } });
   });
 
   it('does not automatically retry a 404 detail response', async () => {

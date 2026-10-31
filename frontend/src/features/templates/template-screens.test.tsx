@@ -18,7 +18,7 @@ const item: PublicTemplate = {
   },
 };
 const page = (data: PublicTemplate[] = [], nextCursor: string | null = null, hasMore = false) => ({ data, meta: { nextCursor, hasMore } });
-const response = (data: unknown, status = 200) => new Response(JSON.stringify(status >= 400 ? { error: { code: status === 404 ? 'NOT_FOUND' : 'VALIDATION_FAILED' } } : { data }), {
+const response = (body: unknown, status = 200) => new Response(JSON.stringify(status >= 400 ? { error: { code: status === 404 ? 'NOT_FOUND' : 'VALIDATION_FAILED' } } : body), {
   status, headers: { 'Content-Type': 'application/json' },
 });
 function renderWithProviders(node: React.ReactNode, locale: 'en' | 'vi' = 'en') {
@@ -91,14 +91,16 @@ describe('public Template catalog and detail screens', () => {
     expect(await screen.findByRole('heading', { name: 'Bright day' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(await screen.findByText(/More designs could not be loaded/)).toBeVisible();
+    expect(String(fetcher.mock.calls[1][0])).toBe('/api/v1/templates?cursor=next-cursor');
     expect(screen.getByRole('heading', { name: 'Bright day' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+    expect(String(fetcher.mock.calls[2][0])).toBe('/api/v1/templates?cursor=next-cursor');
     expect(screen.queryByText(/More designs could not be loaded/)).not.toBeInTheDocument();
   });
 
   it('renders detail specs in the selected locale and handles an unavailable detail safely', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response(item))
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: item }))
       .mockResolvedValueOnce(response({}, 404));
     vi.stubGlobal('fetch', fetcher);
     const view = renderWithProviders(<TemplateDetailScreen id={item.id} />, 'vi');
@@ -112,7 +114,7 @@ describe('public Template catalog and detail screens', () => {
   });
 
   it('routes the temporary CTA through login for guests and to account for an authenticated user', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(item)));
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response({ data: item })));
     vi.stubGlobal('fetch', fetcher);
     const view = renderWithProviders(<TemplateDetailScreen id={item.id} />);
     const cta = await screen.findByRole('link', { name: 'Continue with this design' });

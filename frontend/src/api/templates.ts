@@ -18,6 +18,10 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 function validTemplate(value: unknown): value is PublicTemplate {
   const data = record(value);
   const revision = record(data.publishedRevision);
@@ -25,20 +29,24 @@ function validTemplate(value: unknown): value is PublicTemplate {
   const description = record(revision.description);
   const layout = record(revision.layout);
   const price = record(revision.price);
+  const presetIds = new Set<string>();
+  const validPresets = Array.isArray(revision.presets) && revision.presets.length > 0 && revision.presets.every(preset => {
+    const item = record(preset);
+    const presetName = record(item.name);
+    const valid = typeof item.id === 'string' && ['classic', 'minimal', 'vibrant'].includes(item.id) &&
+      !presetIds.has(item.id) && nonEmptyString(presetName.vi) && nonEmptyString(presetName.en);
+    if (valid) presetIds.add(item.id as string);
+    return valid;
+  });
   return typeof data.id === 'string' &&
     ['GENERAL', 'BIRTHDAY', 'ANNIVERSARY', 'HOLIDAY'].includes(String(data.category)) &&
-    typeof revision.id === 'string' && Number.isSafeInteger(revision.version) &&
+    typeof revision.id === 'string' && Number.isSafeInteger(revision.version) && Number(revision.version) > 0 &&
     typeof revision.publishedAt === 'string' &&
-    typeof name.vi === 'string' && typeof name.en === 'string' &&
-    typeof description.vi === 'string' && typeof description.en === 'string' &&
+    nonEmptyString(name.vi) && nonEmptyString(name.en) &&
+    nonEmptyString(description.vi) && nonEmptyString(description.en) &&
     layout.version === 1 && ['PHOTO_FOCUS', 'COLLAGE'].includes(String(layout.type)) &&
     layout.monthCount === 12 && layout.maxImagesPerMonth === 4 &&
-    Array.isArray(revision.presets) && revision.presets.every(preset => {
-      const item = record(preset);
-      const presetName = record(item.name);
-      return ['classic', 'minimal', 'vibrant'].includes(String(item.id)) &&
-        typeof presetName.vi === 'string' && typeof presetName.en === 'string';
-    }) && price.currency === 'USD' && Number.isSafeInteger(price.unitPriceMinor) && Number(price.unitPriceMinor) > 0;
+    validPresets && price.currency === 'USD' && Number.isSafeInteger(price.unitPriceMinor) && Number(price.unitPriceMinor) > 0;
 }
 
 function parseTemplate(value: unknown): PublicTemplate {
@@ -54,6 +62,10 @@ function parsePage(value: unknown): PublicTemplatePage {
     throw new TemplateApiError('PROVIDER_UNAVAILABLE', 502);
   }
   return { data: data.data, meta: { nextCursor: meta.nextCursor, hasMore: meta.hasMore } };
+}
+
+function parseDetail(value: unknown): PublicTemplate {
+  return parseTemplate(record(value).data);
 }
 
 async function request<T>(path: string, signal: AbortSignal, decode: (value: unknown) => T, fetcher: typeof fetch): Promise<T> {
@@ -75,7 +87,7 @@ async function request<T>(path: string, signal: AbortSignal, decode: (value: unk
     } catch { /* Keep only the safe status-based error. */ }
     throw new TemplateApiError(code, response.status, response.headers.get('X-Request-Id') ?? undefined);
   }
-  try { return decode(record(await response.json()).data); }
+  try { return decode(await response.json()); }
   catch (error) {
     if (error instanceof TemplateApiError) throw error;
     throw new TemplateApiError('PROVIDER_UNAVAILABLE', 502);
@@ -94,7 +106,7 @@ export function templateApi(fetcher: typeof fetch = fetch) {
       return request(`/api/v1/templates${suffix}`, signal, parsePage, fetcher);
     },
     detail: (id: string, signal: AbortSignal = new AbortController().signal) =>
-      request(`/api/v1/templates/${encodeURIComponent(id)}`, signal, parseTemplate, fetcher),
+      request(`/api/v1/templates/${encodeURIComponent(id)}`, signal, parseDetail, fetcher),
   };
 }
 

@@ -4,7 +4,7 @@
 // 412 → conflict banner with the server's currentVersion (never auto-resent,
 // never a guessed version), everything else → an operational message. Entered
 // values live in the form and are never reset by a failure (F7).
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { AdminTemplateError } from '../../api/admin-templates';
 import { requestErrorMessage } from '../../i18n/admin-templates';
@@ -19,6 +19,7 @@ export interface CommandNotice {
 export interface AdminCommandState {
   readonly pending: boolean;
   readonly fieldErrors: readonly FieldError[];
+  readonly fieldSource?: CommandSource;
   /** Server-reported currentVersion after a 412 — only ever from the response. */
   readonly conflict?: { readonly version: number; readonly source: CommandSource };
   readonly notice?: CommandNotice;
@@ -27,16 +28,40 @@ export interface AdminCommandState {
 /** Which command hit the conflict, so the banner appears in the right place. */
 export type CommandSource = 'revision' | 'availability';
 
+/**
+ * Keeps an Idempotency-Key stable for the same operational intent (payload + expected version).
+ * Reuses the key across retries after network failures or timeouts, and mints a fresh key
+ * only when the user changes intent or after a successful mutation.
+ */
+export function useIntentKey() {
+  const currentRef = useRef<{ fingerprint: string; key: string } | null>(null);
+
+  const getKey = useCallback((fingerprint: string): string => {
+    if (currentRef.current && currentRef.current.fingerprint === fingerprint) {
+      return currentRef.current.key;
+    }
+    const key = crypto.randomUUID();
+    currentRef.current = { fingerprint, key };
+    return key;
+  }, []);
+
+  const resetKey = useCallback(() => {
+    currentRef.current = null;
+  }, []);
+
+  return { getKey, resetKey };
+}
+
 export function useAdminCommand() {
   const { locale } = usePreferences();
   const [state, setState] = useState<AdminCommandState>({ pending: false, fieldErrors: [] });
 
   const run = useCallback(async (source: CommandSource, execute: () => Promise<void>) => {
-    setState((previous) => ({ ...previous, pending: true, fieldErrors: [], notice: undefined }));
+    setState((previous) => ({ ...previous, pending: true, fieldErrors: [], fieldSource: undefined, notice: undefined }));
     try {
       await execute();
       // Keep the notice `success()` just set inside execute; only reset the rest.
-      setState((previous) => ({ pending: false, fieldErrors: [], notice: previous.notice }));
+      setState((previous) => ({ pending: false, fieldErrors: [], fieldSource: undefined, notice: previous.notice }));
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         setState((previous) => ({ ...previous, pending: false }));
@@ -55,7 +80,7 @@ export function useAdminCommand() {
           return;
         }
         if (error.status === 422 && error.fields.length > 0) {
-          setState({ pending: false, fieldErrors: error.fields });
+          setState({ pending: false, fieldErrors: error.fields, fieldSource: source });
           return;
         }
         setState({ pending: false, fieldErrors: [], notice: { tone: 'danger', message: requestErrorMessage(locale, error.code) } });
@@ -77,7 +102,11 @@ export function useAdminCommand() {
     setState((previous) => ({ ...previous, notice: undefined }));
   }, []);
 
+  const clearFieldErrors = useCallback(() => {
+    setState((previous) => ({ ...previous, fieldErrors: [], fieldSource: undefined }));
+  }, []);
+
   const ok = useCallback((key: TemplateAdminKey, vars?: Record<string, string | number>) => formatTemplateAdmin(locale, key, vars), [locale]);
 
-  return { ...state, run, success, dismissConflict, clearNotice, ok };
+  return { ...state, run, success, dismissConflict, clearNotice, clearFieldErrors, ok };
 }

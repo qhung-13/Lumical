@@ -28,6 +28,7 @@ export function TemplateListScreen() {
   const { locale } = usePreferences();
   const t = (key: TemplateAdminKey) => formatTemplateAdmin(locale, key);
   const { manager } = useIdentity();
+  const actorId = manager.getSnapshot().principal?.id ?? 'anonymous';
   const api = useMemo(() => adminTemplateApi({ csrf: () => manager.csrfToken() }), [manager]);
 
   const [state, setState] = useState<TemplateAvailability | ''>('');
@@ -35,7 +36,7 @@ export function TemplateListScreen() {
 
   const query: AdminTemplateListQuery = state ? { state: state as TemplateAvailability } : {};
   const queries = useQueries({
-    queries: cursors.map((cursor) => adminTemplateListOptions({ ...query, ...(cursor ? { cursor } : {}) }, api)),
+    queries: cursors.map((cursor) => adminTemplateListOptions(actorId, { ...query, ...(cursor ? { cursor } : {}) }, api)),
   });
   const first = queries[0];
   const latestSuccessful = [...queries].reverse().find((entry) => entry.data);

@@ -11,7 +11,7 @@ import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-tem
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
 import { RevisionForm, toRevisionBody, type RevisionDraft } from './revision-form';
-import { useAdminCommand } from './use-admin-command';
+import { useAdminCommand, useIntentKey } from './use-admin-command';
 import { ConflictBanner } from './conflict-banner';
 import { IconAlertCircle, IconCheckCircle } from './icons';
 import styles from './admin-template.module.css';
@@ -23,13 +23,17 @@ export function TemplateNewScreen() {
   const { manager } = useIdentity();
   const api = useMemo(() => adminTemplateApi({ csrf: () => manager.csrfToken() }), [manager]);
   const command = useAdminCommand();
+  const { getKey, resetKey } = useIntentKey();
 
   const create = (draft: RevisionDraft) => {
     // One key per intent: reused while the same submission is retried, rotated
-    // only after success (FRONTEND §10 — a timeout must not mint a new intent).
-    const key = crypto.randomUUID();
+    // only after success or when intent changes (FRONTEND §10 — a timeout must not mint a new intent).
+    const payload = { category: draft.category, revision: toRevisionBody(draft), ...(draft.reason ? { reason: draft.reason } : {}) };
+    const fingerprint = JSON.stringify(payload);
+    const key = getKey(fingerprint);
     void command.run('revision', async () => {
-      const created = await api.create({ category: draft.category, revision: toRevisionBody(draft), ...(draft.reason ? { reason: draft.reason } : {}) }, key);
+      const created = await api.create(payload, key);
+      resetKey();
       command.success(t('createdOk'));
       router.push(`/admin/templates/${encodeURIComponent(created.id)}`);
     });
@@ -56,7 +60,7 @@ export function TemplateNewScreen() {
       <div className={`${styles.content} ${styles.contentSingle}`}>
         <RevisionForm
           mode="create"
-          fieldErrors={command.fieldErrors}
+          fieldErrors={command.fieldSource === 'revision' ? command.fieldErrors : []}
           pending={command.pending}
           onSubmit={create}
           notice={command.conflict?.source === 'revision' ? (

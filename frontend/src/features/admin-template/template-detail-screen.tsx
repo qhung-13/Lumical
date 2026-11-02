@@ -7,14 +7,14 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIdentity } from '../identity/provider';
-import { adminTemplateApi, adminTemplateDetailOptions, type TemplateAvailability } from '../../api/admin-templates';
+import { adminTemplateApi, adminTemplateDetailOptions, adminTemplateKeys, type TemplateAvailability } from '../../api/admin-templates';
 import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
 import { AvailabilityPanel } from './availability-panel';
 import { ConflictBanner } from './conflict-banner';
 import { RevisionForm, toRevisionBody, type RevisionDraft } from './revision-form';
-import { useAdminCommand } from './use-admin-command';
+import { useAdminCommand, useIntentKey } from './use-admin-command';
 import { IconAlertCircle, IconCheckCircle } from './icons';
 import styles from './admin-template.module.css';
 
@@ -33,21 +33,27 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
   const { locale } = usePreferences();
   const t = (key: TemplateAdminKey, vars?: Record<string, string | number>) => formatTemplateAdmin(locale, key, vars);
   const { manager } = useIdentity();
+  const actorId = manager.getSnapshot().principal?.id ?? 'anonymous';
   const api = useMemo(() => adminTemplateApi({ csrf: () => manager.csrfToken() }), [manager]);
   const queries = useQueryClient();
-  const detail = useQuery(adminTemplateDetailOptions(templateId, api));
+  const detail = useQuery(adminTemplateDetailOptions(actorId, templateId, api));
   const command = useAdminCommand();
+  const { getKey: getPublishKey, resetKey: resetPublishKey } = useIntentKey();
+  const { getKey: getAvailKey, resetKey: resetAvailKey } = useIntentKey();
   const template = detail.data;
 
   const invalidate = () => {
-    void queries.invalidateQueries({ queryKey: ['admin-templates'] });
+    void queries.invalidateQueries({ queryKey: adminTemplateKeys.all(actorId) });
   };
 
   const publish = (draft: RevisionDraft) => {
     if (!template) return;
-    const key = crypto.randomUUID();
+    const payload = { revision: toRevisionBody(draft), ...(draft.reason ? { reason: draft.reason } : {}) };
+    const fingerprint = JSON.stringify({ templateId, payload, version: template.version });
+    const key = getPublishKey(fingerprint);
     void command.run('revision', async () => {
-      const published = await api.publish(templateId, { revision: toRevisionBody(draft), ...(draft.reason ? { reason: draft.reason } : {}) }, key, template.version);
+      const published = await api.publish(templateId, payload, key, template.version);
+      resetPublishKey();
       // The response is authoritative for the new revision number — never guessed.
       command.success(t('publishedOk', { n: published.publishedRevision ?? 1 }));
       invalidate();
@@ -56,9 +62,12 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
 
   const setAvailability = (availability: TemplateAvailability, reason: string) => {
     if (!template) return;
-    const key = crypto.randomUUID();
+    const payload = { availability, reason };
+    const fingerprint = JSON.stringify({ templateId, payload, version: template.version });
+    const key = getAvailKey(fingerprint);
     void command.run('availability', async () => {
-      await api.availability(templateId, { availability, reason }, key, template.version);
+      await api.availability(templateId, payload, key, template.version);
+      resetAvailKey();
       command.success(t('availOk', { state: t(AVAILABILITY_KEY[availability]) }));
       invalidate();
     });
@@ -117,7 +126,7 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
         <div>
           <RevisionForm
             mode="publish"
-            fieldErrors={command.fieldErrors}
+            fieldErrors={command.fieldSource === 'revision' ? command.fieldErrors : []}
             pending={command.pending}
             onSubmit={publish}
             notice={command.conflict?.source === 'revision' ? (
@@ -152,6 +161,7 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
             <AvailabilityPanel
               template={template}
               pending={command.pending}
+              fieldErrors={command.fieldSource === 'availability' ? command.fieldErrors : []}
               {...(command.conflict?.source === 'availability' ? { conflictVersion: command.conflict.version } : {})}
               onSetAvailability={setAvailability}
               onRefreshVersion={refreshVersion}

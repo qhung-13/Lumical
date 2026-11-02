@@ -92,4 +92,31 @@ describe('availability control (F4)', () => {
     expect(dialog).toHaveTextContent('This template leaves the active catalog.');
     expect(dialog).toHaveTextContent('Recorded in the audit trail for this action.');
   });
+
+  it('surfaces backend 422 reason error in the dialog and clears on edit', async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderPanel();
+    await user.click(screen.getByTestId('availability-active'));
+    expect(await screen.findByRole('dialog')).toBeVisible();
+
+    rerender(
+      <PreferencesProvider initial={{ locale: 'en', theme: 'light' }}>
+        <AvailabilityPanel
+          template={template}
+          fieldErrors={[{ path: 'reason', messageKey: 'validation.reason.invalid' }]}
+          onSetAvailability={vi.fn()}
+          onRefreshVersion={vi.fn()}
+        />
+      </PreferencesProvider>,
+    );
+
+    const errorEl = await screen.findByRole('alert');
+    expect(errorEl).toHaveTextContent(/Enter a reason of 1 to 1000 characters/);
+    const textarea = screen.getByLabelText(/Reason/);
+    expect(textarea).toHaveAttribute('aria-invalid', 'true');
+
+    await user.type(textarea, 'Fixing reason');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(textarea).not.toHaveAttribute('aria-invalid');
+  });
 });

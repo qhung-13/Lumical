@@ -84,25 +84,39 @@ describe('admin template boundary (contract §17)', () => {
 });
 
 describe('react query options', () => {
-  it('includes state and cursor in the list key', () => {
-    expect(adminTemplateListOptions({ state: 'ACTIVE', cursor: 'c1' }).queryKey)
-      .toEqual(['admin-templates', 'list', 'ACTIVE', 'c1', null]);
+  it('scopes query keys to the actor ID and private prefix', () => {
+    expect(adminTemplateListOptions('actor-42', { state: 'ACTIVE', cursor: 'c1' }).queryKey)
+      .toEqual(['private', 'actor-42', 'admin-templates', 'list', 'ACTIVE', 'c1', null]);
+    expect(adminTemplateDetailOptions('actor-42', 'template-1').queryKey)
+      .toEqual(['private', 'actor-42', 'admin-templates', 'detail', 'template-1']);
   });
 
   it('walks cursor pages to find one template by id', async () => {
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(jsonResponse({ data: [], meta: { nextCursor: 'next', hasMore: true } }))
       .mockResolvedValueOnce(jsonResponse({ data: [row], meta: { nextCursor: null, hasMore: false } }));
-    const options = adminTemplateDetailOptions(row.id, adminTemplateApi({ csrf: () => undefined, fetcher }));
+    const options = adminTemplateDetailOptions('actor-42', row.id, adminTemplateApi({ csrf: () => undefined, fetcher }));
     const found = await options.queryFn({ signal: new AbortController().signal });
     expect(found?.id).toBe(row.id);
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(String(fetcher.mock.calls[1][0])).toContain('cursor=next');
   });
 
+  it('walks cursor past 10 pages without failing with null', async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    for (let i = 0; i < 11; i += 1) {
+      fetcher.mockResolvedValueOnce(jsonResponse({ data: [], meta: { nextCursor: `c-${i + 1}`, hasMore: true } }));
+    }
+    fetcher.mockResolvedValueOnce(jsonResponse({ data: [row], meta: { nextCursor: null, hasMore: false } }));
+    const options = adminTemplateDetailOptions('actor-42', row.id, adminTemplateApi({ csrf: () => undefined, fetcher }));
+    const found = await options.queryFn({ signal: new AbortController().signal });
+    expect(found?.id).toBe(row.id);
+    expect(fetcher).toHaveBeenCalledTimes(12);
+  });
+
   it('returns null when the template is not in any page', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ data: [], meta: { nextCursor: null, hasMore: false } }));
-    const options = adminTemplateDetailOptions('missing', adminTemplateApi({ csrf: () => undefined, fetcher }));
+    const options = adminTemplateDetailOptions('actor-42', 'missing', adminTemplateApi({ csrf: () => undefined, fetcher }));
     await expect(options.queryFn({ signal: new AbortController().signal })).resolves.toBeNull();
   });
 });

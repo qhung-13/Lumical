@@ -7,7 +7,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import type { AdminTemplateData, TemplateAvailability } from '../../api/admin-templates';
-import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
+import { fieldErrorMessage, formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
+import type { FieldError } from './revision-form';
 import { ModalLayer } from './modal-layer';
 import { ConflictBanner } from './conflict-banner';
 import { IconAlertCircle, IconArchive, IconCheckCircle, IconInfo } from './icons';
@@ -29,17 +30,20 @@ export interface AvailabilityPanelProps {
   readonly pending?: boolean;
   /** 412 from the last attempt — version from the load, never re-guessed. */
   readonly conflictVersion?: number;
+  /** 422 field errors from backend (F6) scoped to availability command. */
+  readonly fieldErrors?: readonly FieldError[];
   readonly onSetAvailability: (availability: TemplateAvailability, reason: string) => void;
   /** Reload the current version (conflict refresh). The typed reason is kept in the dialog. */
   readonly onRefreshVersion: () => void;
 }
 
-export function AvailabilityPanel({ template, pending = false, conflictVersion, onSetAvailability, onRefreshVersion }: AvailabilityPanelProps) {
+export function AvailabilityPanel({ template, pending = false, conflictVersion, fieldErrors = [], onSetAvailability, onRefreshVersion }: AvailabilityPanelProps) {
   const { locale } = usePreferences();
   const t = (key: TemplateAdminKey) => formatTemplateAdmin(locale, key);
   const [target, setTarget] = useState<TemplateAvailability | null>(null);
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState<string | undefined>(undefined);
+  const [dismissedServerErrors, setDismissedServerErrors] = useState<readonly FieldError[]>([]);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { if (target) reasonRef.current?.focus(); }, [target]);
@@ -56,6 +60,11 @@ export function AvailabilityPanel({ template, pending = false, conflictVersion, 
     if (length < 1 || length > 1000) { setReasonError(t('errReason')); reasonRef.current?.focus(); return; }
     if (target) onSetAvailability(target, reason.trim());
   };
+
+  const serverReasonError = fieldErrors !== dismissedServerErrors
+    ? fieldErrors.find((err) => err.path === 'reason')?.path
+    : undefined;
+  const activeError = reasonError || (serverReasonError ? fieldErrorMessage(locale, 'reason') : undefined);
 
   const controls: { availability: TemplateAvailability; label: string }[] = [
     { availability: 'ACTIVE', label: t('activate') },
@@ -111,16 +120,20 @@ export function AvailabilityPanel({ template, pending = false, conflictVersion, 
             {t('reasonLabel')} <span className={styles.fieldRequired}>({t('reasonRequired')})</span>
           </label>
           <textarea
-            className={`${styles.textarea} ${reasonError ? styles.textareaInvalid : ''}`}
+            className={`${styles.textarea} ${activeError ? styles.textareaInvalid : ''}`}
             id="availability-reason" ref={reasonRef} value={reason} maxLength={1000}
             placeholder={t('availReasonPh')}
-            onChange={(event) => { setReason(event.target.value); setReasonError(undefined); }}
-            aria-describedby={reasonError ? 'availability-reason-error' : 'availability-reason-help'}
-            aria-invalid={Boolean(reasonError) || undefined}
+            onChange={(event) => {
+              setReason(event.target.value);
+              setReasonError(undefined);
+              setDismissedServerErrors(fieldErrors);
+            }}
+            aria-describedby={activeError ? 'availability-reason-error' : 'availability-reason-help'}
+            aria-invalid={Boolean(activeError) || undefined}
           />
-          {!reasonError && <p className={styles.fieldHelp} id="availability-reason-help">{t('reasonHelp')}</p>}
-          {reasonError && (
-            <p className={styles.fieldError} id="availability-reason-error" role="alert"><IconAlertCircle size={16} />{reasonError}</p>
+          {!activeError && <p className={styles.fieldHelp} id="availability-reason-help">{t('reasonHelp')}</p>}
+          {activeError && (
+            <p className={styles.fieldError} id="availability-reason-error" role="alert"><IconAlertCircle size={16} />{activeError}</p>
           )}
         </div>
         <div className={styles.dialogActions}>

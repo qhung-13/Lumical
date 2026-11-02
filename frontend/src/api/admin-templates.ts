@@ -164,45 +164,48 @@ export function adminTemplateApi(options: AdminTemplateApiOptions) {
 export type AdminTemplateApi = ReturnType<typeof adminTemplateApi>;
 
 export const adminTemplateKeys = {
-  all: ['admin-templates'] as const,
-  lists: () => [...adminTemplateKeys.all, 'list'] as const,
-  list: (query: AdminTemplateListQuery = {}) =>
-    [...adminTemplateKeys.lists(), query.state ?? null, query.cursor ?? null, query.limit ?? null] as const,
+  all: (actorId: string) => ['private', actorId, 'admin-templates'] as const,
+  lists: (actorId: string) => [...adminTemplateKeys.all(actorId), 'list'] as const,
+  list: (actorId: string, query: AdminTemplateListQuery = {}) =>
+    [...adminTemplateKeys.lists(actorId), query.state ?? null, query.cursor ?? null, query.limit ?? null] as const,
+  detail: (actorId: string, id: string) => [...adminTemplateKeys.all(actorId), 'detail', id] as const,
 };
 
 const retryTransient = (failureCount: number, error: Error) =>
   error instanceof AdminTemplateError && error.status >= 500 && failureCount < 2;
 
-export function adminTemplateListOptions(query: AdminTemplateListQuery = {}, api?: AdminTemplateApi) {
+export function adminTemplateListOptions(actorId: string, query: AdminTemplateListQuery = {}, api?: AdminTemplateApi) {
   return {
-    queryKey: adminTemplateKeys.list(query),
+    queryKey: adminTemplateKeys.list(actorId, query),
     queryFn: ({ signal }: { signal: AbortSignal }) => (api ?? adminTemplateApi({ csrf: () => undefined })).list(query, signal),
     staleTime: 15_000,
     retry: retryTransient,
   } as const;
 }
 
-export const adminTemplateKeysDetail = (id: string) => [...adminTemplateKeys.all, 'detail', id] as const;
+export const adminTemplateKeysDetail = (actorId: string, id: string) => adminTemplateKeys.detail(actorId, id);
 
 /**
  * Load one template by walking the cursor list (the contract has no GET-by-id
- * on the admin surface). Stops at the first page containing the id; a bounded
- * walk keeps a single detail view from scanning an unbounded catalog.
+ * on the admin surface). Walks page by page until the template is found or the
+ * catalog is exhausted. An optional maxPages safeguard can still be passed if needed.
  */
-export function adminTemplateDetailOptions(id: string, api?: AdminTemplateApi, maxPages = 10) {
+export function adminTemplateDetailOptions(actorId: string, id: string, api?: AdminTemplateApi, maxPages?: number) {
   return {
-    queryKey: adminTemplateKeysDetail(id),
+    queryKey: adminTemplateKeys.detail(actorId, id),
     queryFn: async ({ signal }: { signal: AbortSignal }): Promise<AdminTemplateData | null> => {
       const client = api ?? adminTemplateApi({ csrf: () => undefined });
       let cursor: string | null = null;
-      for (let page = 0; page < maxPages; page += 1) {
+      let page = 0;
+      while (true) {
         const result = await client.list(cursor ? { cursor } : {}, signal);
         const found = result.data.find((row) => row.id === id);
         if (found) return found;
         if (!result.meta.hasMore || !result.meta.nextCursor) return null;
         cursor = result.meta.nextCursor;
+        page += 1;
+        if (maxPages !== undefined && page >= maxPages) return null;
       }
-      return null;
     },
     staleTime: 15_000,
     retry: retryTransient,

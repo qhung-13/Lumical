@@ -13,10 +13,10 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new Event('close')); };
 });
 
-const identity = vi.hoisted(() => ({ csrf: 'csrf-token', email: 'ops@lumical.edu' }));
+const identity = vi.hoisted(() => ({ csrf: 'csrf-token', email: 'ops@lumical.edu', id: 'admin-actor-1' }));
 vi.mock('../identity/provider', () => ({
   useIdentity: () => ({
-    manager: { csrfToken: () => identity.csrf, getSnapshot: () => ({ principal: { email: identity.email } }) },
+    manager: { csrfToken: () => identity.csrf, getSnapshot: () => ({ principal: { email: identity.email, id: identity.id } }) },
     state: { phase: 'authenticated' },
   }),
 }));
@@ -249,6 +249,109 @@ describe('admin template detail publication and conflict (F3/F5/F6/F7)', () => {
     await user.click(screen.getByTestId('review-submit'));
     await user.click(await screen.findByTestId('review-confirm'));
     expect(await screen.findByTestId('command-notice')).toHaveTextContent('You do not have permission to manage templates.');
+  });
+
+  it('reuses the same Idempotency-Key across retries for the same intent, and rotates when intent changes', async () => {
+    const user = userEvent.setup();
+    let attempt = 0;
+    const idempotencyKeys: string[] = [];
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.includes('/revisions')) {
+        attempt += 1;
+        const key = (init?.headers as Record<string, string>)['Idempotency-Key'];
+        idempotencyKeys.push(key);
+        if (attempt === 1) {
+          return Promise.reject(new TypeError('network failure'));
+        }
+        return Promise.resolve(jsonResponse({ data: { ...row, version: 5, publishedRevision: 3 } }, 201));
+      }
+      return Promise.resolve(jsonResponse(listBody([row])));
+    });
+    vi.stubGlobal('fetch', fetcher);
+    renderScreen(<TemplateDetailScreen templateId={row.id} />);
+    await screen.findByTestId('revision-form');
+
+    await user.type(screen.getByLabelText(/Name — Vietnamese/), 'Tên');
+    await user.type(screen.getByLabelText(/Name — English/), 'Name');
+    await user.type(screen.getByLabelText(/Description — Vietnamese/), 'Mô');
+    await user.type(screen.getByLabelText(/Description — English/), 'Desc');
+    await user.click(screen.getByRole('checkbox', { name: 'Classic' }));
+    await user.type(screen.getByLabelText(/Base unit price/), '15.00');
+
+    // First attempt: network failure
+    await user.click(screen.getByTestId('review-submit'));
+    await user.click(await screen.findByTestId('review-confirm'));
+    expect(await screen.findByTestId('command-notice')).toHaveTextContent(/unavailable/i);
+    expect(idempotencyKeys).toHaveLength(1);
+
+    // Second attempt: retry with the exact same draft/intent
+    await user.click(screen.getByTestId('review-submit'));
+    await user.click(await screen.findByTestId('review-confirm'));
+    await waitFor(() => expect(idempotencyKeys).toHaveLength(2));
+    expect(idempotencyKeys[1]).toBe(idempotencyKeys[0]); // Reused identical key!
+
+    expect(await screen.findByTestId('command-notice')).toHaveTextContent('Revision 3 published.');
+  });
+
+  it('rotates Idempotency-Key when the admin modifies the intent before retrying', async () => {
+    const user = userEvent.setup();
+    const idempotencyKeys: string[] = [];
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.includes('/revisions')) {
+        const key = (init?.headers as Record<string, string>)['Idempotency-Key'];
+        idempotencyKeys.push(key);
+        return Promise.reject(new TypeError('network failure'));
+      }
+      return Promise.resolve(jsonResponse(listBody([row])));
+    });
+    vi.stubGlobal('fetch', fetcher);
+    renderScreen(<TemplateDetailScreen templateId={row.id} />);
+    await screen.findByTestId('revision-form');
+
+    await user.type(screen.getByLabelText(/Name — Vietnamese/), 'Tên 1');
+    await user.type(screen.getByLabelText(/Name — English/), 'Name 1');
+    await user.type(screen.getByLabelText(/Description — Vietnamese/), 'Mô 1');
+    await user.type(screen.getByLabelText(/Description — English/), 'Desc 1');
+    await user.click(screen.getByRole('checkbox', { name: 'Classic' }));
+    await user.type(screen.getByLabelText(/Base unit price/), '15.00');
+
+    await user.click(screen.getByTestId('review-submit'));
+    await user.click(await screen.findByTestId('review-confirm'));
+    expect(await screen.findByTestId('command-notice')).toBeVisible();
+    expect(idempotencyKeys).toHaveLength(1);
+
+    // Modify a field (user actively changes intent)
+    const nameInput = screen.getByLabelText(/Name — English/);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Name 2 - Modified');
+
+    await user.click(screen.getByTestId('review-submit'));
+    await user.click(await screen.findByTestId('review-confirm'));
+    await waitFor(() => expect(idempotencyKeys).toHaveLength(2));
+    expect(idempotencyKeys[1]).not.toBe(idempotencyKeys[0]); // Minted new key!
+  });
+
+  it('stores queries under actor-scoped private keys that do not leak across sessions', async () => {
+    const queries = new QueryClient();
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(jsonResponse(listBody([row]))));
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <QueryClientProvider client={queries}>
+        <PreferencesProvider initial={{ locale: 'en', theme: 'light' }}>
+          <TemplateListScreen />
+        </PreferencesProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('link', { name: 'Manage' });
+    const cachedQueries = queries.getQueryCache().getAll();
+    expect(cachedQueries.length).toBeGreaterThan(0);
+    // Every query starts with 'private' and includes the actor id
+    for (const q of cachedQueries) {
+      expect(q.queryKey[0]).toBe('private');
+      expect(q.queryKey[1]).toBe('admin-actor-1');
+    }
   });
 });
 

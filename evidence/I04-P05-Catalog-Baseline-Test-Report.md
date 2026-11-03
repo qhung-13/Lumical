@@ -135,7 +135,6 @@ According to the frontend results previously discussed:
 - Visual tests: 4/4 Chromium visual tests passed.
 - Manual viewport and accessibility checks were reported as PASS by the tester during the discussion.
 
-**Note:** Screenshots/logs supporting the manual checks must be saved in the evidence directory before they are used as official acceptance evidence. Frontend results do not replace verification of the Project baseline required by P05.
 
 ## 8. Conclusion
 

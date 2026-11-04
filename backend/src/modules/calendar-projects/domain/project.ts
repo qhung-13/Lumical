@@ -32,6 +32,8 @@ export type ProjectIdentityInput = Record<keyof ProjectIdentity, unknown>;
 type ProjectErrorCode =
   | 'VALIDATION_FAILED'
   | 'UNAUTHENTICATED'
+  | 'TEMPLATE_UNAVAILABLE'
+  | 'IDEMPOTENCY_CONFLICT'
   | 'NOT_FOUND'
   | 'INVALID_TRANSITION'
   | 'PROJECT_HAS_ORDERS'

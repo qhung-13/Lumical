@@ -1,10 +1,13 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { TransactionContext } from '../../../platform/database/application/transactions';
 import { encodeCursor, parseCursor, projectPublicTemplate, type PublicTemplateDto, type PublicTemplateRecord, type TemplateCategory, TemplateCatalogValidationError } from '../domain/template-catalog';
+
+export type { PublicTemplateDto } from '../domain/template-catalog';
 
 export const TEMPLATE_CATALOG = Symbol('TEMPLATE_CATALOG');
 export interface TemplateCatalog {
   list(input: { category?: TemplateCategory; query?: string; after?: { nameVi: string; id: string }; take: number }): Promise<PublicTemplateRecord[]>;
-  find(id: string): Promise<PublicTemplateRecord | null>;
+  find(id: string, context?: TransactionContext): Promise<PublicTemplateRecord | null>;
 }
 
 export interface TemplateListResult { data: PublicTemplateDto[]; meta: { nextCursor: string | null; hasMore: boolean } }
@@ -51,9 +54,17 @@ export class PublicTemplateCatalog {
   }
 
   async get(id: string): Promise<{ data: PublicTemplateDto }> {
-    const record = await this.catalog.find(id);
-    if (!record) throw new NotFoundException();
-    try { return { data: projectPublicTemplate(record) }; }
-    catch (error) { if (error instanceof TemplateCatalogValidationError) throw new NotFoundException(); throw error; }
+    const data = await this.findAvailable(id);
+    if (!data) throw new NotFoundException();
+    return { data };
+  }
+
+  // Transactional consumers capture the same validated public revision while
+  // holding a shared lock on its Template until their transaction finishes.
+  async findAvailable(id: string, context?: TransactionContext): Promise<PublicTemplateDto | null> {
+    const record = await (context ? this.catalog.find(id, context) : this.catalog.find(id));
+    if (!record) return null;
+    try { return projectPublicTemplate(record); }
+    catch (error) { if (error instanceof TemplateCatalogValidationError) return null; throw error; }
   }
 }

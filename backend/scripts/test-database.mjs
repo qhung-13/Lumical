@@ -92,7 +92,7 @@ try {
                 'SELECT count(*) FROM lumical._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL',
               )
             ).rows[0].count,
-            '6',
+            '7',
           );
           assert.equal(
             (
@@ -336,7 +336,7 @@ try {
             [item.revision, item.template, index === 0 ? '100%_ token' : 'Mô tả', index === 1 ? '' : 'Description']);
             await migration.query('UPDATE lumical.templates SET current_published_revision_id=$2,availability=\'ACTIVE\' WHERE id=$1', [item.template, item.revision]);
           }
-          const repository = new PrismaTemplateCatalog(database);
+          const repository = new PrismaTemplateCatalog(database, new PrismaTransactions(database));
           const catalog = new PublicTemplateCatalog(repository);
           const page1 = await catalog.list({ category: 'GENERAL', limit: 2 });
           assert.equal(page1.data.length, 2);

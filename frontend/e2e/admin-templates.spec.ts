@@ -110,6 +110,7 @@ test('create flow: validation blocks review, then a confirmed review POSTs the c
   await page.getByTestId('review-submit').click();
   await expect(page.getByTestId('form-error-summary')).toBeVisible();
   await expect(page.getByRole('radio', { name: 'General' })).toBeFocused();
+  await expect(page.getByRole('radio', { name: 'General' })).toHaveAccessibleDescription('This field is required.');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(writes.creates).toEqual([]);
 
@@ -192,7 +193,8 @@ test('keyboard: skip link, dialog focus trap and Escape without submitting', asy
 
   await page.getByRole('radio', { name: 'Birthday' }).check();
   await fillRevision(page);
-  await page.getByTestId('review-submit').click();
+  await page.getByTestId('review-submit').focus();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog')).toBeVisible();
 
   // Native modal: focus enters on Cancel (the safe default), Tab cycles the
@@ -204,15 +206,39 @@ test('keyboard: skip link, dialog focus trap and Escape without submitting', asy
   await expect(page.getByRole('button', { name: templateAdminCopy.en.cancel })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('review-submit')).toBeFocused();
   await expect(page.getByLabel(/^Name — Vietnamese/)).toHaveValue('Ngày vui');
 });
 
 test('VI locale switches all operational copy', async ({ page }) => {
   await mockAdminApi(page);
   await page.goto('/admin/templates');
+  await expect(page.getByRole('link', { name: templateAdminCopy.en.manage })).toBeVisible();
   await page.getByLabel('Language').selectOption('vi');
   await expect(page.getByRole('heading', { level: 1, name: templateAdminCopy.vi.listTitle })).toBeVisible();
   await expect(page.getByRole('link', { name: templateAdminCopy.vi.manage })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
   expect((await axe(page)).violations).toEqual([]);
 });
+
+for (const [locale, theme] of [['en', 'light'], ['vi', 'dark']] as const) {
+  test(`${locale}/${theme}: Admin forms reflow at 320px and respect reduced motion`, async ({ page, context, baseURL }) => {
+    await context.addCookies([
+      { name: 'lumical_locale', value: locale, url: baseURL! },
+      { name: 'lumical_theme', value: theme, url: baseURL! },
+    ]);
+    await page.setViewportSize({ width: 320, height: 820 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mockAdminApi(page);
+    for (const path of ['/admin/templates/new', `/admin/templates/${templateId}`]) {
+      await page.goto(path);
+      await expect(page.getByTestId('revision-form')).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('lang', locale);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      expect((await axe(page)).violations).toEqual([]);
+      const review = page.getByTestId('review-submit');
+      await expect.poll(() => review.evaluate(element => getComputedStyle(element).transitionDuration.split(',').every(value => parseFloat(value) === 0))).toBe(true);
+    }
+  });
+}

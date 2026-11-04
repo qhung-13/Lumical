@@ -28,28 +28,58 @@ export interface AdminCommandState {
 /** Which command hit the conflict, so the banner appears in the right place. */
 export type CommandSource = 'revision' | 'availability';
 
-/**
- * Keeps an Idempotency-Key stable for the same operational intent (payload + expected version).
- * Reuses the key across retries after network failures or timeouts, and mints a fresh key
- * only when the user changes intent or after a successful mutation.
- */
-export function useIntentKey() {
-  const currentRef = useRef<{ fingerprint: string; key: string } | null>(null);
+export function useTemplateIntent(scope: string) {
+  const current = useRef<{ fingerprint: string; key: string; version: number } | null>(null);
+  const inFlight = useRef(false);
+  const [review, setReview] = useState<{ storageKey: string; key: string } | null>(null);
 
-  const getKey = useCallback((fingerprint: string): string => {
-    if (currentRef.current && currentRef.current.fingerprint === fingerprint) {
-      return currentRef.current.key;
+  function clear(storageKey: string, key: string) {
+    if (sessionStorage.getItem(storageKey) === key) sessionStorage.removeItem(storageKey);
+    current.current = null;
+    setReview(null);
+  }
+
+  async function execute<T>(fingerprint: string, version: number, send: (key: string, version: number) => Promise<T>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const scopeDigest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(scope));
+      const storageKey = `lumical:admin-template:unresolved:${btoa(String.fromCharCode(...new Uint8Array(scopeDigest)))}`;
+      const previousKey = sessionStorage.getItem(storageKey);
+      const previous = current.current;
+      if (previousKey && (previous?.key !== previousKey || previous.fingerprint !== fingerprint)) {
+        // Changed input or a remounted form needs explicit review before starting a new command.
+        setReview({ storageKey, key: previousKey });
+        return;
+      }
+      const intent = previousKey && previous ? previous : { fingerprint, key: crypto.randomUUID(), version };
+      // Only opaque metadata survives navigation/reload. Payload and version stay in memory.
+      sessionStorage.setItem(storageKey, intent.key);
+      current.current = intent;
+      setReview(null);
+      try {
+        const result = await send(intent.key, intent.version);
+        clear(storageKey, intent.key);
+        return result;
+      } catch (error) {
+        // Access checks precede replay. They cannot resolve an earlier lost response.
+        if (error instanceof AdminTemplateError &&
+            ([404, 409, 412, 422, 428].includes(error.status) ||
+              (!previousKey && [401, 403, 429].includes(error.status)))) {
+          clear(storageKey, intent.key);
+        }
+        throw error;
+      }
+    } finally {
+      inFlight.current = false;
     }
-    const key = crypto.randomUUID();
-    currentRef.current = { fingerprint, key };
-    return key;
-  }, []);
+  }
 
-  const resetKey = useCallback(() => {
-    currentRef.current = null;
-  }, []);
+  function acknowledgeReview() {
+    if (review && !inFlight.current) clear(review.storageKey, review.key);
+  }
 
-  return { getKey, resetKey };
+  return { execute, reviewRequired: review !== null, acknowledgeReview };
 }
 
 export function useAdminCommand() {

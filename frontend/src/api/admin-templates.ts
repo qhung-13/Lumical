@@ -188,23 +188,25 @@ export const adminTemplateKeysDetail = (actorId: string, id: string) => adminTem
 /**
  * Load one template by walking the cursor list (the contract has no GET-by-id
  * on the admin surface). Walks page by page until the template is found or the
- * catalog is exhausted. An optional maxPages safeguard can still be passed if needed.
+ * catalog is exhausted. Unusable pagination is an incomplete lookup.
  */
-export function adminTemplateDetailOptions(actorId: string, id: string, api?: AdminTemplateApi, maxPages?: number) {
+export function adminTemplateDetailOptions(actorId: string, id: string, api?: AdminTemplateApi) {
   return {
     queryKey: adminTemplateKeys.detail(actorId, id),
     queryFn: async ({ signal }: { signal: AbortSignal }): Promise<AdminTemplateData | null> => {
       const client = api ?? adminTemplateApi({ csrf: () => undefined });
       let cursor: string | null = null;
-      let page = 0;
+      const seen = new Set<string>();
+      signal.throwIfAborted();
       while (true) {
         const result = await client.list(cursor ? { cursor } : {}, signal);
+        signal.throwIfAborted();
         const found = result.data.find((row) => row.id === id);
         if (found) return found;
-        if (!result.meta.hasMore || !result.meta.nextCursor) return null;
+        if (!result.meta.hasMore) return null;
         cursor = result.meta.nextCursor;
-        page += 1;
-        if (maxPages !== undefined && page >= maxPages) return null;
+        if (!cursor?.trim() || seen.has(cursor)) throw new AdminTemplateError('PROVIDER_UNAVAILABLE', 502);
+        seen.add(cursor);
       }
     },
     staleTime: 15_000,

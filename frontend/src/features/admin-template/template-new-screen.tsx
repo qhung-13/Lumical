@@ -11,7 +11,8 @@ import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-tem
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
 import { RevisionForm, toRevisionBody, type RevisionDraft } from './revision-form';
-import { useAdminCommand, useIntentKey } from './use-admin-command';
+import { useAdminCommand, useTemplateIntent } from './use-admin-command';
+import { IntentReview } from './intent-review';
 import { ConflictBanner } from './conflict-banner';
 import { IconAlertCircle, IconCheckCircle } from './icons';
 import styles from './admin-template.module.css';
@@ -23,17 +24,13 @@ export function TemplateNewScreen() {
   const { manager } = useIdentity();
   const api = useMemo(() => adminTemplateApi({ csrf: () => manager.csrfToken() }), [manager]);
   const command = useAdminCommand();
-  const { getKey, resetKey } = useIntentKey();
+  const intent = useTemplateIntent(`${manager.getSnapshot().principal?.id ?? 'anonymous'}:create`);
 
   const create = (draft: RevisionDraft) => {
-    // One key per intent: reused while the same submission is retried, rotated
-    // only after success or when intent changes (FRONTEND §10 — a timeout must not mint a new intent).
     const payload = { category: draft.category, revision: toRevisionBody(draft), ...(draft.reason ? { reason: draft.reason } : {}) };
-    const fingerprint = JSON.stringify(payload);
-    const key = getKey(fingerprint);
     void command.run('revision', async () => {
-      const created = await api.create(payload, key);
-      resetKey();
+      const created = await intent.execute(JSON.stringify(payload), 0, (key) => api.create(payload, key));
+      if (!created) return;
       command.success(t('createdOk'));
       router.push(`/admin/templates/${encodeURIComponent(created.id)}`);
     });
@@ -63,7 +60,7 @@ export function TemplateNewScreen() {
           fieldErrors={command.fieldSource === 'revision' ? command.fieldErrors : []}
           pending={command.pending}
           onSubmit={create}
-          notice={command.conflict?.source === 'revision' ? (
+          notice={intent.reviewRequired ? <IntentReview onAcknowledge={intent.acknowledgeReview} /> : command.conflict?.source === 'revision' ? (
             <ConflictBanner
               version={command.conflict.version}
               onRefresh={command.dismissConflict}

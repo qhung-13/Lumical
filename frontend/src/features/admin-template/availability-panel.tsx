@@ -4,7 +4,7 @@
 // (1..1000). The current state is always shown; ARCHIVED reverses per the
 // approved P02 contract. Version conflicts (412) surface as the conflict
 // banner inside the dialog — the reason stays typed, nothing is re-sent.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import type { AdminTemplateData, TemplateAvailability } from '../../api/admin-templates';
 import { fieldErrorMessage, formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
@@ -28,6 +28,7 @@ const RESULT_KEY: Record<TemplateAvailability, TemplateAdminKey> = {
 export interface AvailabilityPanelProps {
   readonly template: AdminTemplateData;
   readonly pending?: boolean;
+  readonly notice?: ReactNode;
   /** 412 from the last attempt — version from the load, never re-guessed. */
   readonly conflictVersion?: number;
   /** 422 field errors from backend (F6) scoped to availability command. */
@@ -37,7 +38,7 @@ export interface AvailabilityPanelProps {
   readonly onRefreshVersion: () => void;
 }
 
-export function AvailabilityPanel({ template, pending = false, conflictVersion, fieldErrors = [], onSetAvailability, onRefreshVersion }: AvailabilityPanelProps) {
+export function AvailabilityPanel({ template, pending = false, notice, conflictVersion, fieldErrors = [], onSetAvailability, onRefreshVersion }: AvailabilityPanelProps) {
   const { locale } = usePreferences();
   const t = (key: TemplateAdminKey) => formatTemplateAdmin(locale, key);
   const [target, setTarget] = useState<TemplateAvailability | null>(null);
@@ -115,6 +116,7 @@ export function AvailabilityPanel({ template, pending = false, conflictVersion, 
         {conflictVersion !== undefined && (
           <ConflictBanner version={conflictVersion} onRefresh={onRefreshVersion} onClose={close} />
         )}
+        {notice}
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="availability-reason">
             {t('reasonLabel')} <span className={styles.fieldRequired}>({t('reasonRequired')})</span>

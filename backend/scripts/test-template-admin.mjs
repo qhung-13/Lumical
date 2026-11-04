@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import request from 'supertest';
 import { withDisposablePostgres } from './disposable-postgres.mjs';
+import { projectFixture } from '../test/database/fixtures.mjs';
 
 const require = createRequire(import.meta.url);
 const { Test } = require('@nestjs/testing');
@@ -65,7 +66,8 @@ try {
     const availability = (actor, id, body, etag, key = randomUUID()) => api().put(`/api/v1/admin/templates/${id}/availability`)
       .set('Origin', origin).set('Cookie', actor.cookie).set('X-CSRF-Token', actor.csrf)
       .set('Idempotency-Key', key).set('If-Match', etag).send(body);
-    const catalog = () => api().get('/api/v1/templates').set('Origin', origin);
+    const catalog = (query = '') => api().get(`/api/v1/templates${query}`).set('Origin', origin);
+    const publicDetail = id => api().get(`/api/v1/templates/${id}`);
     const listed = async id => (await catalog().expect(200)).body.data.some(item => item.id === id);
     const auditCount = async (action, id) => (await runtime.query(
       'SELECT count(*) FROM lumical.admin_audit_events WHERE action=$1 AND target_id=$2', [action, id])).rows[0].count;
@@ -120,7 +122,7 @@ try {
         assert.equal((await runtime.query("SELECT count(*) FROM lumical.admin_audit_events WHERE target_id=$1", [id])).rows[0].count, '1');
       });
 
-      await check('If-Match is required, must be well formed, and a stale value reports the current version', async () => {
+      await check('preconditions and field errors reject invalid writes without advancing the Template version', async () => {
         await api().put(`/api/v1/admin/templates/${id}/availability`).set('Origin', origin).set('Cookie', operator.cookie)
           .set('X-CSRF-Token', operator.csrf).set('Idempotency-Key', randomUUID())
           .send({ availability: 'ACTIVE', reason: 'TEST ONLY' }).expect(428);
@@ -131,6 +133,12 @@ try {
         assert.equal(stale.body.error.retryable, false);
         const malformed = await create(operator, { category: 'GENERAL', revision: revision() }, 'short').expect(422);
         assert.equal(malformed.body.error.code, 'VALIDATION_FAILED');
+        const missingReason = await availability(operator, id, { availability: 'ACTIVE' }, '"1"').expect(422);
+        assert.deepEqual(missingReason.body.error.fieldErrors.map(field => field.path), ['reason']);
+        const invalidPrice = { ...revision(), price: { currency: 'USD', unitPriceMinor: 0 } };
+        const badRevision = await publish(operator, id, { revision: invalidPrice }, '"1"').expect(422);
+        assert.deepEqual(badRevision.body.error.fieldErrors.map(field => field.path), ['price.unitPriceMinor']);
+        assert.equal((await runtime.query('SELECT version FROM lumical.templates WHERE id=$1', [id])).rows[0].version, 1);
         assert.equal(await listed(id), false);
       });
 
@@ -332,6 +340,64 @@ try {
         assert.equal(await listed(id), true);
       });
 
+      await check('I04-P05: a Project fixture keeps its baseline after publication and deactivation', async () => {
+        const first = revision({ nameVi: 'Lịch kiểm thử gốc', nameEn: 'Baseline test original' });
+        const created = await create(operator, { category: 'ANNIVERSARY', revision: first }).expect(201);
+        const templateId = created.body.data.id;
+        const revisionId = created.body.data.currentPublishedRevisionId;
+        const active = await availability(operator, templateId, { availability: 'ACTIVE', reason: 'TEST ONLY activate baseline' },
+          created.headers.etag).expect(200);
+        const visible = await publicDetail(templateId).expect(200);
+        assert.equal(visible.body.data.publishedRevision.id, revisionId);
+        assert.equal(visible.body.data.publishedRevision.version, 1);
+
+        // Direct fixture insert for I04-P05. I05-P02 owns business-flow capture.
+        const projectId = await projectFixture(runtime, memberSession.body.data.id, revisionId, {
+          nameVi: first.name.vi, nameEn: first.name.en, style: first.layout,
+          presetId: first.presets[0].id, unitPriceMinor: first.price.unitPriceMinor,
+        });
+        const readBaseline = async () => (await runtime.query(`
+          SELECT template_revision_id, baseline_name_vi, baseline_name_en, baseline_style,
+                 style_preset_id, unit_price_minor, currency
+          FROM lumical.calendar_projects WHERE id=$1`, [projectId])).rows[0];
+        const readFirstRevision = async () => (await runtime.query(
+          'SELECT * FROM lumical.template_revisions WHERE id=$1', [revisionId])).rows[0];
+        const before = await readBaseline();
+        const firstStored = await readFirstRevision();
+        assert.ok(firstStored);
+        assert.deepEqual(before, {
+          template_revision_id: revisionId, baseline_name_vi: first.name.vi, baseline_name_en: first.name.en,
+          baseline_style: first.layout, style_preset_id: first.presets[0].id,
+          unit_price_minor: String(first.price.unitPriceMinor), currency: 'USD',
+        });
+
+        const second = revision({ nameVi: 'Lịch kiểm thử mới', nameEn: 'Baseline test replacement' });
+        second.layout.type = 'COLLAGE';
+        second.presets = [{ id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } }];
+        second.price.unitPriceMinor = 2599;
+        const published = await publish(operator, templateId, { revision: second }, active.headers.etag).expect(201);
+        assert.notEqual(published.body.data.currentPublishedRevisionId, revisionId);
+        const filtered = await catalog('?category=ANNIVERSARY&query=baseline%20test%20replacement').expect(200);
+        assert.deepEqual(filtered.body.data.map(item => item.id), [templateId]);
+        const current = (await publicDetail(templateId).expect(200)).body.data.publishedRevision;
+        assert.equal(current.id, published.body.data.currentPublishedRevisionId);
+        assert.equal(current.version, 2);
+        for (const field of ['name', 'description', 'layout', 'presets', 'price']) assert.deepEqual(current[field], second[field]);
+        assert.deepEqual(await readBaseline(), before, 'publication preserves the captured Project fields');
+        await availability(operator, templateId, { availability: 'INACTIVE', reason: 'TEST ONLY deactivate baseline' },
+          published.headers.etag).expect(200);
+
+        assert.deepEqual(await readBaseline(), before, 'deactivation preserves the captured Project fields');
+        await assert.rejects(runtime.query('UPDATE lumical.template_revisions SET name_en=$2 WHERE id=$1',
+          [revisionId, 'TEST ONLY denied edit']), { code: '42501' });
+        assert.deepEqual(await readFirstRevision(), firstStored);
+        assert.deepEqual((await catalog('?category=ANNIVERSARY').expect(200)).body.data, []);
+        await publicDetail(templateId).expect(404).expect(response => {
+          assert.equal(response.body.error.code, 'NOT_FOUND');
+          assert.equal(response.body.data, undefined);
+        });
+      });
+
       await check('only the current revision pointer survives and the audit trail records every operator intent', async () => {
         const rows = (await runtime.query(
           'SELECT action,outcome,purpose,target_type FROM lumical.admin_audit_events WHERE target_id=$1 ORDER BY created_at,id', [id])).rows;
@@ -345,6 +411,62 @@ try {
         assert.equal((await runtime.query('SELECT count(*) FROM lumical.admin_audit_events WHERE target_id=$1 AND actor_id<>$2', [id, operatorId])).rows[0].count, '0');
         assert.equal((await runtime.query("SELECT count(*) FROM lumical.users WHERE id=$1 AND role='ADMIN'", [operatorId])).rows[0].count, '1');
       });
+      await check('public name/UUID cursors reflect live ordering when a publication crosses the page boundary', async () => {
+        const createActive = async suffix => {
+          const copy = revision({ nameVi: `Cursor test ${suffix}` });
+          const created = await create(operator, { category: 'HOLIDAY', revision: copy }).expect(201);
+          const templateId = created.body.data.id;
+          const active = await availability(operator, templateId, { availability: 'ACTIVE', reason: 'TEST ONLY cursor' },
+            created.headers.etag).expect(200);
+          return { templateId, etag: active.headers.etag };
+        };
+        const earlier = await createActive('Alpha');
+        const boundary = await createActive('Beta');
+        const later = await createActive('Gamma');
+        const query = '?category=HOLIDAY&query=cursor%20test';
+        const ids = response => response.body.data.map(item => item.id);
+        const page1 = await catalog(`${query}&limit=2`).expect(200);
+        assert.deepEqual(ids(page1), [earlier.templateId, boundary.templateId]);
+        assert.equal(page1.body.meta.hasMore, true);
+        assert.ok(page1.body.meta.nextCursor);
+        const continuation = `${query}&limit=2&cursor=${encodeURIComponent(page1.body.meta.nextCursor)}`;
+        assert.deepEqual(ids(await catalog(continuation).expect(200)), [later.templateId]);
+
+        // Move one seen row forward and one unseen row backward relative to the old cursor.
+        await publish(operator, earlier.templateId, { revision: revision({ nameVi: 'Cursor test Zulu' }) }, earlier.etag).expect(201);
+        await publish(operator, later.templateId, { revision: revision({ nameVi: 'Cursor test Aaron' }) }, later.etag).expect(201);
+        const fresh = await catalog(query).expect(200);
+        assert.deepEqual(ids(fresh), [later.templateId, boundary.templateId, earlier.templateId]);
+        const page2 = await catalog(continuation).expect(200);
+        assert.deepEqual(ids(page2), [earlier.templateId], 'old cursor repeats Alpha as Zulu and misses Gamma as Aaron');
+        assert.deepEqual(page2.body.meta, { nextCursor: null, hasMore: false });
+      });
+
+      if (process.env.LUMICAL_I04_LIVE_UI === '1') {
+        await check('I04 live Chromium through Next.js, Nest and disposable PostgreSQL', async () => {
+          await app.close();
+          process.env.NODE_ENV = 'development';
+          process.env.IDENTITY_COOKIE_MODE = 'loopback';
+          process.env.IDENTITY_ALLOWED_ORIGINS = 'http://127.0.0.1:3211';
+          await start();
+          await app.listen(0, '127.0.0.1');
+          const frontend = fileURLToPath(new URL('../../frontend/', import.meta.url));
+          const env = { ...originalEnv, NODE_ENV: 'test', LUMICAL_I04_LIVE_BACKEND: await app.getUrl() };
+          delete env.DATABASE_URL;
+          delete env.MIGRATION_DATABASE_URL;
+          try {
+            const { stdout, stderr } = await promisify(execFile)(process.execPath,
+              ['node_modules/@playwright/test/cli.js', 'test', '--project=i04-live-chromium', '--workers=1'],
+              { cwd: frontend, env, timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
+            process.stdout.write(stdout);
+            process.stderr.write(stderr);
+          } catch (error) {
+            process.stdout.write(error.stdout ?? '');
+            process.stderr.write(error.stderr ?? '');
+            throw new Error(`I04 live Chromium failed (${error.code ?? 'runner error'}).`);
+          }
+        });
+      }
     } finally { await app?.close(); await runtime.end(); await migration.end(); }
   });
   console.log('PASS: I04-P02 real PostgreSQL audited publication/availability gate.');

@@ -10,7 +10,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
   const { locale } = usePreferences();
   const copy = templateCopy[locale];
   return <div className={styles.canvas}>
-    <a className={styles.skip} href="#main">{copy.skip}</a>
+    <a className={styles.skip} href="#main" tabIndex={0}>{copy.skip}</a>
     <header className={styles.header}>
       <Link className={styles.brand} href="/" aria-label="LumiCal">LumiCal</Link>
       <nav className={styles.navigation} aria-label={copy.navigation}>

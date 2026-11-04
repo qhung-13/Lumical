@@ -119,4 +119,45 @@ describe('react query options', () => {
     const options = adminTemplateDetailOptions('actor-42', 'missing', adminTemplateApi({ csrf: () => undefined, fetcher }));
     await expect(options.queryFn({ signal: new AbortController().signal })).resolves.toBeNull();
   });
+
+  const page = (nextCursor: string | null, hasMore = true, data: unknown[] = []) =>
+    jsonResponse({ data, meta: { nextCursor, hasMore } });
+
+  const lookup = (fetcher: typeof fetch, signal = new AbortController().signal) =>
+    adminTemplateDetailOptions('actor-42', row.id, apiWith(fetcher)).queryFn({ signal });
+
+  it('returns a first-page hit without following its cursor', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(page('A', true, [row]));
+    await expect(lookup(fetcher)).resolves.toEqual(row);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([['repeat', ['A', 'A']], ['cycle', ['A', 'B', 'A']], ['null', [null]], ['empty', ['']], ['blank', ['  ']]] as const)(
+    'rejects unusable cursor metadata (%s)',
+    async (_case, cursors) => {
+      const requests = vi.fn<typeof fetch>();
+      for (const cursor of cursors) requests.mockResolvedValueOnce(page(cursor));
+      requests.mockImplementation(() => Promise.resolve(page(null, false)));
+      await expect(lookup(requests)).rejects.toMatchObject({ status: 502 });
+      expect(requests).toHaveBeenCalledTimes(cursors.length);
+    },
+  );
+
+  it('stops requesting pages if cancelled while reading a page', async () => {
+    const abort = new AbortController();
+    const fetcher = vi.fn<typeof fetch>().mockImplementationOnce(async () => {
+      abort.abort();
+      return page('A');
+    }).mockResolvedValueOnce(page(null, false));
+    await expect(lookup(fetcher, abort.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates a later-page service error instead of returning a missing template', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(page('A'))
+      .mockResolvedValueOnce(jsonResponse({ error: { code: 'PROVIDER_UNAVAILABLE' } }, 503));
+    await expect(lookup(fetcher)).rejects.toMatchObject({ status: 503 });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });

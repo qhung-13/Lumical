@@ -42,6 +42,19 @@ describe('identity forms and account UI', () => {
     const second = fetcher.mock.calls[2][1]?.headers as Record<string, string>;
     expect(first['Idempotency-Key']).toBe(second['Idempotency-Key']); expect(first['Idempotency-Key']).toBeTruthy();
   });
+  it('keeps a safe selected-template destination through login and the register link', async () => {
+    const destination = '/account?templateId=11111111-1111-4111-8111-111111111111';
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ authenticated: false }))
+      .mockResolvedValueOnce(json({ ...principal, csrfToken: 'b'.repeat(64) }));
+    vi.stubGlobal('fetch', fetcher);
+    render(<PreferencesProvider><IdentityProvider initial={{ phase: 'unauthenticated' }}><IdentityScreen mode="login" returnTo={destination} /></IdentityProvider></PreferencesProvider>);
+    const email = await screen.findByLabelText('Email (required)');
+    expect(screen.getByRole('link', { name: 'Create account' })).toHaveAttribute('href', `/register?next=${encodeURIComponent(destination)}`);
+    fireEvent.change(email, { target: { value: principal.email } });
+    fireEvent.change(screen.getByLabelText('Password (required)'), { target: { value: 'TEST ONLY passphrase' } });
+    fireEvent.submit(email.closest('form')!);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
+  });
   it('restores a session, supports VI/EN and dark mode, and only navigates after backend logout', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ authenticated: true, principal, csrfToken: 'a'.repeat(64) }))
       .mockResolvedValueOnce(json(principal)).mockResolvedValueOnce(new Response(null, { status: 204 }));

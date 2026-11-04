@@ -1,11 +1,94 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { foundationCopy } from '../src/i18n/foundation';
+import { templateCopy } from '../src/i18n/templates';
 
 const views = ['/', '/foundation/form', '/foundation/admin'];
+const templateId = '11111111-1111-4111-8111-111111111111';
+const templateFixture = {
+  id: templateId, category: 'BIRTHDAY', publishedRevision: {
+    id: '22222222-2222-4222-8222-222222222222', version: 2, publishedAt: '2026-02-01T00:00:00.000Z',
+    name: { vi: 'Ngày vui', en: 'Bright day' }, description: { vi: 'Thiết kế cho sinh nhật', en: 'A birthday calendar design' },
+    layout: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 },
+    presets: [{ id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } }], price: { currency: 'USD', unitPriceMinor: 1450 },
+  },
+};
 test.beforeEach(async ({ page }) => {
   // Anonymous UI fixture only; I02's separate PostgreSQL/Compose tests prove auth.
   await page.route('**/api/v1/auth/session', route => route.fulfill({ json: { data: { authenticated: false } } }));
+});
+
+async function mockTemplateApi(page: Page) {
+  await page.route('**/api/v1/templates**', route => {
+    const detail = new URL(route.request().url()).pathname.endsWith(`/${templateId}`);
+    return route.fulfill({ json: detail
+      ? { data: templateFixture }
+      : { data: [templateFixture], meta: { nextCursor: null, hasMore: false } } });
+  });
+}
+
+test('guest selects a design, authenticates, and retains template context without creating a Project', async ({ page }) => {
+  await mockTemplateApi(page);
+  await page.route('**/api/v1/auth/login', route => route.fulfill({ json: { data: {
+    id: '33333333-3333-4333-8333-333333333333', email: 'demo@example.invalid', role: 'USER', accountStatus: 'ACTIVE', csrfToken: 'a'.repeat(64),
+  } } }));
+  await page.route('**/api/v1/account/me', route => route.fulfill({ json: { data: {
+    id: '33333333-3333-4333-8333-333333333333', email: 'demo@example.invalid', role: 'USER', accountStatus: 'ACTIVE',
+  } } }));
+  const projectWrites: string[] = [];
+  page.on('request', request => { if (request.method() === 'POST' && /\/api\/v1\/projects(?:\?|$)/.test(request.url())) projectWrites.push(request.url()); });
+
+  await page.goto('/templates');
+  await page.getByRole('link', { name: 'View design: Bright day' }).click();
+  await expect(page).toHaveURL(new RegExp(`/templates/${templateId}$`));
+  const cta = page.getByRole('link', { name: templateCopy.en.continueCalendar });
+  await expect(cta).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/account?templateId=${templateId}`)}`);
+  await cta.click();
+  await expect(page).toHaveURL(url => url.pathname === '/login' && url.searchParams.get('next') === `/account?templateId=${templateId}`);
+  await page.getByLabel('Email (required)').fill('demo@example.invalid');
+  await page.getByLabel('Password (required)').fill('TEST ONLY passphrase');
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page).toHaveURL(`/account?templateId=${templateId}`);
+  await expect(page.getByRole('heading', { name: templateCopy.en.handoffTitle })).toBeVisible();
+  await expect(page.getByText(templateCopy.en.handoffBody)).toBeVisible();
+  expect(projectWrites).toEqual([]);
+});
+
+for (const locale of ['en', 'vi'] as const) for (const theme of ['light', 'dark'] as const) test(`${locale}/${theme}: catalog and detail reflow, stay keyboard reachable and pass axe`, async ({ page, context }) => {
+  await context.addCookies([
+    { name: 'lumical_locale', value: locale, url: 'http://127.0.0.1:3210' },
+    { name: 'lumical_theme', value: theme, url: 'http://127.0.0.1:3210' },
+  ]);
+  await mockTemplateApi(page);
+  await page.setViewportSize({ width: 320, height: 820 });
+  await page.goto('/templates');
+  const copy = templateCopy[locale];
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.getByLabel(copy.search)).toBeVisible();
+  await expect(page.getByLabel(copy.category)).toBeVisible();
+  await expect(page.getByRole('link', { name: new RegExp(copy.open) }).first()).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', locale);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+  for (const width of [320, 375, 600, 960, 1280]) {
+    await page.setViewportSize({ width, height: 820 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([]);
+  }
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: copy.skip })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('main')).toBeFocused();
+  const designLink = page.getByRole('link', { name: `${copy.open}: ${templateFixture.publishedRevision.name[locale]}` });
+  await designLink.focus(); await expect(designLink).toBeFocused();
+  await expect(designLink).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/templates/${templateId}$`));
+  await expect(page.getByRole('heading', { level: 1, name: templateFixture.publishedRevision.name[locale] })).toBeVisible();
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: 820 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([]);
+  }
 });
 async function noHorizontalLoss(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);

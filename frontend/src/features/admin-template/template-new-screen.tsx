@@ -1,0 +1,77 @@
+'use client';
+// I04-P04 — create screen (F2): one revision form, POST /admin/templates with
+// Idempotency-Key + CSRF, a fresh template starts INACTIVE. On 201 the admin is
+// taken to the new template's detail page; failures keep every entered value.
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
+import { useIdentity } from '../identity/provider';
+import { adminTemplateApi } from '../../api/admin-templates';
+import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
+import { usePreferences } from '../../design-system/foundations/preferences-provider';
+import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
+import { RevisionForm, toRevisionBody, type RevisionDraft } from './revision-form';
+import { useAdminCommand, useTemplateIntent } from './use-admin-command';
+import { IntentReview } from './intent-review';
+import { ConflictBanner } from './conflict-banner';
+import { IconAlertCircle, IconCheckCircle } from './icons';
+import styles from './admin-template.module.css';
+
+export function TemplateNewScreen() {
+  const { locale } = usePreferences();
+  const t = (key: TemplateAdminKey) => formatTemplateAdmin(locale, key);
+  const router = useRouter();
+  const { manager } = useIdentity();
+  const api = useMemo(() => adminTemplateApi({ csrf: () => manager.csrfToken() }), [manager]);
+  const command = useAdminCommand();
+  const intent = useTemplateIntent(`${manager.getSnapshot().principal?.id ?? 'anonymous'}:create`);
+
+  const create = (draft: RevisionDraft) => {
+    const payload = { category: draft.category, revision: toRevisionBody(draft), ...(draft.reason ? { reason: draft.reason } : {}) };
+    void command.run('revision', async () => {
+      const created = await intent.execute(JSON.stringify(payload), 0, (key) => api.create(payload, key));
+      if (!created) return;
+      command.success(t('createdOk'));
+      router.push(`/admin/templates/${encodeURIComponent(created.id)}`);
+    });
+  };
+
+  return (
+    <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
+      <PageHeader
+        title={t('newTitle')}
+        description={t('newDesc')}
+        crumbs={[{ label: t('crumbTemplates'), href: '/admin/templates' }, { label: t('crumbNew') }]}
+        caption={t('listCaption')}
+        actions={<LocaleSwitcher />}
+      />
+
+      {command.notice && (
+        <div className={`${styles.banner} ${command.notice.tone === 'success' ? styles.bannerSuccess : styles.bannerDanger}`}
+          role={command.notice.tone === 'success' ? 'status' : 'alert'} data-testid="command-notice">
+          {command.notice.tone === 'success' ? <IconCheckCircle size={20} /> : <IconAlertCircle size={20} />}
+          <p className={styles.bannerTitle}>{command.notice.message}</p>
+        </div>
+      )}
+
+      <div className={`${styles.content} ${styles.contentSingle}`}>
+        <RevisionForm
+          mode="create"
+          fieldErrors={command.fieldSource === 'revision' ? command.fieldErrors : []}
+          pending={command.pending}
+          onSubmit={create}
+          notice={intent.reviewRequired ? <IntentReview onAcknowledge={intent.acknowledgeReview} /> : command.conflict?.source === 'revision' ? (
+            <ConflictBanner
+              version={command.conflict.version}
+              onRefresh={command.dismissConflict}
+              onClose={command.dismissConflict}
+            />
+          ) : undefined}
+        />
+        <p className={styles.status}>
+          <Link className={styles.linkBtn} href="/admin/templates">{t('crumbTemplates')}</Link>
+        </p>
+      </div>
+    </AdminShell>
+  );
+}

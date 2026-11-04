@@ -73,6 +73,15 @@ export function statusChange(input: unknown): { status: AccountStatus; reason: s
 export function principal(account: Account): Principal {
   return { id: account.id, email: account.normalizedEmail, role: account.role, accountStatus: account.status };
 }
+// Resolves the single account cookie Identity accepts out of a Cookie header. Every module that
+// must turn a request into a session secret shares this rule so none of them can drift apart.
+export function accountCookie(header: string | undefined, name: string): string | undefined {
+  const matches = (header ?? '').split(';').map((value) => value.trim()).filter((value) => value.startsWith(`${name}=`));
+  if (matches.length !== 1) return undefined;
+  const value = matches[0].slice(name.length + 1);
+  return /^[A-Za-z0-9_-]{43}$/.test(value) ? value : undefined;
+}
+
 export const IDLE_MS = 24 * 60 * 60 * 1000;
 export const ABSOLUTE_MS = 7 * IDLE_MS;
 export function activeSession(session: AccountSession, account: Account, now: Date): boolean {

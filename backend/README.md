@@ -16,14 +16,15 @@ Development loads an optional `backend/.env` using Node's native env-file suppor
 All REST routes use `/api/v1`; `GET /api/v1/health` returns
 `{"status":"ok","service":"lumical-backend"}`. It is a technical liveness check.
 
-`src/modules/health` is the only HTTP module. `src/common` holds future shared
+`src/modules/health` and the public `src/modules/templates` catalog are HTTP modules. `src/common` holds future shared
 technical code; `src/config` holds app configuration. Future business modules use
 the interface/application/domain/infrastructure boundaries from
 [Backend Standards](../docs/BACKEND_STANDARDS.md) and
 [Architecture](../docs/ARCHITECTURE.md).
 
-Auth (I02), AR technology selection (I03) and provider integrations remain
-deferred. There are no business endpoints or runtime OpenAPI endpoints yet.
+AR technology selection (I03), Template publication commands and provider
+integrations remain deferred. Public Template list/detail endpoints read only
+complete active published revisions.
 
 ## I01 persistence implementation
 
@@ -36,7 +37,8 @@ build/typecheck/test. No frontend or application port imports Prisma types.
 `prisma.config.ts` supplies migration configuration; generation needs no DB URL.
 
 Migration order preserves I01 slices: current work (P03), commerce/history
-(P04), access/execution (P05), then runtime grants/row guards. PostgreSQL bootstrap
+(P04), access/execution (P05), runtime grants/row guards, then I04-P01 Template
+topic-category correction. PostgreSQL bootstrap
 creates the `lumical` schema owned by `lumical_migration`; neither migration nor
 runtime role is superuser, can create databases, or administer roles. Only the
 migration role owns schema objects. `DATABASE_URL` requires `lumical_runtime`;
@@ -44,6 +46,17 @@ migration role owns schema objects. `DATABASE_URL` requires `lumical_runtime`;
 CLI. The runtime container receives only runtime credentials. Privileges must
 be reviewed in each future migration; newly created tables have no automatic
 runtime grants. Use `db:migrate` (`migrate deploy`), never schema push or reset.
+
+For a database with existing Template rows, prepare an explicit mapping before
+`db:migrate`: run
+`scripts/prepare-template-category-backfill.sql` with the migration role,
+insert one `GENERAL`, `BIRTHDAY`, `ANNIVERSARY`, or `HOLIDAY` mapping per
+existing Template, and verify no Template ID is missing or stale. Do not infer
+the new topic category from `IMAGE`/`VIDEO`/`AUDIO`. The second I04-P01
+migration consumes the mapping and enforces a non-null category. Empty databases
+need no mapping; synthetic seed runs after migration. The `db:migrate` wrapper
+checks mapping coverage before Prisma applies pending migrations, since Prisma
+does not pause between them for an operator backfill.
 
 | Authority | Prisma/schema protection | SQL-only protection | Future application/transaction responsibility |
 | --- | --- | --- | --- |

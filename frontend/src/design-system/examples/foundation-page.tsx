@@ -18,7 +18,8 @@ export function FoundationPage({ area }: { area: FoundationArea }) {
     <p className={styles.lead}>{area === 'public' ? copy.intro : area === 'form' ? copy.formIntro : copy.adminIntro}</p>
     <p className={styles.notice}>{copy.notice}</p>
     {area === 'public' ? <>
-      <p><Link className={styles.actionLink} href="/foundation/form" tabIndex={0}>{copy.explore}</Link></p>
+      <p><Link className={styles.actionLink} href="/templates">{copy.templates}</Link></p>
+      <p><Link href="/foundation/form">{copy.explore}</Link></p>
       <section className={styles.section} aria-labelledby="material-title"><h2 id="material-title">{copy.material}</h2><p>{copy.materialBody}</p></section>
       <section className={styles.section} aria-labelledby="access-title"><h2 id="access-title">{copy.accessible}</h2><p>{copy.accessibleBody}</p></section>
       <nav className={styles.links} aria-label={copy.account}><Link href="/register" tabIndex={0}>{copy.register}</Link><Link href="/login" tabIndex={0}>{copy.login}</Link><Link href="/account" tabIndex={0}>{copy.account}</Link></nav>

@@ -12,4 +12,5 @@ test("the foundation page offers a same-origin backend health check", () => {
   expect(
     screen.getByRole("link", { name: "Check backend health" }),
   ).toHaveAttribute("href", "/api/v1/health");
+  expect(screen.getByRole("link", { name: "Browse calendar designs" })).toHaveAttribute("href", "/templates");
 });

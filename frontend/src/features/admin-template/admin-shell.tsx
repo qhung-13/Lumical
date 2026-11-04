@@ -26,7 +26,7 @@ export function AdminShell({ activeItem = 'templates', adminEmail, children }: A
 
   return (
     <div className={styles.shell}>
-      <a className={styles.skip} href="#main">{t('skip')}</a>
+      <a className={styles.skip} href="#main" tabIndex={0}>{t('skip')}</a>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <span className={styles.brandMark}>{t('brand')}</span>

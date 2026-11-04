@@ -47,14 +47,16 @@ export async function artifactFixture(
   return id;
 }
 
-export async function projectFixture(client, ownerId, revisionId) {
+export async function projectFixture(client, ownerId, revisionId, baseline = {
+  nameVi: 'Mẫu', nameEn: 'Synthetic', style: {}, presetId: 'synthetic-neutral', unitPriceMinor: 1450,
+}) {
   const id = randomUUID();
   await client.query(
     `INSERT INTO lumical.calendar_projects
     (id,owner_id,template_revision_id,title,year,recipient_name,baseline_name_vi,baseline_name_en,
     baseline_style,style_preset_id,unit_price_minor,updated_at)
-    VALUES ($1,$2,$3,'TEST ONLY',2027,'Synthetic recipient','Mẫu','Synthetic','{}','synthetic-neutral',1450,now())`,
-    [id, ownerId, revisionId],
+    VALUES ($1,$2,$3,'TEST ONLY',2027,'Synthetic recipient',$4,$5,$6,$7,$8,now())`,
+    [id, ownerId, revisionId, baseline.nameVi, baseline.nameEn, baseline.style, baseline.presetId, baseline.unitPriceMinor],
   );
   return id;
 }

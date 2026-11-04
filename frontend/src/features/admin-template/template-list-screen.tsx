@@ -27,8 +27,8 @@ const CATEGORY_KEY: Record<AdminTemplateData['category'], TemplateAdminKey> = {
 export function TemplateListScreen() {
   const { locale } = usePreferences();
   const t = (key: TemplateAdminKey) => formatTemplateAdmin(locale, key);
-  const { manager } = useIdentity();
-  const actorId = manager.getSnapshot().principal?.id ?? 'anonymous';
+  const { manager, state: session } = useIdentity();
+  const actorId = session.principal?.id;
   const api = useMemo(() => adminTemplateApi({ csrf: () => manager.csrfToken() }), [manager]);
 
   const [state, setState] = useState<TemplateAvailability | ''>('');
@@ -36,7 +36,7 @@ export function TemplateListScreen() {
 
   const query: AdminTemplateListQuery = state ? { state: state as TemplateAvailability } : {};
   const queries = useQueries({
-    queries: cursors.map((cursor) => adminTemplateListOptions(actorId, { ...query, ...(cursor ? { cursor } : {}) }, api)),
+    queries: actorId ? cursors.map((cursor) => adminTemplateListOptions(actorId, { ...query, ...(cursor ? { cursor } : {}) }, api)) : [],
   });
   const first = queries[0];
   const latestSuccessful = [...queries].reverse().find((entry) => entry.data);
@@ -49,8 +49,8 @@ export function TemplateListScreen() {
     });
   }, [queries]);
   const hasMore = latestSuccessful?.data?.meta.hasMore ?? false;
-  const initialLoading = first?.isPending && rows.length === 0;
-  const initialError = first?.isError && rows.length === 0;
+  const initialLoading = session.phase === 'loading' || (first?.isPending && rows.length === 0);
+  const initialError = !actorId || (first?.isError && rows.length === 0);
 
   const changeState = (value: string) => { setCursors([null]); setState(value as TemplateAvailability | ''); };
 
@@ -82,12 +82,13 @@ export function TemplateListScreen() {
       <p className={styles.count}>{t('resultCount').replace('{n}', String(rows.length))}</p>
 
       {initialLoading && <p className={styles.status} role="status" aria-live="polite">{t('savingList')}</p>}
-      {initialError && (
+      {!initialLoading && initialError && (
         <section className={`${styles.banner} ${styles.bannerDanger}`} role="alert">
           <IconAlertCircle size={20} />
           <div>
-            <p className={styles.bannerTitle}>{t('unavailable')}</p>
-            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => void first?.refetch()}>{t('retry')}</button>
+            <p className={styles.bannerTitle}>{t(session.phase === 'unauthenticated' ? 'unauthenticated' : 'unavailable')}</p>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`}
+              onClick={() => void (first ? first.refetch() : manager.bootstrap())}>{t('retry')}</button>
           </div>
         </section>
       )}

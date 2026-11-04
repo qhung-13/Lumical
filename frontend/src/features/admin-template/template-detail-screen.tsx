@@ -5,7 +5,7 @@
 // 412 the banner offers Refresh/Close and nothing is re-sent automatically.
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIdentity } from '../identity/provider';
 import { adminTemplateApi, adminTemplateDetailOptions, adminTemplateKeys, type TemplateAvailability } from '../../api/admin-templates';
 import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
@@ -14,7 +14,8 @@ import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
 import { AvailabilityPanel } from './availability-panel';
 import { ConflictBanner } from './conflict-banner';
 import { RevisionForm, toRevisionBody, type RevisionDraft } from './revision-form';
-import { useAdminCommand, useIntentKey } from './use-admin-command';
+import { useAdminCommand, useTemplateIntent } from './use-admin-command';
+import { IntentReview } from './intent-review';
 import { IconAlertCircle, IconCheckCircle } from './icons';
 import styles from './admin-template.module.css';
 
@@ -32,28 +33,28 @@ export interface TemplateDetailScreenProps {
 export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) {
   const { locale } = usePreferences();
   const t = (key: TemplateAdminKey, vars?: Record<string, string | number>) => formatTemplateAdmin(locale, key, vars);
-  const { manager } = useIdentity();
-  const actorId = manager.getSnapshot().principal?.id ?? 'anonymous';
+  const { manager, state: session } = useIdentity();
+  const actorId = session.principal?.id;
   const api = useMemo(() => adminTemplateApi({ csrf: () => manager.csrfToken() }), [manager]);
   const queries = useQueryClient();
-  const detail = useQuery(adminTemplateDetailOptions(actorId, templateId, api));
+  const options = adminTemplateDetailOptions(actorId ?? 'anonymous', templateId, api);
+  const detail = useQuery({ ...options, queryFn: actorId ? options.queryFn : skipToken });
   const command = useAdminCommand();
-  const { getKey: getPublishKey, resetKey: resetPublishKey } = useIntentKey();
-  const { getKey: getAvailKey, resetKey: resetAvailKey } = useIntentKey();
+  const publication = useTemplateIntent(`${actorId}:${templateId}:publish`);
+  const availabilityIntent = useTemplateIntent(`${actorId}:${templateId}:availability`);
   const template = detail.data;
 
   const invalidate = () => {
-    void queries.invalidateQueries({ queryKey: adminTemplateKeys.all(actorId) });
+    if (actorId) void queries.invalidateQueries({ queryKey: adminTemplateKeys.all(actorId) });
   };
 
   const publish = (draft: RevisionDraft) => {
     if (!template) return;
     const payload = { revision: toRevisionBody(draft), ...(draft.reason ? { reason: draft.reason } : {}) };
-    const fingerprint = JSON.stringify({ templateId, payload, version: template.version });
-    const key = getPublishKey(fingerprint);
     void command.run('revision', async () => {
-      const published = await api.publish(templateId, payload, key, template.version);
-      resetPublishKey();
+      const published = await publication.execute(JSON.stringify(payload), template.version,
+        (key, version) => api.publish(templateId, payload, key, version));
+      if (!published) return;
       // The response is authoritative for the new revision number — never guessed.
       command.success(t('publishedOk', { n: published.publishedRevision ?? 1 }));
       invalidate();
@@ -63,23 +64,22 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
   const setAvailability = (availability: TemplateAvailability, reason: string) => {
     if (!template) return;
     const payload = { availability, reason };
-    const fingerprint = JSON.stringify({ templateId, payload, version: template.version });
-    const key = getAvailKey(fingerprint);
     void command.run('availability', async () => {
-      await api.availability(templateId, payload, key, template.version);
-      resetAvailKey();
+      const updated = await availabilityIntent.execute(JSON.stringify(payload), template.version,
+        (key, version) => api.availability(templateId, payload, key, version));
+      if (!updated) return;
       command.success(t('availOk', { state: t(AVAILABILITY_KEY[availability]) }));
       invalidate();
     });
   };
 
   /** Conflict refresh: load the version the server has. Entries stay in the form. */
-  const refreshVersion = () => {
-    command.dismissConflict();
-    void detail.refetch();
+  const refreshVersion = async () => {
+    const refreshed = await detail.refetch();
+    if (refreshed.isSuccess) command.dismissConflict();
   };
 
-  if (detail.isPending) {
+  if (session.phase === 'loading' || (actorId && detail.isPending)) {
     return (
       <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
         <PageHeader title={t('detailTitle')} description={t('detailDesc')} actions={<LocaleSwitcher />} />
@@ -88,14 +88,17 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
     );
   }
 
-  if (detail.isError || !template) {
+  if (!actorId || !template) {
     return (
       <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
-        <PageHeader title={t('detailTitle')} description={t('detailDesc')} actions={<LocaleSwitcher />} />
+        <PageHeader title={t('detailTitle')} description={t('detailDesc')} actions={<LocaleSwitcher />}
+          onRefresh={detail.isError || session.phase === 'unavailable'
+            ? () => void (actorId ? detail.refetch() : manager.bootstrap()) : undefined} />
         <section className={`${styles.banner} ${styles.bannerDanger}`} role="alert">
           <IconAlertCircle size={20} />
           <div>
-            <p className={styles.bannerTitle}>{detail.isError ? t('unavailable') : t('notFound')}</p>
+            <p className={styles.bannerTitle}>{t(session.phase === 'unauthenticated' ? 'unauthenticated'
+              : detail.isError || !actorId ? 'unavailable' : 'notFound')}</p>
             <Link className={`${styles.btn} ${styles.btnSecondary}`} href="/admin/templates">{t('crumbTemplates')}</Link>
           </div>
         </section>
@@ -114,6 +117,7 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
         actions={<LocaleSwitcher />}
       />
 
+      {detail.isError && <p role="alert" className={styles.status}>{t('unavailable')}</p>}
       {command.notice && (
         <div className={`${styles.banner} ${command.notice.tone === 'success' ? styles.bannerSuccess : styles.bannerDanger}`}
           role={command.notice.tone === 'success' ? 'status' : 'alert'} data-testid="command-notice">
@@ -129,7 +133,7 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
             fieldErrors={command.fieldSource === 'revision' ? command.fieldErrors : []}
             pending={command.pending}
             onSubmit={publish}
-            notice={command.conflict?.source === 'revision' ? (
+            notice={publication.reviewRequired ? <IntentReview onAcknowledge={publication.acknowledgeReview} /> : command.conflict?.source === 'revision' ? (
               <ConflictBanner version={command.conflict.version} onRefresh={refreshVersion} onClose={command.dismissConflict} />
             ) : undefined}
           />
@@ -165,6 +169,7 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
               {...(command.conflict?.source === 'availability' ? { conflictVersion: command.conflict.version } : {})}
               onSetAvailability={setAvailability}
               onRefreshVersion={refreshVersion}
+              notice={availabilityIntent.reviewRequired ? <IntentReview onAcknowledge={availabilityIntent.acknowledgeReview} /> : undefined}
             />
           </div>
         </div>

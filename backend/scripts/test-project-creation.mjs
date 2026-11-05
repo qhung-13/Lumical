@@ -369,7 +369,16 @@ await withDisposablePostgres(async ({ url }) => {
       async () => {
         const before = await counts();
         first = await create(key);
-        assert.deepEqual(Object.keys(first), ['id']);
+        // The bound outcome carries the safe body §11 replays later.
+        assert.deepEqual(Object.keys(first).sort(), ['id', 'view']);
+        assert.deepEqual(Object.keys(first.view).sort(),
+          ['baseline', 'createdAt', 'id', 'recipientName', 'status', 'stylePresetId',
+            'title', 'updatedAt', 'version', 'year']);
+        assert.deepEqual(
+          { id: first.view.id, title: first.view.title, year: first.view.year,
+            recipientName: first.view.recipientName, status: first.view.status, version: first.view.version },
+          { id: first.id, title: family, year, recipientName: family, status: 'WORKING', version: 1 },
+        );
         const project = await persisted(first.id);
         assert.equal(project.owner_id, owner.principal.id);
         assert.equal(project.status, 'WORKING');

@@ -1,7 +1,8 @@
-import { Controller, Get, Post, type INestApplication } from '@nestjs/common';
+import { Controller, Get, Param, Post, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { request as httpRequest } from 'node:http';
 import request from 'supertest';
+import { ProjectError } from '../../modules/calendar-projects/domain/project';
 import { ApiErrors } from './api-errors';
 
 @Controller()
@@ -11,6 +12,16 @@ class ParserRegressionController {
   @Get('unrelated') unrelated() { throw new Error('TEST ONLY private error details'); }
   @Get('lookalike') lookalike() {
     throw Object.assign(new Error('TEST ONLY not a parser error'), { type: 'entity.too.large', status: 413, statusCode: 413 });
+  }
+}
+
+@Controller()
+class ProjectErrorController {
+  // The transport decides status and message key; the domain only names the code.
+  @Get('project/:code') project(@Param('code') code: string) {
+    if (code === 'VERSION_CONFLICT') throw new ProjectError('VERSION_CONFLICT', undefined, 7);
+    if (code === 'VALIDATION_FAILED') throw new ProjectError('VALIDATION_FAILED', 'title');
+    throw new ProjectError(code as ProjectError['code']);
   }
 }
 
@@ -50,5 +61,42 @@ describe('HTTP parser error boundary', () => {
     const response = await request(app.getHttpServer()).get(`/${endpoint}`).expect(500);
     expect(response.body.error).toMatchObject({ code: 'INTERNAL_ERROR', retryable: true });
     expect(JSON.stringify(response.body)).not.toContain('TEST ONLY');
+  });
+});
+
+describe('Project error contract', () => {
+  let app: INestApplication;
+  beforeAll(async () => {
+    const module = await Test.createTestingModule({ controllers: [ProjectErrorController] }).compile();
+    app = module.createNestApplication({ logger: false });
+    app.useGlobalFilters(new ApiErrors());
+    await app.listen(0, '127.0.0.1');
+  });
+  afterAll(async () => { await app.close(); });
+
+  it.each([
+    ['UNAUTHENTICATED', 401, 'errors.unauthenticated'],
+    ['NOT_FOUND', 404, 'errors.notFound'],
+    ['IDEMPOTENCY_CONFLICT', 409, 'errors.idempotencyConflict'],
+    ['PROJECT_HAS_ORDERS', 409, 'errors.projectHasOrders'],
+    ['INVALID_TRANSITION', 409, 'errors.invalidTransition'],
+    ['TEMPLATE_UNAVAILABLE', 409, 'errors.templateUnavailable'],
+    ['PRECONDITION_REQUIRED', 428, 'errors.preconditionRequired'],
+  ])('maps %s to %i with %s', async (code, status, messageKey) => {
+    const response = await request(app.getHttpServer()).get(`/project/${code}`).expect(status);
+    expect(response.body.error).toMatchObject({ code, messageKey, retryable: false, fieldErrors: [] });
+    expect(Object.keys(response.body.error).sort()).toEqual(['code', 'fieldErrors', 'messageKey', 'requestId', 'retryable']);
+  });
+
+  it('carries the safe current version on a 412 conflict', async () => {
+    const response = await request(app.getHttpServer()).get('/project/VERSION_CONFLICT').expect(412);
+    expect(response.body.error).toMatchObject({ code: 'VERSION_CONFLICT', messageKey: 'errors.versionConflict', currentVersion: 7, retryable: false });
+    expect(Object.keys(response.body.error).sort()).toEqual(['code', 'currentVersion', 'fieldErrors', 'messageKey', 'requestId', 'retryable']);
+  });
+
+  it('names the offending field on a 422 validation failure', async () => {
+    const response = await request(app.getHttpServer()).get('/project/VALIDATION_FAILED').expect(422);
+    expect(response.body.error).toMatchObject({ code: 'VALIDATION_FAILED', messageKey: 'errors.validation', retryable: false });
+    expect(response.body.error.fieldErrors).toEqual([{ path: 'title', code: 'INVALID', messageKey: 'validation.title' }]);
   });
 });

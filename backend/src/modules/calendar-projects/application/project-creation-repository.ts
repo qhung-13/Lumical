@@ -1,14 +1,21 @@
 import type { TransactionContext } from '../../../platform/database/application/transactions';
 import type { PublicTemplateDto } from '../../templates/application/template-catalog';
-import type { ProjectIdentity, ProjectRoot } from '../domain/project';
+import type {
+  ProjectIdentity,
+  ProjectRoot,
+  ProjectView,
+} from '../domain/project';
 
 export interface CreationIntent {
   actorId: string;
   key: string;
 }
 
+// §11: the creation outcome is bound to the intent, so both the first answer
+// and every replay return the same safe body.
 export interface CreatedProject {
   id: string;
+  view: ProjectView;
 }
 
 export interface ProjectCreation extends ProjectIdentity, ProjectRoot {

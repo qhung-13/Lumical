@@ -7,12 +7,18 @@ import {
   CreateProject,
 } from './application/create-project';
 import { ProjectCreationRepository } from './application/project-creation-repository';
+import { ProjectOwnerService } from './application/project-owner';
+import { ProjectRepository } from './application/project-repository';
 import { PrismaProjectCreation } from './infrastructure/prisma-project-creation';
+import { PrismaProjectRepository } from './infrastructure/prisma-project';
+import { ProjectController } from './interface/project.controller';
 
 @Module({
   imports: [DatabaseModule, IdentityModule, TemplatesModule],
+  controllers: [ProjectController],
   providers: [
     CreateProject,
+    ProjectOwnerService,
     {
       provide: CALENDAR_TIME_ZONE,
       useFactory: () => {
@@ -28,6 +34,7 @@ import { PrismaProjectCreation } from './infrastructure/prisma-project-creation'
       },
     },
     { provide: ProjectCreationRepository, useClass: PrismaProjectCreation },
+    { provide: ProjectRepository, useClass: PrismaProjectRepository },
   ],
   exports: [CreateProject],
 })

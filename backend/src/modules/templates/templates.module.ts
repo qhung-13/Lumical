@@ -14,6 +14,7 @@ import { AdminTemplateController } from './interface/admin-template.controller';
 @Module({
   imports: [DatabaseModule, IdentityModule],
   controllers: [TemplateController, AdminTemplateController],
+  exports: [PublicTemplateCatalog],
   providers: [PublicTemplateCatalog, PrismaTemplateCatalog, { provide: TEMPLATE_CATALOG, useExisting: PrismaTemplateCatalog },
     PrismaTemplateAdminRepository, { provide: TemplateAdminRepository, useExisting: PrismaTemplateAdminRepository },
     TemplateAdminService],

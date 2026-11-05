@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { Transactions, type TransactionContext } from '../../../platform/database/application/transactions';
 import { Prisma } from '../../../platform/database/infrastructure/generated/client';
 import { PrismaDatabase } from '../../../platform/database/infrastructure/prisma-database';
+import { PrismaTransactions } from '../../../platform/database/infrastructure/prisma-transactions';
 import { escapeLike, type PublicTemplateRecord, type TemplateCategory } from '../domain/template-catalog';
 import type { TemplateCatalog } from '../application/template-catalog';
 
@@ -12,7 +14,8 @@ interface CatalogRow {
 
 @Injectable()
 export class PrismaTemplateCatalog implements TemplateCatalog {
-  constructor(private readonly database: PrismaDatabase) {}
+  constructor(private readonly database: PrismaDatabase,
+    @Inject(Transactions) private readonly transactions: PrismaTransactions) {}
 
   async list(input: { category?: TemplateCategory; query?: string; after?: { nameVi: string; id: string }; take: number }): Promise<PublicTemplateRecord[]> {
     const where = [Prisma.sql`t.availability = 'ACTIVE'::lumical.template_availability`, Prisma.sql`r.revision > 0`,
@@ -40,8 +43,9 @@ export class PrismaTemplateCatalog implements TemplateCatalog {
     return (await this.database.client.$queryRaw<CatalogRow[]>(sql)).map(mapRow);
   }
 
-  async find(id: string): Promise<PublicTemplateRecord | null> {
-    const rows = await this.database.client.$queryRaw<CatalogRow[]>`
+  async find(id: string, context?: TransactionContext): Promise<PublicTemplateRecord | null> {
+    const client = context ? this.transactions.clientFor(context) : this.database.client;
+    const rows = await client.$queryRaw<CatalogRow[]>`
       SELECT t.id, t.category, r.id AS "revisionId", r.template_id AS "templateId", r.revision,
         r.name_vi AS "nameVi", r.name_en AS "nameEn", r.description_vi AS "descriptionVi", r.description_en AS "descriptionEn",
         r.layout_definition AS "layoutDefinition", r.style_presets AS "stylePresets", r.unit_price_minor AS "unitPriceMinor",
@@ -57,7 +61,7 @@ export class PrismaTemplateCatalog implements TemplateCatalog {
           OR p->>'id' NOT IN ('classic','minimal','vibrant') OR length(btrim(COALESCE(p->>'nameVi',''))) = 0
           OR length(btrim(COALESCE(p->>'nameEn',''))) = 0 OR CASE WHEN jsonb_typeof(p) = 'object' THEN (SELECT count(*) FROM jsonb_object_keys(p)) <> 3 ELSE TRUE END)
         AND (SELECT count(DISTINCT p->>'id') FROM jsonb_array_elements(r.style_presets) p) = jsonb_array_length(r.style_presets) ELSE FALSE END
-      LIMIT 1`;
+      LIMIT 1 ${context ? Prisma.sql`FOR SHARE OF t` : Prisma.empty}`;
     return rows[0] ? mapRow(rows[0]) : null;
   }
 }

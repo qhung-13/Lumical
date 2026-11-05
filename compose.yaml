@@ -46,6 +46,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      CALENDAR_TIME_ZONE: ${CALENDAR_TIME_ZONE:-Asia/Ho_Chi_Minh}
       DATABASE_URL: postgresql://lumical_runtime:${RUNTIME_DB_PASSWORD:?Set runtime password}@postgres:5432/${POSTGRES_DB:-lumical_dev}?schema=lumical
       IDENTITY_SECRET_KEY: ${IDENTITY_SECRET_KEY:?Generate a 32-byte identity key}
       IDENTITY_ALLOWED_ORIGINS: ${IDENTITY_ALLOWED_ORIGINS:?Set the exact HTTPS frontend origin}

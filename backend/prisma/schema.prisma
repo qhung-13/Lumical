@@ -209,9 +209,9 @@ model CalendarProject {
   ownerId                     String               @map("owner_id") @db.Uuid
   templateRevisionId          String               @map("template_revision_id") @db.Uuid
   status                      ProjectStatus        @default(WORKING)
-  title                       String               @db.VarChar(80)
+  title                       String               @db.Text
   year                        Int                  @db.SmallInt
-  recipientName               String               @map("recipient_name") @db.VarChar(80)
+  recipientName               String               @map("recipient_name") @db.Text
   baselineNameVi              String               @map("baseline_name_vi")
   baselineNameEn              String               @map("baseline_name_en")
   baselineStyle               Json                 @map("baseline_style")

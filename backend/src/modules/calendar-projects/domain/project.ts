@@ -40,10 +40,20 @@ type ProjectErrorCode =
   | 'PRECONDITION_REQUIRED'
   | 'VERSION_CONFLICT';
 
+// The field names §9 fieldErrors must be able to point at, including the P03 list filters.
+export type ProjectField =
+  | ProjectNameField
+  | 'year'
+  | 'stylePresetId'
+  | 'confirmed'
+  | 'state'
+  | 'cursor'
+  | 'limit';
+
 export class ProjectError extends Error {
   constructor(
     readonly code: ProjectErrorCode,
-    readonly field?: ProjectNameField | 'year' | 'stylePresetId' | 'confirmed',
+    readonly field?: ProjectField,
     readonly currentVersion?: number,
   ) {
     super(code);
@@ -159,4 +169,233 @@ export function assertProjectDeletionEligible(
   assertProjectOwner(account, project);
   if (orderHistory !== 'NEVER_ORDERED')
     throw new ProjectError('PROJECT_HAS_ORDERS');
+}
+
+// ---------------------------------------------------------------------------
+// P03: safe read projections, identity-style edits and the owner list query.
+// ---------------------------------------------------------------------------
+
+export type ProjectLayoutType = 'PHOTO_FOCUS' | 'COLLAGE';
+
+// The frozen published layout P02 copies onto every new Project.
+export interface ProjectLayout {
+  readonly version: 1;
+  readonly type: ProjectLayoutType;
+  readonly monthCount: 12;
+  readonly maxImagesPerMonth: 4;
+}
+
+// The stored columns of one owned Project, as a structural type so this module
+// never depends on a persistence adapter.
+export interface ProjectFacts {
+  readonly id: string;
+  readonly title: string;
+  readonly year: number;
+  readonly recipientName: string;
+  readonly status: ProjectStatus;
+  readonly version: number;
+  readonly stylePresetId: string;
+  readonly baselineNameVi: string;
+  readonly baselineNameEn: string;
+  readonly baselineStyle: unknown;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+// API contract §16: identity, state, baseline and version. Owner, template
+// revision, price and every other internal column stay on the server.
+export interface ProjectView {
+  readonly id: string;
+  readonly title: string;
+  readonly year: number;
+  readonly recipientName: string;
+  readonly status: ProjectStatus;
+  readonly version: number;
+  readonly stylePresetId: string;
+  readonly baseline: {
+    readonly name: { readonly vi: string; readonly en: string };
+    readonly layout: ProjectLayout;
+  };
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+const projectLayoutTypes: readonly ProjectLayoutType[] = [
+  'PHOTO_FOCUS',
+  'COLLAGE',
+];
+
+// P02 writes this shape from an approved revision. A row that no longer matches
+// is corruption rather than a client mistake, so it fails closed as a 500
+// instead of being served as if it were an approved layout.
+export function projectLayout(value: unknown): ProjectLayout {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Corrupt Project baseline layout.');
+  const stored = value as Record<string, unknown>;
+  if (
+    stored.version !== 1 ||
+    stored.monthCount !== 12 ||
+    stored.maxImagesPerMonth !== 4 ||
+    typeof stored.type !== 'string' ||
+    !projectLayoutTypes.includes(stored.type as ProjectLayoutType)
+  )
+    throw new Error('Corrupt Project baseline layout.');
+  return {
+    version: 1,
+    type: stored.type as ProjectLayoutType,
+    monthCount: 12,
+    maxImagesPerMonth: 4,
+  };
+}
+
+export function projectView(record: ProjectFacts): ProjectView {
+  return {
+    id: record.id,
+    title: record.title,
+    year: record.year,
+    recipientName: record.recipientName,
+    status: record.status,
+    version: record.version,
+    stylePresetId: record.stylePresetId,
+    baseline: {
+      name: { vi: record.baselineNameVi, en: record.baselineNameEn },
+      layout: projectLayout(record.baselineStyle),
+    },
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  };
+}
+
+// BR-PRJ-003: a Project only moves between the presets approved for the
+// revision it captured at creation; a patch never invents a new id.
+export function assertCapturedStylePreset(
+  capturedPresets: unknown,
+  stylePresetId: string,
+): void {
+  const approved = Array.isArray(capturedPresets) ? capturedPresets : [];
+  const known = approved.some(
+    (preset) =>
+      !!preset &&
+      typeof preset === 'object' &&
+      (preset as Record<string, unknown>).id === stylePresetId,
+  );
+  if (!known) throw new ProjectError('VALIDATION_FAILED', 'stylePresetId');
+}
+
+// The values one identity edit may change. Year is fixed at creation and the
+// baseline is never rewritten (BR-PRJ-007).
+export interface ProjectIdentityPatch {
+  readonly title?: string;
+  readonly recipientName?: string;
+  readonly stylePresetId?: string;
+}
+
+// Validation only: the caller writes the result and advances the version in the
+// same locked transaction as the read that produced these facts.
+export function applyProjectPatch(
+  record: ProjectFacts,
+  capturedPresets: unknown,
+  patch: ProjectIdentityPatch,
+): ProjectIdentityPatch {
+  if (patch.stylePresetId !== undefined)
+    assertCapturedStylePreset(capturedPresets, patch.stylePresetId);
+  return {
+    ...(patch.title !== undefined ? { title: patch.title } : {}),
+    ...(patch.recipientName !== undefined
+      ? { recipientName: patch.recipientName }
+      : {}),
+    ...(patch.stylePresetId !== undefined
+      ? { stylePresetId: patch.stylePresetId }
+      : {}),
+  };
+}
+
+// API contract §7: the owner list pages by timestamp with an id tie-break,
+// default limit 20 and maximum 50, so the cursor carries the ordered pair.
+export interface ProjectListQuery {
+  readonly state?: ProjectStatus;
+  readonly after?: { readonly createdAt: Date; readonly id: string };
+  readonly limit: number;
+}
+
+export function encodeProjectCursor(value: {
+  createdAt: Date;
+  id: string;
+}): string {
+  return Buffer.from(
+    JSON.stringify({ createdAt: value.createdAt.toISOString(), id: value.id }),
+  ).toString('base64url');
+}
+
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// Opaque to the client but not unvalidated: it must round-trip through
+// base64url so exactly one token exists per page, and its timestamp must
+// survive JSON without becoming Invalid Date.
+function projectCursor(
+  input: unknown,
+): { readonly createdAt: Date; readonly id: string } | undefined {
+  if (input === undefined) return undefined;
+  if (
+    typeof input !== 'string' ||
+    !input ||
+    Buffer.from(input, 'base64url').toString('base64url') !== input
+  )
+    throw new ProjectError('VALIDATION_FAILED', 'cursor');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(input, 'base64url').toString('utf8'));
+  } catch {
+    throw new ProjectError('VALIDATION_FAILED', 'cursor');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new ProjectError('VALIDATION_FAILED', 'cursor');
+  const value = parsed as Record<string, unknown>;
+  if (
+    Object.keys(value).length !== 2 ||
+    typeof value.createdAt !== 'string' ||
+    typeof value.id !== 'string' ||
+    !UUID.test(value.id)
+  )
+    throw new ProjectError('VALIDATION_FAILED', 'cursor');
+  const createdAt = new Date(value.createdAt);
+  if (Number.isNaN(createdAt.getTime()))
+    throw new ProjectError('VALIDATION_FAILED', 'cursor');
+  return { createdAt, id: value.id };
+}
+
+export const PROJECT_STATUSES: readonly ProjectStatus[] = [
+  'WORKING',
+  'ARCHIVED',
+];
+
+export function projectListInput(input: unknown): ProjectListQuery {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new ProjectError('VALIDATION_FAILED');
+  const value = input as Record<string, unknown>;
+  if (
+    Object.keys(value).some(
+      (key) => !['state', 'cursor', 'limit'].includes(key),
+    )
+  )
+    throw new ProjectError('VALIDATION_FAILED');
+  if (
+    value.state !== undefined &&
+    !PROJECT_STATUSES.includes(value.state as ProjectStatus)
+  )
+    throw new ProjectError('VALIDATION_FAILED', 'state');
+  const limit = value.limit === undefined ? 20 : value.limit;
+  if (
+    typeof limit !== 'number' ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > 50
+  )
+    throw new ProjectError('VALIDATION_FAILED', 'limit');
+  return {
+    state: value.state as ProjectStatus | undefined,
+    after: projectCursor(value.cursor),
+    limit,
+  };
 }

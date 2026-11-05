@@ -1,8 +1,12 @@
 import {
+  applyProjectPatch,
   assertProjectAction,
   assertProjectDeletionEligible,
+  encodeProjectCursor,
   newProject,
+  projectListInput,
   projectStatusAfter,
+  projectView,
 } from './project';
 
 const owner = {
@@ -227,5 +231,76 @@ describe('Project lifecycle and Order history', () => {
     expect(() =>
       assertProjectDeletionEligible(otherOwner, working, 'HAS_ORDERS'),
     ).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }));
+  });
+});
+
+describe('Project safe projection and owner list query', () => {
+  const facts = {
+    id: '01000000-0000-4000-8000-000000000010',
+    title: 'A year of memories',
+    year: 2026,
+    recipientName: 'Bà ngoại',
+    status: 'WORKING' as const,
+    version: 3,
+    stylePresetId: 'classic',
+    baselineNameVi: 'Lịch mùa xuân',
+    baselineNameEn: 'Spring calendar',
+    baselineStyle: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 },
+    createdAt: new Date('2026-01-02T03:04:05.000Z'),
+    updatedAt: new Date('2026-02-03T04:05:06.000Z'),
+  };
+
+  it('projects identity, state, baseline and version and nothing internal', () => {
+    const view = projectView(facts);
+    expect(Object.keys(view).sort()).toEqual([
+      'baseline', 'createdAt', 'id', 'recipientName', 'status', 'stylePresetId', 'title', 'updatedAt', 'version', 'year',
+    ]);
+    expect(view.baseline).toEqual({
+      name: { vi: 'Lịch mùa xuân', en: 'Spring calendar' },
+      layout: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 },
+    });
+    expect(view.createdAt).toBe('2026-01-02T03:04:05.000Z');
+    // ownerId, template revision, price and currency are never part of the response.
+    expect(JSON.stringify(view)).not.toMatch(/owner|templateRevision|unitPrice|currency/);
+  });
+
+  it('fails closed when the stored baseline layout is no longer an approved shape', () => {
+    for (const corrupt of [null, {}, { ...facts.baselineStyle, type: 'NEON' },
+      { ...facts.baselineStyle, monthCount: 6 }, [facts.baselineStyle]]) {
+      expect(() => projectView({ ...facts, baselineStyle: corrupt })).toThrow(/Corrupt Project baseline layout/);
+    }
+  });
+
+  it('applies an identity patch against the presets the Project captured', () => {
+    const captured = [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' }];
+    expect(applyProjectPatch(facts, captured, { title: 'Mới' })).toEqual({ title: 'Mới' });
+    expect(applyProjectPatch(facts, captured, { stylePresetId: 'classic' })).toEqual({ stylePresetId: 'classic' });
+    expect(() => applyProjectPatch(facts, captured, { stylePresetId: 'vibrant' }))
+      .toThrow(expect.objectContaining({ code: 'VALIDATION_FAILED', field: 'stylePresetId' }));
+    // An unreadable captured baseline approves nothing rather than everything.
+    expect(() => applyProjectPatch(facts, undefined, { stylePresetId: 'classic' }))
+      .toThrow(expect.objectContaining({ code: 'VALIDATION_FAILED', field: 'stylePresetId' }));
+  });
+
+  it('defaults the owner list to 20 rows, caps it at 50 and rejects an unknown filter', () => {
+    expect(projectListInput({})).toEqual({ state: undefined, after: undefined, limit: 20 });
+    expect(projectListInput({ limit: 50 }).limit).toBe(50);
+    for (const input of [{ limit: 0 }, { limit: 51 }, { limit: 1.5 }, { limit: 'many' },
+      { state: 'DELETED' }, { state: 'working' }, { cursor: '' }, { cursor: 'not-a-cursor' }, { after: 1 }]) {
+      expect(() => projectListInput(input)).toThrow(expect.objectContaining({ code: 'VALIDATION_FAILED' }));
+    }
+    expect(() => projectListInput({ limit: 0 })).toThrow(expect.objectContaining({ field: 'limit' }));
+    expect(() => projectListInput({ state: 'DELETED' })).toThrow(expect.objectContaining({ field: 'state' }));
+    expect(() => projectListInput({ cursor: 'not-a-cursor' })).toThrow(expect.objectContaining({ field: 'cursor' }));
+  });
+
+  it('round-trips an opaque cursor through base64url with an id tie-break pair', () => {
+    const after = { createdAt: new Date('2026-03-04T05:06:07.000Z'), id: facts.id };
+    const token = encodeProjectCursor(after);
+    expect(token).not.toContain('createdAt');
+    expect(projectListInput({ cursor: token }).after).toEqual(after);
+    // A tampered payload is rejected instead of being trusted as a position.
+    const tampered = Buffer.from(JSON.stringify({ createdAt: after.createdAt.toISOString(), id: 'other' })).toString('base64url');
+    expect(() => projectListInput({ cursor: tampered })).toThrow(expect.objectContaining({ field: 'cursor' }));
   });
 });

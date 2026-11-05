@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: lumical-i04-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: codex/i04-academic-release
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health/ready
+    autoDeployTrigger: 'off'
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: IDENTITY_COOKIE_MODE
+        value: https
+      - key: DATABASE_URL
+        sync: false
+      - key: IDENTITY_SECRET_KEY
+        sync: false
+      - key: LUMICAL_GATEWAY_KEY
+        sync: false
+      - key: IDENTITY_ALLOWED_ORIGINS
+        sync: false

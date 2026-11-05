@@ -5,6 +5,7 @@ import { IdentityPolicy } from '../modules/identity/application/ports';
 import { ApiErrors } from '../platform/http/api-errors';
 import { openApiDocument } from '../platform/http/openapi';
 import { SwaggerModule } from '@nestjs/swagger';
+import { demoGateway } from './demo-gateway';
 import { trustedProxy } from '../platform/http/client-address';
 
 export function configureApp(app: INestApplication): void {
@@ -15,6 +16,8 @@ export function configureApp(app: INestApplication): void {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     next();
   });
+  const gateway = demoGateway();
+  if (gateway) app.use(gateway);
   app.useGlobalFilters(new ApiErrors());
   const policy = app.get(IdentityPolicy);
   app.getHttpAdapter().getInstance().set('trust proxy', trustedProxy(policy.trustedProxyIPs));

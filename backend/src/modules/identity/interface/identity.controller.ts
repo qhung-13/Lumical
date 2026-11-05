@@ -17,7 +17,7 @@ export class IdentityController {
   constructor(@Inject(IdentityService) private readonly identity: IdentityService, @Inject(IdentityPolicy) private readonly policy: IdentityPolicy) {}
   private browser(req: Request, res: Response): BrowserContext {
     return { secret: accountCookie(req.headers.cookie, this.policy.cookieName), origin: req.get('Origin'),
-      csrf: req.get('X-CSRF-Token'), ip: req.ip ?? req.socket.remoteAddress ?? 'unknown', requestId: String(res.getHeader('X-Request-Id')) };
+      csrf: req.get('X-CSRF-Token'), ip: res.locals.gatewayClientIp ?? req.ip ?? req.socket.remoteAddress ?? 'unknown', requestId: String(res.getHeader('X-Request-Id')) };
   }
   private cookie(res: Response, secret: string | null, expiresAt?: Date): void {
     res.cookie(this.policy.cookieName, secret ?? '', { httpOnly: true, secure: this.policy.secure, sameSite: 'lax', path: '/',

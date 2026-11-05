@@ -1,0 +1,113 @@
+{
+  "base": "http://127.0.0.1:3391",
+  "checks": [
+    {
+      "name": "Backend ready with Neon runtime Prisma connection",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Liveness",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Direct account route denied without gateway key",
+      "status": "PASS",
+      "detail": 404
+    },
+    {
+      "name": "Unauthenticated account denied",
+      "status": "PASS",
+      "detail": 401
+    },
+    {
+      "name": "Registration",
+      "status": "PASS",
+      "detail": 201
+    },
+    {
+      "name": "Secure opaque session cookie",
+      "status": "PASS"
+    },
+    {
+      "name": "Login",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Authenticated account read",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Authenticated response no-store",
+      "status": "PASS"
+    },
+    {
+      "name": "Ordinary user cannot read admin templates",
+      "status": "PASS",
+      "detail": 403
+    },
+    {
+      "name": "Missing CSRF rejected",
+      "status": "PASS",
+      "detail": 403
+    },
+    {
+      "name": "Wrong Origin rejected",
+      "status": "PASS",
+      "detail": 403
+    },
+    {
+      "name": "Synthetic operator login",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Admin catalog authorized",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Admin creates audited inactive template",
+      "status": "PASS",
+      "detail": 201
+    },
+    {
+      "name": "Inactive template not public",
+      "status": "PASS",
+      "detail": 404
+    },
+    {
+      "name": "Admin activates complete published template",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Catalog reads deployed Neon data",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Published template detail",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Empty catalog search",
+      "status": "PASS",
+      "detail": 200
+    },
+    {
+      "name": "Logout",
+      "status": "PASS",
+      "detail": 204
+    },
+    {
+      "name": "Revoked session rejected",
+      "status": "PASS",
+      "detail": 401
+    }
+  ]
+}

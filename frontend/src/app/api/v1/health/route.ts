@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+import { backendFetch } from '../../../../lib/backend-transport';
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,7 @@ const headers = { "Cache-Control": "no-store" };
 export async function GET() {
   try {
     const backendUrl = process.env.BACKEND_URL ?? "http://localhost:3001";
-    const response = await fetch(new URL("/api/v1/health", backendUrl), {
+    const response = await backendFetch(new URL("/api/v1/health", backendUrl), {
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(5000),

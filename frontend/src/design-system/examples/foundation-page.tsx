@@ -23,7 +23,7 @@ export function FoundationPage({ area }: { area: FoundationArea }) {
       <section className={styles.section} aria-labelledby="material-title"><h2 id="material-title">{copy.material}</h2><p>{copy.materialBody}</p></section>
       <section className={styles.section} aria-labelledby="access-title"><h2 id="access-title">{copy.accessible}</h2><p>{copy.accessibleBody}</p></section>
       <nav className={styles.links} aria-label={copy.account}><Link href="/register" tabIndex={0}>{copy.register}</Link><Link href="/login" tabIndex={0}>{copy.login}</Link><Link href="/account" tabIndex={0}>{copy.account}</Link></nav>
-      <p><a href="/api/v1/health" tabIndex={0}>{copy.health}</a></p>
+      <p><Link href="/api/v1/health" prefetch={false} tabIndex={0}>{copy.health}</Link></p>
     </> : area === 'form' ? <FormExample /> : <section className={`${styles.section} ${styles.adminSection}`} aria-labelledby="data-title">
       <h2 id="data-title">{copy.dataTitle}</h2>
       <table className={styles.table}><caption>{copy.dataTitle}</caption>

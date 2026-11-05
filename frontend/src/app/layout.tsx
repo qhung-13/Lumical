@@ -8,6 +8,7 @@ import '@fontsource/be-vietnam-pro/700.css';
 import '@fontsource/baloo-2/700.css';
 import { headers } from 'next/headers';
 import { IdentityProvider } from '../features/identity/provider';
+import { backendFetch } from '../lib/backend-transport';
 import { serverBootstrap } from '../lib/session-bootstrap';
 import { serverPreferences } from '../lib/presentation-preferences';
 import { PreferencesProvider } from '../design-system/foundations/preferences-provider';
@@ -21,7 +22,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const request = await headers();
   const cookieName = process.env.NODE_ENV === 'development' && process.env.ACCOUNT_COOKIE_NAME === 'lumical_session_dev'
     ? 'lumical_session_dev' : '__Host-lumical_session';
-  const initial = await serverBootstrap(request.get('cookie'), process.env.BACKEND_URL ?? 'http://localhost:3001', cookieName);
+  const initial = await serverBootstrap(request.get('cookie'), process.env.BACKEND_URL ?? 'http://localhost:3001', cookieName, backendFetch);
   const preferences = await serverPreferences();
   return (
     <html lang={preferences.locale} data-theme={preferences.theme}>

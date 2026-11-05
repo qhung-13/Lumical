@@ -1,0 +1,2394 @@
+{
+  "checks": [
+    {
+      "name": "I04 migration names and checksums",
+      "status": "PASS",
+      "detail": "Exactly six I01–I04 migrations, no I05."
+    },
+    {
+      "name": "Table ownership",
+      "status": "PASS",
+      "detail": "31 tables including migration history."
+    },
+    {
+      "name": "Validated constraints",
+      "status": "PASS",
+      "detail": "359 constraints; 115 indexes; 2 triggers."
+    },
+    {
+      "name": "Application roles least privilege",
+      "status": "PASS"
+    },
+    {
+      "name": "Runtime role and search path",
+      "status": "PASS"
+    },
+    {
+      "name": "Runtime application SELECT",
+      "status": "PASS"
+    },
+    {
+      "name": "Runtime cannot create table",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime cannot create public table",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime cannot create schema",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime cannot alter table",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime cannot truncate",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime cannot read migration history",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime cannot modify immutable revisions",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime cannot create functions",
+      "status": "PASS",
+      "detail": "42501"
+    },
+    {
+      "name": "Runtime pooled TLS",
+      "status": "PASS"
+    },
+    {
+      "name": "Migration direct TLS",
+      "status": "PASS"
+    }
+  ],
+  "migrationIds": [
+    "20261012000100_current_work",
+    "20261012000200_commerce_history",
+    "20261012000300_access_execution",
+    "20261012000400_runtime_protections",
+    "20261027000100_template_catalog",
+    "20261027000200_template_category_required"
+  ],
+  "catalog": {
+    "tables": [
+      {
+        "tablename": "_prisma_migrations",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "admin_audit_events",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "admin_content_access",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "ar_target_artifacts",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "calendar_months",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "calendar_projects",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "checkout_intents",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "fulfillment_events",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "fulfillments",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "idempotency_records",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "job_records",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "media_assets",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "order_ar_snapshots",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "order_calendar_versions",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "order_media_references",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "order_month_snapshots",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "order_special_date_snapshots",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "orders",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "payment_attempts",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "payment_operations",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "payment_settlements",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "project_ar_experiences",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "project_month_media",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "provider_event_inbox",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "recipient_access_sessions",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "recipient_shares",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "sessions",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "special_dates",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "template_revisions",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "templates",
+        "tableowner": "lumical_migration"
+      },
+      {
+        "tablename": "users",
+        "tableowner": "lumical_migration"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "_prisma_migrations_pkey"
+      },
+      {
+        "indexname": "admin_audit_events_actor_id_created_at_id_idx"
+      },
+      {
+        "indexname": "admin_audit_events_inspection_id_idx"
+      },
+      {
+        "indexname": "admin_audit_events_pkey"
+      },
+      {
+        "indexname": "admin_audit_events_target_type_target_id_created_at_id_idx"
+      },
+      {
+        "indexname": "admin_content_access_admin_id_order_id_expires_at_idx"
+      },
+      {
+        "indexname": "admin_content_access_order_id_idx"
+      },
+      {
+        "indexname": "admin_content_access_pkey"
+      },
+      {
+        "indexname": "ar_target_artifacts_artifact_reference_key"
+      },
+      {
+        "indexname": "ar_target_artifacts_id_project_id_owner_id_key"
+      },
+      {
+        "indexname": "ar_target_artifacts_pkey"
+      },
+      {
+        "indexname": "ar_target_artifacts_project_id_source_revision_idx"
+      },
+      {
+        "indexname": "ar_target_artifacts_target_id_key"
+      },
+      {
+        "indexname": "calendar_months_id_project_id_key"
+      },
+      {
+        "indexname": "calendar_months_pkey"
+      },
+      {
+        "indexname": "calendar_months_project_id_month_number_key"
+      },
+      {
+        "indexname": "calendar_projects_id_owner_id_key"
+      },
+      {
+        "indexname": "calendar_projects_owner_id_status_updated_at_id_idx"
+      },
+      {
+        "indexname": "calendar_projects_pkey"
+      },
+      {
+        "indexname": "calendar_projects_template_revision_id_idx"
+      },
+      {
+        "indexname": "checkout_intents_id_owner_id_project_id_key"
+      },
+      {
+        "indexname": "checkout_intents_open_version_key"
+      },
+      {
+        "indexname": "checkout_intents_pkey"
+      },
+      {
+        "indexname": "checkout_intents_project_id_owner_id_idx"
+      },
+      {
+        "indexname": "fulfillment_events_actor_id_idx"
+      },
+      {
+        "indexname": "fulfillment_events_fulfillment_id_created_at_id_idx"
+      },
+      {
+        "indexname": "fulfillment_events_pkey"
+      },
+      {
+        "indexname": "fulfillments_order_id_key"
+      },
+      {
+        "indexname": "fulfillments_pkey"
+      },
+      {
+        "indexname": "fulfillments_status_idx"
+      },
+      {
+        "indexname": "idempotency_records_actor_id_operation_key_key"
+      },
+      {
+        "indexname": "idempotency_records_pkey"
+      },
+      {
+        "indexname": "job_records_condition_due_at_id_idx"
+      },
+      {
+        "indexname": "job_records_operation_identity_key"
+      },
+      {
+        "indexname": "job_records_pkey"
+      },
+      {
+        "indexname": "media_assets_id_owner_id_key"
+      },
+      {
+        "indexname": "media_assets_owner_id_status_created_at_id_idx"
+      },
+      {
+        "indexname": "media_assets_pkey"
+      },
+      {
+        "indexname": "media_assets_storage_reference_key"
+      },
+      {
+        "indexname": "media_assets_upload_intent_id_key"
+      },
+      {
+        "indexname": "order_ar_snapshots_pkey"
+      },
+      {
+        "indexname": "order_ar_snapshots_reveal_reference_id_version_id_idx"
+      },
+      {
+        "indexname": "order_ar_snapshots_target_artifact_id_project_id_owner_id_idx"
+      },
+      {
+        "indexname": "order_ar_snapshots_version_id_key"
+      },
+      {
+        "indexname": "order_ar_snapshots_version_id_owner_id_project_id_key"
+      },
+      {
+        "indexname": "order_calendar_versions_id_order_id_key"
+      },
+      {
+        "indexname": "order_calendar_versions_id_owner_id_project_id_key"
+      },
+      {
+        "indexname": "order_calendar_versions_order_id_key"
+      },
+      {
+        "indexname": "order_calendar_versions_order_id_owner_id_project_id_key"
+      },
+      {
+        "indexname": "order_calendar_versions_pkey"
+      },
+      {
+        "indexname": "order_calendar_versions_template_revision_id_idx"
+      },
+      {
+        "indexname": "order_media_month_position_key"
+      },
+      {
+        "indexname": "order_media_references_asset_id_owner_id_idx"
+      },
+      {
+        "indexname": "order_media_references_id_version_id_key"
+      },
+      {
+        "indexname": "order_media_references_month_id_version_id_idx"
+      },
+      {
+        "indexname": "order_media_references_pkey"
+      },
+      {
+        "indexname": "order_media_references_version_id_owner_id_project_id_idx"
+      },
+      {
+        "indexname": "order_month_snapshots_id_version_id_key"
+      },
+      {
+        "indexname": "order_month_snapshots_pkey"
+      },
+      {
+        "indexname": "order_month_snapshots_version_id_month_number_key"
+      },
+      {
+        "indexname": "order_special_date_snapshots_pkey"
+      },
+      {
+        "indexname": "order_special_date_snapshots_version_id_event_date_id_idx"
+      },
+      {
+        "indexname": "orders_checkout_intent_id_key"
+      },
+      {
+        "indexname": "orders_checkout_intent_id_owner_id_project_id_key"
+      },
+      {
+        "indexname": "orders_id_owner_id_project_id_key"
+      },
+      {
+        "indexname": "orders_owner_id_created_at_id_idx"
+      },
+      {
+        "indexname": "orders_pkey"
+      },
+      {
+        "indexname": "orders_project_id_idx"
+      },
+      {
+        "indexname": "payment_attempts_id_order_id_provider_environment_key"
+      },
+      {
+        "indexname": "payment_attempts_one_unresolved_key"
+      },
+      {
+        "indexname": "payment_attempts_order_id_created_at_id_idx"
+      },
+      {
+        "indexname": "payment_attempts_pkey"
+      },
+      {
+        "indexname": "payment_attempts_provider_environment_provider_order_refere_key"
+      },
+      {
+        "indexname": "payment_operations_attempt_id_kind_key"
+      },
+      {
+        "indexname": "payment_operations_pkey"
+      },
+      {
+        "indexname": "payment_operations_provider_request_id_key"
+      },
+      {
+        "indexname": "payment_settlements_attempt_id_key"
+      },
+      {
+        "indexname": "payment_settlements_attempt_id_order_id_provider_environmen_key"
+      },
+      {
+        "indexname": "payment_settlements_order_id_key"
+      },
+      {
+        "indexname": "payment_settlements_pkey"
+      },
+      {
+        "indexname": "payment_settlements_provider_environment_capture_reference_key"
+      },
+      {
+        "indexname": "project_ar_experiences_pkey"
+      },
+      {
+        "indexname": "project_ar_experiences_project_id_key"
+      },
+      {
+        "indexname": "project_ar_experiences_project_id_owner_id_key"
+      },
+      {
+        "indexname": "project_ar_experiences_reveal_asset_id_owner_id_idx"
+      },
+      {
+        "indexname": "project_month_media_asset_id_owner_id_idx"
+      },
+      {
+        "indexname": "project_month_media_month_id_position_key"
+      },
+      {
+        "indexname": "project_month_media_pkey"
+      },
+      {
+        "indexname": "project_month_media_project_id_owner_id_idx"
+      },
+      {
+        "indexname": "provider_event_inbox_condition_received_at_id_idx"
+      },
+      {
+        "indexname": "provider_event_inbox_pkey"
+      },
+      {
+        "indexname": "provider_event_inbox_provider_environment_event_id_key"
+      },
+      {
+        "indexname": "recipient_access_sessions_expires_at_idx"
+      },
+      {
+        "indexname": "recipient_access_sessions_lease_digest_key"
+      },
+      {
+        "indexname": "recipient_access_sessions_order_version_id_order_id_idx"
+      },
+      {
+        "indexname": "recipient_access_sessions_pkey"
+      },
+      {
+        "indexname": "recipient_access_sessions_share_id_generation_idx"
+      },
+      {
+        "indexname": "recipient_shares_credential_digest_key"
+      },
+      {
+        "indexname": "recipient_shares_id_order_id_key"
+      },
+      {
+        "indexname": "recipient_shares_order_id_key"
+      },
+      {
+        "indexname": "recipient_shares_pkey"
+      },
+      {
+        "indexname": "sessions_absolute_expires_at_idx"
+      },
+      {
+        "indexname": "sessions_pkey"
+      },
+      {
+        "indexname": "sessions_session_digest_key"
+      },
+      {
+        "indexname": "sessions_user_id_idx"
+      },
+      {
+        "indexname": "special_dates_pkey"
+      },
+      {
+        "indexname": "special_dates_project_id_event_date_id_idx"
+      },
+      {
+        "indexname": "template_revisions_id_template_id_key"
+      },
+      {
+        "indexname": "template_revisions_pkey"
+      },
+      {
+        "indexname": "template_revisions_template_id_revision_key"
+      },
+      {
+        "indexname": "templates_availability_idx"
+      },
+      {
+        "indexname": "templates_catalog_category_availability_idx"
+      },
+      {
+        "indexname": "templates_pkey"
+      },
+      {
+        "indexname": "users_normalized_email_key"
+      },
+      {
+        "indexname": "users_pkey"
+      }
+    ],
+    "constraints": [
+      {
+        "conname": "_prisma_migrations_applied_steps_count_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "_prisma_migrations_checksum_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "_prisma_migrations_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "_prisma_migrations_migration_name_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "_prisma_migrations_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "_prisma_migrations_started_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_action_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_actor_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_actor_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_correlation_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_inspection_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_outcome_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_purpose_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_target_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_events_target_type_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_audit_safe_identity_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_admin_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_admin_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_expires_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_order_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_order_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_purpose_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_content_access_reason_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "admin_inspection_scope_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_artifact_ready_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_artifact_revision_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_project_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_source_revision_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "ar_target_artifacts_target_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_months_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_months_month_number_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_months_number_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_months_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_months_project_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_months_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_baseline_name_en_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_baseline_name_vi_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_baseline_style_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_currency_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_identity_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_price_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_recipient_name_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_style_preset_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_template_revision_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_template_revision_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_title_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_unit_price_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "calendar_projects_year_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intent_revision_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_canonical_request_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_project_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_project_revision_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "checkout_intents_request_digest_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_event_reason_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_actor_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_actor_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_correlation_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_fulfillment_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_fulfillment_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_next_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_previous_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_events_reason_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillment_version_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_order_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_order_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "fulfillments_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_encrypted_replay_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_identity_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_actor_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_actor_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_condition_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_key_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_operation_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "idempotency_records_request_digest_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_intent_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_attempts_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_condition_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_due_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_kind_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_object_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_operation_identity_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "job_records_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_category_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_content_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_facts_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_ready_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "media_assets_upload_intent_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_fallback_representation_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_readable_text_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_reveal_reference_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_reveal_reference_id_version_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_target_artifact_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_target_artifact_id_project_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_version_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_snapshots_version_id_owner_id_project_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_ar_text_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_version_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_dedication_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_order_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_order_id_owner_id_project_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_source_project_revision_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_style_definition_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_template_name_en_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_template_name_vi_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_template_revision_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_template_revision_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_title_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_calendar_versions_year_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_date_title_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_purpose_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_accessible_text_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_asset_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_asset_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_month_id_version_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_purpose_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_version_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_media_references_version_id_owner_id_project_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_month_number_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "order_month_snapshots_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_month_snapshots_layout_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_month_snapshots_month_number_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_month_snapshots_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "order_month_snapshots_version_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_month_snapshots_version_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_special_date_snapshots_event_date_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_special_date_snapshots_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_special_date_snapshots_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "order_special_date_snapshots_title_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "order_special_date_snapshots_version_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "order_special_date_snapshots_version_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_checkout_intent_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_checkout_intent_id_owner_id_project_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_contact_email_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_contact_name_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_currency_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_discount_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_identity_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_money_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_project_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_quantity_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_shipping_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_tax_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_total_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_unit_price_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "orders_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempt_sandbox_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_environment_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_order_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_order_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_provider_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_attempts_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operation_identity_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_attempt_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_attempt_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_condition_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_kind_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_provider_request_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_request_digest_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_operations_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlement_money_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_amount_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_attempt_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_attempt_id_order_id_provider_environme_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_capture_reference_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_completed_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_currency_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_environment_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_evidence_summary_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_order_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_order_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "payment_settlements_provider_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experience_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_month_number_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_preparation_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_project_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_readable_text_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_reveal_asset_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_reveal_asset_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_source_revision_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_ar_experiences_target_artifact_id_project_id_owner_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_alt_text_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_asset_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_asset_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_month_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_month_id_project_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_owner_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_position_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_position_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "project_month_media_project_id_owner_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_condition_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_environment_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_event_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_evidence_summary_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_provider_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_received_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_event_inbox_verified_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "provider_inbox_identity_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_csrf_digest_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_expires_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_generation_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_lease_digest_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_order_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_order_version_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_order_version_id_order_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_share_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_access_sessions_share_id_order_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_lease_binding_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_share_digest_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_share_generation_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_generation_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_order_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_order_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "recipient_shares_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_absolute_expires_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_binding_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_csrf_digest_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_idle_expires_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_last_activity_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_session_digest_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_user_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "sessions_user_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "special_dates_event_date_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "special_dates_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "special_dates_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "special_dates_project_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "special_dates_project_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "special_dates_title_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "special_dates_title_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_copy_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_currency_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_description_en_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_description_vi_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_layout_definition_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_name_en_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_name_vi_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_price_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_published_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_revision_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_style_presets_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_template_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_template_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "template_revisions_unit_price_minor_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_availability_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_category_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_current_published_revision_id_id_fkey",
+        "contype": "f",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_publication_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "templates_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_created_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_id_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_normalized_email_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "users_normalized_email_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_password_hash_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_pkey",
+        "contype": "p",
+        "convalidated": true
+      },
+      {
+        "conname": "users_role_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_status_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_updated_at_not_null",
+        "contype": "n",
+        "convalidated": true
+      },
+      {
+        "conname": "users_version_check",
+        "contype": "c",
+        "convalidated": true
+      },
+      {
+        "conname": "users_version_not_null",
+        "contype": "n",
+        "convalidated": true
+      }
+    ],
+    "triggers": [
+      {
+        "tgname": "artifact_identity_and_content_guard"
+      },
+      {
+        "tgname": "media_identity_and_content_guard"
+      }
+    ],
+    "roles": [
+      {
+        "rolname": "lumical_migration",
+        "rolsuper": false,
+        "rolcreatedb": false,
+        "rolcreaterole": false,
+        "rolinherit": false,
+        "rolreplication": false,
+        "rolbypassrls": false
+      },
+      {
+        "rolname": "lumical_runtime",
+        "rolsuper": false,
+        "rolcreatedb": false,
+        "rolcreaterole": false,
+        "rolinherit": false,
+        "rolreplication": false,
+        "rolbypassrls": false
+      }
+    ],
+    "identity": [
+      {
+        "version": "PostgreSQL 18.6 (ac70818) on aarch64-unknown-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+        "current_schema": "lumical",
+        "current_user": "lumical_migration"
+      }
+    ]
+  }
+}

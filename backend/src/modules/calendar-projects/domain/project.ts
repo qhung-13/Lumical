@@ -266,6 +266,62 @@ export function projectView(record: ProjectFacts): ProjectView {
   };
 }
 
+// API contract §11: a replay answers with the outcome the intent originally
+// bound, so the safe body is persisted with the record and served later. A
+// stored body is untrusted input — its full shape is re-checked before it can
+// shape a response, exactly as the Admin template replay does.
+export function storedProjectView(value: unknown): ProjectView {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Corrupt Project creation replay.');
+  const stored = value as Record<string, unknown>;
+  const baseline =
+    stored.baseline && typeof stored.baseline === 'object' && !Array.isArray(stored.baseline)
+      ? (stored.baseline as Record<string, unknown>)
+      : undefined;
+  const name =
+    baseline?.name && typeof baseline.name === 'object' && !Array.isArray(baseline.name)
+      ? (baseline.name as Record<string, unknown>)
+      : undefined;
+  const nameVi = name?.vi;
+  const nameEn = name?.en;
+  const layout = baseline?.layout;
+  if (
+    typeof stored.id !== 'string' ||
+    typeof stored.title !== 'string' ||
+    typeof stored.recipientName !== 'string' ||
+    typeof stored.stylePresetId !== 'string' ||
+    typeof stored.year !== 'number' ||
+    !Number.isSafeInteger(stored.year) ||
+    !PROJECT_STATUSES.includes(stored.status as ProjectStatus) ||
+    typeof stored.version !== 'number' ||
+    !Number.isSafeInteger(stored.version) ||
+    stored.version < 1 ||
+    typeof stored.createdAt !== 'string' ||
+    Number.isNaN(Date.parse(stored.createdAt)) ||
+    typeof stored.updatedAt !== 'string' ||
+    Number.isNaN(Date.parse(stored.updatedAt)) ||
+    typeof nameVi !== 'string' ||
+    typeof nameEn !== 'string'
+  )
+    throw new Error('Corrupt Project creation replay.');
+  return {
+    id: stored.id,
+    title: stored.title,
+    year: stored.year,
+    recipientName: stored.recipientName,
+    status: stored.status as ProjectStatus,
+    version: stored.version,
+    stylePresetId: stored.stylePresetId,
+    baseline: {
+      name: { vi: nameVi, en: nameEn },
+      // An unapproved layout shape is corruption, not a client mistake.
+      layout: projectLayout(layout),
+    },
+    createdAt: stored.createdAt,
+    updatedAt: stored.updatedAt,
+  };
+}
+
 // BR-PRJ-003: a Project only moves between the presets approved for the
 // revision it captured at creation; a patch never invents a new id.
 export function assertCapturedStylePreset(

@@ -181,7 +181,9 @@ export class ProjectOwnerService {
     if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(key))
       throw new ProjectError('VALIDATION_FAILED');
     const created = await this.creation.execute(browser, input, key);
-    return this.get(created.id, browser);
+    // §11: the replay returns the outcome this intent bound, not the row as it
+    // happens to be now, so the answer comes from the creation transaction.
+    return created.view;
   }
 
   async patch(

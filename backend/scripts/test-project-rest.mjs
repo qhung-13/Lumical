@@ -294,6 +294,68 @@ try {
         await monthsOf(owner, 'not-a-uuid').expect(422);
       });
 
+      await check('a replayed creation answers with the outcome it originally bound', async () => {
+        // §11: the replay returns the bound outcome, not the row as it is now.
+        const editedKey = randomUUID();
+        const edited = (await createProject(owner, projectBody({ title: 'Replay before edit' }), editedKey).expect(201)).body.data;
+        await patchProject(owner, edited.id, { title: 'Đã sửa sau khi tạo' }, '"1"').expect(200).expect('ETag', '"2"');
+        const afterEdit = await createProject(owner, projectBody({ title: 'Replay before edit' }), editedKey).expect(201).expect('ETag', '"1"');
+        assert.deepEqual(afterEdit.body.data, edited, 'an edit after creation must not change the replayed body');
+        assert.equal((await runtime.query('SELECT title,version FROM lumical.calendar_projects WHERE id=$1', [edited.id])).rows[0].version, 2,
+          'the replay writes nothing');
+
+        const archivedKey = randomUUID();
+        const archived = (await createProject(owner, projectBody({ title: 'Replay before archive' }), archivedKey).expect(201)).body.data;
+        await archiveProject(owner, archived.id, '"1"').expect(200);
+        const afterArchive = await createProject(owner, projectBody({ title: 'Replay before archive' }), archivedKey).expect(201).expect('ETag', '"1"');
+        assert.deepEqual(afterArchive.body.data, archived, 'archive must not change the replayed body');
+        assert.equal((await runtime.query('SELECT status FROM lumical.calendar_projects WHERE id=$1', [archived.id])).rows[0].status, 'ARCHIVED');
+
+        const deletedKey = randomUUID();
+        const doomedReplay = (await createProject(owner, projectBody({ title: 'Replay after delete' }), deletedKey).expect(201)).body.data;
+        await deleteProject(owner, doomedReplay.id, { confirmed: true }, '"1"').expect(204);
+        const afterDelete = await createProject(owner, projectBody({ title: 'Replay after delete' }), deletedKey).expect(201).expect('ETag', '"1"');
+        assert.deepEqual(afterDelete.body.data, doomedReplay, 'a deleted Project still replays its original answer');
+        assert.equal((await runtime.query('SELECT count(*) FROM lumical.calendar_projects WHERE id=$1', [doomedReplay.id])).rows[0].count, '0',
+          'the replay must not resurrect the deleted Project');
+      });
+
+      await check('two concurrent mutations on one version commit exactly once', async () => {
+        const racing = (await createProject(owner, projectBody({ title: 'Race calendar' })).expect(201)).body.data;
+        assert.equal(racing.version, 1);
+
+        // Two writers carry the same precondition; the row lock serializes them.
+        const [left, right] = await Promise.all([
+          patchProject(owner, racing.id, { title: 'Race A' }, '"1"'),
+          patchProject(owner, racing.id, { title: 'Race B' }, '"1"'),
+        ]);
+        assert.deepEqual([left.status, right.status].sort((a, b) => a - b), [200, 412],
+          'exactly one writer commits and the other sees a version conflict');
+        const loser = left.status === 200 ? right : left;
+        assert.deepEqual({ code: loser.body.error.code, currentVersion: loser.body.error.currentVersion, retryable: loser.body.error.retryable },
+          { code: 'VERSION_CONFLICT', currentVersion: 2, retryable: false });
+        const stored = (await runtime.query('SELECT title,version FROM lumical.calendar_projects WHERE id=$1', [racing.id])).rows[0];
+        assert.equal(stored.version, 2, 'the version advances exactly once');
+        assert.equal(stored.title, (left.status === 200 ? left : right).body.data.title, 'no lost update: the row is the winner');
+
+        // A second race across mutation kinds on the next version.
+        const etag = left.status === 200 ? left.headers.etag : right.headers.etag;
+        const [patched, archived] = await Promise.all([
+          patchProject(owner, racing.id, { title: 'Race C' }, etag),
+          archiveProject(owner, racing.id, etag),
+        ]);
+        assert.deepEqual([patched.status, archived.status].sort((a, b) => a - b), [200, 412]);
+        assert.equal(archived.status === 200 ? patched.status : archived.status, 412);
+        const row = (await runtime.query('SELECT title,status,version FROM lumical.calendar_projects WHERE id=$1', [racing.id])).rows[0];
+        assert.equal(row.version, 3, 'the second race also advances the version once');
+        if (patched.status === 200)
+          assert.deepEqual({ title: row.title, status: row.status }, { title: 'Race C', status: 'WORKING' });
+        else
+          assert.deepEqual({ title: row.title, status: row.status }, { title: 'Race calendar', status: 'ARCHIVED' });
+        const survivor = patched.status === 200 ? patched : archived;
+        assert.equal(survivor.body.data.version, 3);
+      });
+
       await check('delete needs confirmation, refuses Order history and cleans project rows only', async () => {
         const doomed = (await createProject(owner, projectBody({ title: 'Doomed calendar' })).expect(201)).body.data;
         const ordered = (await createProject(owner, projectBody({ title: 'Ordered calendar' })).expect(201)).body.data;

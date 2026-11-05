@@ -5,6 +5,7 @@ import {
 } from '../../../platform/database/application/transactions';
 import { Prisma } from '../../../platform/database/infrastructure/generated/client';
 import { PrismaTransactions } from '../../../platform/database/infrastructure/prisma-transactions';
+import { projectView, storedProjectView } from '../domain/project';
 import {
   ProjectCreationRepository,
   type CreationIntent,
@@ -31,6 +32,7 @@ export class PrismaProjectCreation extends ProjectCreationRepository {
         condition: true,
         resourceId: true,
         resourceType: true,
+        safeResult: true,
       },
     });
     if (!record) return null;
@@ -40,7 +42,13 @@ export class PrismaProjectCreation extends ProjectCreationRepository {
       !record.resourceId
     )
       throw new Error('Invalid Project creation replay record.');
-    return { digest: record.requestDigest, project: { id: record.resourceId } };
+    // §11: the bound outcome is the stored body, re-validated before it can be
+    // served; a Project that was edited, archived or deleted since does not
+    // change the answer this intent gave the first time.
+    const view = storedProjectView(record.safeResult);
+    if (view.id !== record.resourceId)
+      throw new Error('Invalid Project creation replay record.');
+    return { digest: record.requestDigest, project: { id: record.resourceId, view } };
   }
 
   async create(
@@ -68,8 +76,25 @@ export class PrismaProjectCreation extends ProjectCreationRepository {
           },
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        title: true,
+        year: true,
+        recipientName: true,
+        status: true,
+        version: true,
+        stylePresetId: true,
+        baselineNameVi: true,
+        baselineNameEn: true,
+        baselineStyle: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
+    // §11: the safe creation outcome is bound to the intent inside the same
+    // transaction, so a replay answers with this body even after the Project was
+    // edited, archived or deleted.
+    const view = projectView(project);
     try {
       await client.idempotencyRecord.create({
         data: {
@@ -79,6 +104,7 @@ export class PrismaProjectCreation extends ProjectCreationRepository {
           condition: 'COMPLETED',
           resourceType: 'CALENDAR_PROJECT',
           resourceId: project.id,
+          safeResult: view as unknown as Prisma.InputJsonValue,
         },
       });
     } catch (error) {
@@ -89,7 +115,7 @@ export class PrismaProjectCreation extends ProjectCreationRepository {
         throw new ConcurrentCreationIntent();
       throw error;
     }
-    return project;
+    return { id: project.id, view };
   }
 
   isRetryable(error: unknown): boolean {

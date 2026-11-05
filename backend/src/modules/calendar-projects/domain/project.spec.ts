@@ -7,6 +7,7 @@ import {
   projectListInput,
   projectStatusAfter,
   projectView,
+  storedProjectView,
 } from './project';
 
 const owner = {
@@ -302,5 +303,45 @@ describe('Project safe projection and owner list query', () => {
     // A tampered payload is rejected instead of being trusted as a position.
     const tampered = Buffer.from(JSON.stringify({ createdAt: after.createdAt.toISOString(), id: 'other' })).toString('base64url');
     expect(() => projectListInput({ cursor: tampered })).toThrow(expect.objectContaining({ field: 'cursor' }));
+  });
+});
+
+describe('Project creation replay body', () => {
+  const view = {
+    id: '01000000-0000-4000-8000-000000000010',
+    title: 'A year of memories',
+    year: 2026,
+    recipientName: 'Bà ngoại',
+    status: 'WORKING' as const,
+    version: 1,
+    stylePresetId: 'classic',
+    baseline: {
+      name: { vi: 'Lịch mùa xuân', en: 'Spring calendar' },
+      layout: { version: 1, type: 'PHOTO_FOCUS' as const, monthCount: 12, maxImagesPerMonth: 4 },
+    },
+    createdAt: '2026-01-02T03:04:05.000Z',
+    updatedAt: '2026-02-03T04:05:06.000Z',
+  };
+
+  it('re-approves the safe body the intent originally bound', () => {
+    expect(storedProjectView(view)).toEqual(view);
+    // The projection round-trips through JSON exactly as it is persisted.
+    expect(storedProjectView(JSON.parse(JSON.stringify(view)))).toEqual(view);
+  });
+
+  it.each([
+    ['null', null],
+    ['an array', [view]],
+    ['a missing title', { ...view, title: undefined }],
+    ['an unknown status', { ...view, status: 'DELETED' }],
+    ['version zero', { ...view, version: 0 }],
+    ['an unparsable timestamp', { ...view, createdAt: 'yesterday' }],
+    ['no baseline', { ...view, baseline: undefined }],
+    ['a name without vi', { ...view, baseline: { ...view.baseline, name: { en: 'Spring' } } }],
+    ['an unapproved layout', { ...view, baseline: { ...view.baseline, layout: { ...view.baseline.layout, type: 'NEON' } } }],
+  ])('fails closed when the stored body has %s', (_label, value) => {
+    expect(() => storedProjectView(value)).toThrow(
+      /Corrupt Project creation replay|Corrupt Project baseline layout/,
+    );
   });
 });

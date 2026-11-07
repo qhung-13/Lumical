@@ -129,6 +129,53 @@ describe('Calendar Project creation experience', () => {
     expect(committed).toBe(true);
   });
 
+  it('retries a committed create with the original body and key after Template detail becomes unavailable', async () => {
+    const attempts: { key: string | null; body: unknown }[] = [];
+    let committedProject: typeof created | undefined;
+    let templateDeactivated = false;
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/auth/session')) return json({ data: { authenticated: true, principal: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'a'.repeat(64) } });
+      if (url.endsWith(`/templates/${templateId}`)) {
+        if (templateDeactivated) return json({ error: { code: 'NOT_FOUND', retryable: false, fieldErrors: [] } }, 404);
+        return json({ data: template });
+      }
+      if (url.endsWith('/projects') && init?.method === 'GET') return json({ data: [], meta: { nextCursor: null, hasMore: false } });
+      if (url.endsWith('/projects') && init?.method === 'POST') {
+        attempts.push({ key: new Headers(init.headers).get('Idempotency-Key'), body: JSON.parse(String(init.body)) });
+        if (!committedProject) {
+          committedProject = created;
+          throw new TypeError('response lost after server commit');
+        }
+        return json({ data: committedProject }, 201);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const { manager } = renderWorkspace();
+    expect(await screen.findByText('Bright day')).toBeVisible();
+    fireEvent.change(screen.getByLabelText(/Calendar name/), { target: { value: 'For Mom' } });
+    fireEvent.change(screen.getByLabelText(/Made for/), { target: { value: 'Mom' } });
+    fireEvent.change(screen.getByLabelText('Style (required)'), { target: { value: 'classic' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create calendar' }));
+    expect(await screen.findByText(/An earlier request may already have created a calendar/u)).toBeVisible();
+    const firstAttempt = attempts[0];
+    expect(firstAttempt).toBeDefined();
+
+    templateDeactivated = true;
+    await manager.queries.invalidateQueries({ queryKey: ['templates', 'detail', templateId] });
+    expect(await screen.findByText('This design is unavailable for new calendars.')).toBeVisible();
+    const retry = screen.getByRole('button', { name: 'Retry previous request' });
+    expect(retry).toBeEnabled();
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/projects/${projectId}`));
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toEqual(firstAttempt);
+    expect(attempts[1].body).toEqual({ templateId, title: 'For Mom', year: new Date().getFullYear(), recipientName: 'Mom', stylePresetId: 'classic' });
+    expect(attempts[1].key).toBe(firstAttempt.key);
+  });
+
   it('shows an idempotency conflict as a request conflict, not as an unavailable Template', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
       const url = String(input);

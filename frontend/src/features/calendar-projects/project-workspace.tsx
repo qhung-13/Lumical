@@ -89,6 +89,14 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
       const body: ProjectCreate = { templateId: template!.id, title: cleanTitle, recipientName: cleanRecipient, year, stylePresetId: selectedPreset };
       attempt = { body, key: crypto.randomUUID() };
     }
+    await sendIntent(attempt);
+  }
+  async function retryPendingIntent() {
+    const attempt = draftRef.current.intent;
+    if (attempt) await sendIntent(attempt);
+  }
+  async function sendIntent(attempt: NonNullable<ProjectWorkspaceDraft['intent']>) {
+    if (pendingGuard.current) return;
     const requestActor = actorId;
     pendingGuard.current = true; setPending(true);
     updateDraft({ intent: attempt, submitError: undefined });
@@ -126,6 +134,12 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
     <div className={styles.workspaceHeading}><div><p className={styles.eyebrow}>LumiCal</p><h1>{copy.title}</h1><p className={styles.intro}>{copy.intro}</p></div>
       <Button variant="outline" loading={logoutPending} loadingLabel={copy.logout} disabled={!state.mutationReady} onClick={() => void logout()}>{copy.logout}</Button></div>
     {draft.submitError === 'ERROR' && !template && <p role="alert">{copy.error}</p>}
+    {draft.intent && <section className={styles.panel} aria-label={copy.retryPrevious}>
+      <p role="status" className={styles.summary}>{copy.unresolvedIntent}</p>
+      <Button variant="primary" disabled={pending || !state.mutationReady} loading={pending} loadingLabel={copy.creating} onClick={() => void retryPendingIntent()}>{copy.retryPrevious}</Button>
+      {!pending && <Dialog triggerLabel={copy.startNewIntent} title={copy.startNewIntentTitle} description={copy.startNewIntentDescription}
+        cancelLabel={copy.cancel} confirmLabel={copy.startNewIntentConfirm} destructive onConfirm={() => updateDraft({ intent: undefined, submitError: undefined, fieldErrors: {} })} />}
+    </section>}
     {templateId ? selectedTemplate.isPending ? <section className={styles.panel} role="status">{copy.loadingTemplate}</section> : templateNotFound ?
       <section className={styles.panel} role="alert"><p>{copy.missing}</p><Link href="/templates">{copy.catalog}</Link></section> : selectedTemplate.isError ?
       <section className={styles.panel} role="alert"><p>{copy.error}</p><Button onClick={() => void selectedTemplate.refetch()}>{copy.retry}</Button></section> : template ?
@@ -137,7 +151,6 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
           <Link href="/templates">{copy.change}</Link>
           <form onSubmit={event => void submit(event)} noValidate>
             {draft.submitError && <div className={styles.summary} role="alert" tabIndex={-1} ref={summary}>{draft.submitError === 'VALIDATION_FAILED' ? copy.validation : draft.submitError === 'TEMPLATE_UNAVAILABLE' ? copy.unavailable : draft.submitError === 'CONFLICT' ? copy.conflict : copy.error}</div>}
-            {draft.intent && <p role="status" className={styles.summary}>{copy.unresolvedIntent}</p>}
             <fieldset disabled={pending || !state.mutationReady} className={styles.fields}>
               <FormField disabled={Boolean(draft.intent)} name="title" required label={copy.calendarTitle} requirementLabel={copy.required} description={copy.titleHint} value={draft.title} onChange={event => setInput('title', event.target.value)} error={draft.fieldErrors.title} autoComplete="off" />
               <FormField disabled={Boolean(draft.intent)} name="recipientName" required label={copy.recipient} requirementLabel={copy.required} description={copy.recipientHint} value={draft.recipient} onChange={event => setInput('recipient', event.target.value)} error={draft.fieldErrors.recipientName} autoComplete="off" />
@@ -147,10 +160,8 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
                 {template.publishedRevision.presets.map(item => <option key={item.id} value={item.id}>{item.name[locale]}</option>)}
               </select>{draft.fieldErrors.stylePresetId && <p id="project-preset-error" className={styles.fieldError}>{draft.fieldErrors.stylePresetId}</p>}</div>
             </fieldset>
-            <Button type="submit" variant="primary" size="lg" disabled={pending || !state.mutationReady} loading={pending} loadingLabel={copy.creating}>{draft.intent ? copy.retryPrevious : copy.create}</Button>
+            {!draft.intent && <Button type="submit" variant="primary" size="lg" disabled={pending || !state.mutationReady} loading={pending} loadingLabel={copy.creating}>{copy.create}</Button>}
           </form>
-          {draft.intent && !pending && <Dialog triggerLabel={copy.startNewIntent} title={copy.startNewIntentTitle} description={copy.startNewIntentDescription}
-            cancelLabel={copy.cancel} confirmLabel={copy.startNewIntentConfirm} destructive onConfirm={() => updateDraft({ intent: undefined, submitError: undefined, fieldErrors: {} })} />}
         </div>
       </section> : null : <section className={styles.panel}><p>{copy.missing}</p><Link href="/templates">{copy.catalog}</Link></section>}
     <section className={styles.list} aria-labelledby="my-projects"><h2 id="my-projects">{copy.myProjects}</h2>

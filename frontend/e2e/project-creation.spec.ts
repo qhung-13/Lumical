@@ -63,7 +63,7 @@ test('synthetic owner creates, retries the same intent and reopens the persisted
   await page.getByLabel('Style (required)').selectOption('minimal');
   await page.getByLabel('Made for (required)').press('Enter');
   await expect(page.getByText(/Your calendar could not be created/u)).toBeVisible();
-  await page.getByRole('button', { name: 'Create calendar' }).click();
+  await page.getByRole('button', { name: 'Retry previous request' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
   await expect(page.getByRole('heading', { name: 'Summer memories' })).toBeVisible();
   expect(journey.attempts).toHaveLength(2);
@@ -92,6 +92,7 @@ test('unavailable Template keeps the entered draft and offers a route back to ca
   await expect(page.getByRole('heading', { name: 'Tạo lịch của bạn' })).toBeVisible();
   await page.getByLabel('Tên lịch (bắt buộc)').fill('Lịch của Linh');
   await page.getByLabel('Dành tặng (bắt buộc)').fill('Linh');
+  await page.getByLabel('Phong cách (bắt buộc)').selectOption('classic');
   await page.getByRole('button', { name: 'Tạo lịch' }).click();
   await expect(page.getByText(/Mẫu này không còn dùng/u)).toBeVisible();
   await expect(page.getByLabel('Tên lịch (bắt buộc)')).toHaveValue('Lịch của Linh');

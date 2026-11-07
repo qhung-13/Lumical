@@ -9,6 +9,8 @@ export function safeReturnTo(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\u0000-\u001f\\]/u.test(value)) return '/account';
   try {
     const url = new URL(value, ORIGIN);
+    const projectMatch = /^\/projects\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.exec(url.pathname);
+    if (url.origin === ORIGIN && projectMatch && !url.search && !url.hash) return `/projects/${projectMatch[1]}`;
     if (url.origin !== ORIGIN || url.pathname !== '/account' || url.hash) return '/account';
     const ids = url.searchParams.getAll('templateId');
     if ([...url.searchParams.keys()].some(key => key !== 'templateId') || ids.length > 1) return '/account';

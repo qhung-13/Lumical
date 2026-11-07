@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { foundationCopy } from '../src/i18n/foundation';
 import { templateCopy } from '../src/i18n/templates';
+import { projectCopy } from '../src/features/calendar-projects/copy';
 
 const views = ['/', '/foundation/form', '/foundation/admin'];
 const templateId = '11111111-1111-4111-8111-111111111111';
@@ -27,7 +28,7 @@ async function mockTemplateApi(page: Page) {
   });
 }
 
-test('guest selects a design, authenticates, and retains template context without creating a Project', async ({ page }) => {
+test('guest selects a design, authenticates and reaches the Project form without an automatic create', async ({ page }) => {
   await mockTemplateApi(page);
   await page.route('**/api/v1/auth/login', route => route.fulfill({ json: { data: {
     id: '33333333-3333-4333-8333-333333333333', email: 'demo@example.invalid', role: 'USER', accountStatus: 'ACTIVE', csrfToken: 'a'.repeat(64),
@@ -35,6 +36,8 @@ test('guest selects a design, authenticates, and retains template context withou
   await page.route('**/api/v1/account/me', route => route.fulfill({ json: { data: {
     id: '33333333-3333-4333-8333-333333333333', email: 'demo@example.invalid', role: 'USER', accountStatus: 'ACTIVE',
   } } }));
+  await page.route('**/api/v1/projects**', route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { data: [], meta: { nextCursor: null, hasMore: false } } }) : route.continue());
   const projectWrites: string[] = [];
   page.on('request', request => { if (request.method() === 'POST' && /\/api\/v1\/projects(?:\?|$)/.test(request.url())) projectWrites.push(request.url()); });
 
@@ -49,8 +52,8 @@ test('guest selects a design, authenticates, and retains template context withou
   await page.getByLabel('Password (required)').fill('TEST ONLY passphrase');
   await page.getByRole('button', { name: 'Log in' }).click();
   await expect(page).toHaveURL(`/account?templateId=${templateId}`);
-  await expect(page.getByRole('heading', { name: templateCopy.en.handoffTitle })).toBeVisible();
-  await expect(page.getByText(templateCopy.en.handoffBody)).toBeVisible();
+  await expect(page.getByRole('heading', { name: projectCopy.en.title })).toBeVisible();
+  await expect(page.getByLabel(`${projectCopy.en.calendarTitle} (${projectCopy.en.required})`)).toBeVisible();
   expect(projectWrites).toEqual([]);
 });
 

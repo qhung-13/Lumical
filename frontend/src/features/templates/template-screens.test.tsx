@@ -117,11 +117,11 @@ describe('public Template catalog and detail screens', () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response({ data: item })));
     vi.stubGlobal('fetch', fetcher);
     const view = renderWithProviders(<TemplateDetailScreen id={item.id} />);
-    const cta = await screen.findByRole('link', { name: 'Continue with this design' });
+    const cta = await screen.findByRole('link', { name: 'Create a calendar with this design' });
     expect(cta).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/account?templateId=${item.id}`)}`);
     view.unmount();
     identityMock.phase = 'authenticated';
     renderWithProviders(<TemplateDetailScreen id={item.id} />);
-    expect(await screen.findByRole('link', { name: 'Continue with this design' })).toHaveAttribute('href', `/account?templateId=${item.id}`);
+    expect(await screen.findByRole('link', { name: 'Create a calendar with this design' })).toHaveAttribute('href', `/account?templateId=${item.id}`);
   });
 });

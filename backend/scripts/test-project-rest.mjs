@@ -356,6 +356,25 @@ try {
         assert.equal(survivor.body.data.version, 3);
       });
 
+      await check('future-year creation does not advance an existing calendar or share its Months', async () => {
+        const following = (await createProject(owner, projectBody({ year: year + 1, title: 'Following year' })).expect(201)).body.data;
+        assert.equal(following.year, year + 1);
+        assert.notEqual(following.id, project.id);
+        const current = await getProject(owner, project.id).expect(200);
+        assert.equal(current.body.data.year, year, 'the prior year never changes');
+        const rows = (await runtime.query(`SELECT project_id, count(*)::int AS total,
+          count(DISTINCT month_number)::int AS unique_months, min(month_number) AS first_month,
+          max(month_number) AS last_month FROM lumical.calendar_months
+          WHERE project_id IN ($1,$2) GROUP BY project_id`, [project.id, following.id])).rows;
+        assert.equal(rows.length, 2);
+        for (const row of rows) {
+          assert.deepEqual({ total: row.total, unique: row.unique_months, first: row.first_month, last: row.last_month },
+            { total: 12, unique: 12, first: 1, last: 12 });
+        }
+        await getProject(other, following.id).expect(404);
+        await monthsOf(other, following.id).expect(404);
+      });
+
       await check('delete needs confirmation, refuses Order history and cleans project rows only', async () => {
         const doomed = (await createProject(owner, projectBody({ title: 'Doomed calendar' })).expect(201)).body.data;
         const ordered = (await createProject(owner, projectBody({ title: 'Ordered calendar' })).expect(201)).body.data;
@@ -400,6 +419,32 @@ try {
         assert.equal(remaining.body.data.some(item => item.id === ordered.id), true);
         // Deleting twice is a safe 404, not a second write.
         await deleteProject(owner, doomed.id, { confirmed: true }, '"1"').expect(404);
+      });
+
+      await check('inactive Template blocks new Projects while captured owner baseline survives', async () => {
+        const before = (await getProject(owner, project.id).expect(200)).body.data;
+        const templateState = (await runtime.query('SELECT version FROM lumical.templates WHERE id=$1', [templateId])).rows[0];
+        const availability = (value, version) => api().put(`/api/v1/admin/templates/${templateId}/availability`)
+          .set('Origin', origin).set('Cookie', admin.cookie).set('X-CSRF-Token', admin.csrf)
+          .set('Idempotency-Key', randomUUID()).set('If-Match', `"${version}"`)
+          .send({ availability: value, reason: 'TEST ONLY I05-P06 baseline survival' });
+        await availability('INACTIVE', templateState.version).expect(200);
+        try {
+          const refused = await createProject(owner, projectBody({ title: 'Must not create' })).expect(409);
+          assert.equal(refused.body.error.code, 'TEMPLATE_UNAVAILABLE');
+          const existing = (await getProject(owner, project.id).expect(200)).body.data;
+          assert.deepEqual(existing.baseline, before.baseline);
+          assert.equal(existing.version, before.version);
+          const months = await monthsOf(owner, project.id).expect(200);
+          assert.deepEqual(months.body.data.months.map(month => month.monthNumber),
+            Array.from({ length: 12 }, (_, index) => index + 1));
+          const revised = await patchProject(owner, project.id, { title: 'Available despite retired template' }, `"${before.version}"`).expect(200);
+          assert.equal(revised.body.data.version, before.version + 1);
+          assert.deepEqual(revised.body.data.baseline, before.baseline);
+        } finally {
+          const current = (await runtime.query('SELECT version FROM lumical.templates WHERE id=$1', [templateId])).rows[0];
+          await availability('ACTIVE', current.version).expect(200);
+        }
       });
     } finally {
       if (app) await app.close();

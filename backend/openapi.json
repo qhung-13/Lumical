@@ -2859,7 +2859,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectResponseDto"
+                  "$ref": "#/components/schemas/ProjectDetailResponseDto"
                 }
               }
             }
@@ -4433,6 +4433,89 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ProjectMonthsDataDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ProjectDetailDataDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Trimmed, NFC-normalised, counted in graphemes by the backend."
+          },
+          "year": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9999
+          },
+          "recipientName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Who the calendar is for."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "WORKING",
+              "ARCHIVED"
+            ]
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "ETag value; advances on every change."
+          },
+          "stylePresetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Must be a preset approved by the captured template revision."
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/ProjectBaselineDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletionEligible": {
+            "type": "boolean",
+            "description": "Whether the Project has never been ordered and is currently eligible for permanent deletion."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "year",
+          "recipientName",
+          "status",
+          "version",
+          "stylePresetId",
+          "baseline",
+          "createdAt",
+          "updatedAt",
+          "deletionEligible"
+        ]
+      },
+      "ProjectDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectDetailDataDto"
           }
         },
         "required": [

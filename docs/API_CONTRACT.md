@@ -138,7 +138,7 @@ Actors: **G** Guest; **U** active User; **O** owner of requested object; **A** a
 | GET `/templates/{id}` | G; active Template details | UUID ID | `{data:PublicTemplate}` | BR-TPL-001 | 404 inactive/absent/incomplete | Public cache does not grant orderability |
 | POST `/projects` | U; create owned twelve-Month work | ProjectCreate | 201 Project | BR-PRJ-001/002/003, BR-TPL-001/002 | TEMPLATE_UNAVAILABLE 409 | K; atomic baseline/twelve Months |
 | GET `/projects` | U; own account work list | state/cursor/limit | 200 Project summaries + meta | BR-PRJ-001, BR-ORD-005 | invalid filter | Owner scope before query |
-| GET `/projects/{id}` | O; reopen own work | ID | 200 Project + ETag | BR-PRJ-001/004 | — | No-store |
+| GET `/projects/{id}` | O; reopen own work | ID | 200 Project detail + ETag; includes `deletionEligible` derived from trusted Order history | BR-PRJ-001/004/006 | — | No-store; eligibility is advisory and DELETE rechecks atomically |
 | PATCH `/projects/{id}` | O; edit identity/curated style | ProjectPatch | 200 Project + ETag | BR-PRJ-007, BR-TPL-002 | invalid transition 409/version 412 | V; Project revision increments |
 | POST `/projects/{id}/archive` | O; archive | Empty | 200 Project | BR-PRJ-005 | 412 | V; repeated desired state safe, no automatic share revoke |
 | POST `/projects/{id}/restore` | O; restore | Empty | 200 Project | BR-PRJ-005 | 412 | V; no automatic new share |

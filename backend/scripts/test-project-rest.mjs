@@ -221,7 +221,7 @@ try {
 
       await check('read, preconditions and owner isolation behave per the contract', async () => {
         const read = await getProject(owner, project.id).expect(200).expect('ETag', '"1"');
-        assert.deepEqual(read.body.data, project, 'the stored row projects back to the same safe body');
+        assert.deepEqual(read.body.data, { ...project, deletionEligible: true }, 'the detail projection includes authoritative never-ordered eligibility');
         await api().get(`/api/v1/projects/${project.id}`).expect(401);
         await getProject(owner, 'not-a-uuid').expect(422);
         // §13: a foreign id is the same as a missing one — 404, never 403.
@@ -377,6 +377,8 @@ try {
         const ordered_refusal = await deleteProject(owner, ordered.id, { confirmed: true }, '"1"').expect(409);
         assert.deepEqual({ code: ordered_refusal.body.error.code, messageKey: ordered_refusal.body.error.messageKey, retryable: ordered_refusal.body.error.retryable },
           { code: 'PROJECT_HAS_ORDERS', messageKey: 'errors.projectHasOrders', retryable: false });
+        assert.equal((await getProject(owner, ordered.id).expect(200)).body.data.deletionEligible, false,
+          'detail eligibility reflects trusted order history, including non-deletable Projects');
         assert.equal(await ownerProjects(), before, 'a refused deletion must not remove a Project');
         assert.equal((await runtime.query('SELECT count(*) FROM lumical.orders WHERE project_id=$1', [ordered.id])).rows[0].count, '1');
 

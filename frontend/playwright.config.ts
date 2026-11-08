@@ -8,7 +8,7 @@ const baseURL = liveBackend ? 'http://127.0.0.1:3211' : 'http://127.0.0.1:3210';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['**/foundation.spec.ts', '**/admin-templates.spec.ts', '**/project-creation.spec.ts'],
+  testMatch: ['**/foundation.spec.ts', '**/admin-templates.spec.ts', '**/project-creation.spec.ts', '**/project-lifecycle.spec.ts'],
   snapshotPathTemplate: '{testDir}/__screenshots__/{platform}/{arg}{ext}',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

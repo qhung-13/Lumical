@@ -46,6 +46,10 @@ export interface ProjectMonthsView {
   readonly months: ProjectMonthRecord[];
 }
 
+export interface ProjectDetailView extends ProjectView {
+  readonly deletionEligible: boolean;
+}
+
 // A race is worth restarting; a refusal from Identity, the domain or the
 // contract is a truthful answer that must reach the client unchanged.
 function restartable(error: unknown): boolean {
@@ -148,12 +152,13 @@ export class ProjectOwnerService {
   async get(
     id: string,
     browser: ProjectBrowserContext,
-  ): Promise<ProjectView> {
+  ): Promise<ProjectDetailView> {
     return this.run(browser, false, async (actor, context) => {
       const record = await this.repository.find(actor.id, id, context);
       if (!record) throw new ProjectError('NOT_FOUND');
       assertProjectOwner(actor, record);
-      return projectView(record);
+      const history = await this.repository.orderHistory(actor.id, id, context);
+      return { ...projectView(record), deletionEligible: history === 'NEVER_ORDERED' };
     });
   }
 

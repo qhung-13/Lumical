@@ -5,7 +5,7 @@ import { IdentityPolicy } from '../../identity/application/ports';
 import { accountCookie } from '../../identity/domain/identity';
 import { ProjectOwnerService, type ProjectBrowserContext } from '../application/project-owner';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
-import { ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectResponseDto, ErrorResponseDto } from './dto';
+import { ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectResponseDto, ErrorResponseDto } from './dto';
 
 // Local copies of the identity controller's transport decorators so Project
 // mutations read the same way in the generated contract as the account command.
@@ -76,10 +76,11 @@ export class ProjectController {
   @Get(':id') @ApiCookieAuth() @errors()
   @ApiOperation({ operationId: 'getProject', summary: 'Reopen one owned Project.' })
   @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiResponse({ status: 200, type: ProjectResponseDto, headers: etagHeader() })
+  @ApiResponse({ status: 200, type: ProjectDetailResponseDto, headers: etagHeader() })
   async get(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
     const view = await this.service.get(this.id(id), this.auth(req));
-    this.send(res, 200, view);
+    res.setHeader('ETag', `"${view.version}"`);
+    res.status(200).json({ data: ProjectDetailDataDto.from(view) });
   }
 
   @Patch(':id') @origin() @csrf() @preconditions() @ApiCookieAuth() @errors()

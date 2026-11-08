@@ -23,10 +23,10 @@ describe('Project HTTP API and private query contract', () => {
     expect(Object.keys(JSON.parse(String(init?.body))).sort()).toEqual(['recipientName', 'stylePresetId', 'templateId', 'title', 'year']);
   });
   it('requests list pagination and detail with no-store, validates envelopes, and keeps cursor filters in actor-scoped keys', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: [project], meta: { nextCursor: 'next', hasMore: true } })).mockResolvedValueOnce(response({ data: project }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: [project], meta: { nextCursor: 'next', hasMore: true } })).mockResolvedValueOnce(response({ data: { ...project, deletionEligible: true } }));
     const api = projectApi({ csrf: () => undefined, fetcher });
     expect(await api.list({ cursor: 'cursor', state: 'WORKING', limit: 5 })).toEqual({ data: [project], meta: { nextCursor: 'next', hasMore: true } });
-    expect(await api.detail(project.id)).toEqual(project);
+    expect(await api.detail(project.id)).toEqual({ ...project, deletionEligible: true });
     expect(fetcher.mock.calls[0][0]).toBe('/api/v1/projects?state=WORKING&cursor=cursor&limit=5');
     expect(fetcher.mock.calls[0][1]).toMatchObject({ method: 'GET', credentials: 'same-origin', cache: 'no-store' });
     expect(projectKeys.list('actor-a', { cursor: 'x' })).not.toEqual(projectKeys.list('actor-b', { cursor: 'x' }));
@@ -34,6 +34,17 @@ describe('Project HTTP API and private query contract', () => {
     expect(projectKeys.detail('actor-a', project.id)).not.toEqual(projectKeys.detail('actor-b', project.id));
     expect(projectListOptions('actor-a', { cursor: 'x' }, api).queryKey).toEqual(projectKeys.list('actor-a', { cursor: 'x' }));
     expect(projectDetailOptions('actor-a', project.id, api).queryKey).toEqual(projectKeys.detail('actor-a', project.id));
+  });
+  it('reads all twelve ordered Month summaries and sends conditional lifecycle requests', async () => {
+    const monthRows = Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: { projectVersion: 1, months: monthRows } }))
+      .mockResolvedValueOnce(response({ data: project })).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const api = projectApi({ csrf: () => 'csrf-test', fetcher });
+    expect(await api.months(project.id)).toEqual({ projectVersion: 1, months: monthRows });
+    await api.archive(project.id, 3);
+    await api.remove(project.id, 3);
+    expect(fetcher.mock.calls[1][1]).toMatchObject({ method: 'POST', headers: expect.objectContaining({ 'If-Match': '"3"', 'X-CSRF-Token': 'csrf-test' }) });
+    expect(fetcher.mock.calls[2][1]).toMatchObject({ method: 'DELETE', headers: expect.objectContaining({ 'If-Match': '"3"', 'X-CSRF-Token': 'csrf-test' }), body: '{"confirmed":true}' });
   });
   it('maps safe error envelope and field errors; malformed DTOs never expose server content', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ error: { code: 'VALIDATION_FAILED', requestId: 'req-1', retryable: false,

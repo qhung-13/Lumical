@@ -19,6 +19,11 @@ export const projectCopy = {
     detailError: 'This saved calendar could not be loaded.', notFound: 'This calendar was not found.', reopen: 'Open saved calendar',
     status: { WORKING: 'In progress', ARCHIVED: 'Archived' }, templateName: 'Design used', layout: 'Layout',
     layouts: { PHOTO_FOCUS: 'Photo focus', COLLAGE: 'Collage' }, months: '12 months', signIn: 'Sign in to open your saved calendar', logout: 'Sign out',
+    monthNav: 'Calendar months', month: 'Month', emptyMonth: 'No saved notes for this month yet.', monthError: 'Months could not be loaded.',
+    archivedReadOnly: 'This calendar is archived and read-only.', archive: 'Archive calendar', restore: 'Restore calendar', delete: 'Delete permanently',
+    archiveTitle: 'Archive this calendar?', archiveDescription: 'The calendar will become read-only. You can restore it later.', restoreTitle: 'Restore this calendar?', restoreDescription: 'The calendar will return to the in-progress state.', deleteTitle: 'Permanently delete this calendar?', deleteDescription: 'This cannot be undone. Its saved calendar data will be permanently deleted.',
+    confirm: 'Confirm', lifecycleCancel: 'Cancel', lifecycleError: 'The action could not be completed. The latest saved state has been refreshed.', hasOrders: 'This calendar has order history and cannot be permanently deleted.', stale: 'This calendar changed elsewhere. The latest state has been loaded; review it before trying again.',
+    lifecycleConflict: 'The requested action conflicts with the current calendar state. The latest state has been loaded.', monthNames: ['January','February','March','April','May','June','July','August','September','October','November','December'],
   },
   vi: {
     title: 'Tạo lịch của bạn', intro: 'Chọn một mẫu đã phát hành, rồi đặt tên lịch và người nhận.',
@@ -40,5 +45,10 @@ export const projectCopy = {
     detailError: 'Chưa thể tải lịch đã lưu này.', notFound: 'Không tìm thấy lịch này.', reopen: 'Mở lịch đã lưu',
     status: { WORKING: 'Đang thực hiện', ARCHIVED: 'Đã lưu trữ' }, templateName: 'Mẫu đã dùng', layout: 'Bố cục',
     layouts: { PHOTO_FOCUS: 'Tập trung ảnh', COLLAGE: 'Ảnh ghép' }, months: '12 tháng', signIn: 'Đăng nhập để mở lịch đã lưu', logout: 'Đăng xuất',
+    monthNav: 'Các tháng trong lịch', month: 'Tháng', emptyMonth: 'Tháng này chưa có ghi chú được lưu.', monthError: 'Chưa thể tải các tháng.',
+    archivedReadOnly: 'Lịch đã lưu trữ và đang ở chế độ chỉ đọc.', archive: 'Lưu trữ lịch', restore: 'Khôi phục lịch', delete: 'Xóa vĩnh viễn',
+    archiveTitle: 'Lưu trữ lịch này?', archiveDescription: 'Lịch sẽ chuyển sang chế độ chỉ đọc. Bạn có thể khôi phục sau.', restoreTitle: 'Khôi phục lịch này?', restoreDescription: 'Lịch sẽ trở lại trạng thái đang thực hiện.', deleteTitle: 'Xóa vĩnh viễn lịch này?', deleteDescription: 'Không thể hoàn tác. Dữ liệu lịch đã lưu sẽ bị xóa vĩnh viễn.',
+    confirm: 'Xác nhận', lifecycleCancel: 'Hủy', lifecycleError: 'Không thể hoàn tất thao tác. Trạng thái mới nhất đã được tải lại.', hasOrders: 'Lịch này có lịch sử đơn hàng nên không thể xóa vĩnh viễn.', stale: 'Lịch đã thay đổi ở nơi khác. Trạng thái mới nhất đã được tải; hãy kiểm tra trước khi thử lại.',
+    lifecycleConflict: 'Thao tác không phù hợp với trạng thái hiện tại của lịch. Trạng thái mới nhất đã được tải lại.', monthNames: ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'],
   },
 } as const;

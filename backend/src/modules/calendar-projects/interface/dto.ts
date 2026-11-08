@@ -5,6 +5,7 @@ import {
 } from '@nestjs/swagger';
 import type { ProjectMonthRecord } from '../application/project-repository';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
+import type { ProjectDetailView } from '../application/project-owner';
 
 const titleSchema: ApiPropertyOptions = {
   type: 'string',
@@ -99,6 +100,19 @@ export class ProjectDataDto {
 
 export class ProjectResponseDto {
   @ApiProperty({ type: ProjectDataDto }) data: ProjectDataDto;
+}
+
+export class ProjectDetailDataDto extends ProjectDataDto {
+  @ApiProperty({ type: Boolean, description: 'Whether the Project has never been ordered and is currently eligible for permanent deletion.' })
+  deletionEligible: boolean;
+
+  static from(view: ProjectDetailView): ProjectDetailDataDto {
+    return { ...ProjectDataDto.from(view), deletionEligible: view.deletionEligible };
+  }
+}
+
+export class ProjectDetailResponseDto {
+  @ApiProperty({ type: ProjectDetailDataDto }) data: ProjectDetailDataDto;
 }
 
 // API contract §7: cursor page with an opaque cursor and an explicit hasMore

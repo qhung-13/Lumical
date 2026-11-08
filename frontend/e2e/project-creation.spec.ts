@@ -29,9 +29,12 @@ async function mockJourney(page: Page, options: { unavailable?: boolean } = {}) 
     if (request.method() === 'GET' && url.pathname.endsWith('/projects')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: createCount ? [project] : [], meta: { nextCursor: null, hasMore: false } }) }); return;
     }
+    if (request.method() === 'GET' && url.pathname.endsWith(`/projects/${projectId}/months`)) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { projectVersion: 1, months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null })) } }) }); return;
+    }
     if (request.method() === 'GET' && url.pathname.endsWith(`/projects/${projectId}`)) {
       detailGets++;
-      await route.fulfill({ status: 200, headers: { ETag: '"1"' }, contentType: 'application/json', body: JSON.stringify({ data: project }) }); return;
+      await route.fulfill({ status: 200, headers: { ETag: '"1"' }, contentType: 'application/json', body: JSON.stringify({ data: { ...project, deletionEligible: true } }) }); return;
     }
     if (request.method() === 'POST' && url.pathname.endsWith('/projects')) {
       attempts.push({ headers: request.headers(), body: request.postDataJSON() }); createCount++;

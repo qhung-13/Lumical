@@ -6,6 +6,7 @@ import { ProjectError } from '../domain/project';
 import { CreateProject } from './create-project';
 import { ProjectOwnerService } from './project-owner';
 import { ProjectRepository } from './project-repository';
+import type { ProjectRecord } from './project-repository';
 
 const principal: ActiveAccountPrincipal = {
   kind: 'account',
@@ -51,7 +52,31 @@ const service = (accounts: ActiveAccounts): ProjectOwnerService =>
     {} as CreateProject,
   );
 
+const ownedRecord: ProjectRecord = {
+  id: '10000000-0000-4000-8000-000000000001', ownerId: principal.id, title: 'A saved year', year: 2027,
+  recipientName: 'Owner', status: 'WORKING', version: 2, stylePresetId: 'classic', baselineNameVi: 'Mẫu', baselineNameEn: 'Design',
+  baselineStyle: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 },
+  createdAt: new Date('2026-01-01T00:00:00.000Z'), updatedAt: new Date('2026-01-02T00:00:00.000Z'), stylePresets: [],
+};
+
 describe('Project restart boundary', () => {
+  it.each([
+    ['never ordered', 'NEVER_ORDERED', true],
+    ['has order history', 'HAS_ORDERS', false],
+  ] as const)('projects detail deletion eligibility from trusted history when the Project is %s', async (_label, history, eligible) => {
+    const repository = {
+      find: async () => ownedRecord,
+      orderHistory: async () => history,
+    } as unknown as ProjectRepository;
+    const app = new ProjectOwnerService(
+      new FlakyAccounts(0, serialization),
+      { now: () => new Date('2026-01-03T00:00:00.000Z') } as Clock,
+      repository,
+      {} as CreateProject,
+    );
+    await expect(app.get(ownedRecord.id, {})).resolves.toMatchObject({ id: ownedRecord.id, deletionEligible: eligible });
+  });
+
   it('restarts a serialization failure and re-runs authentication with it', async () => {
     const accounts = new FlakyAccounts(2, serialization);
     await expect(service(accounts).list({}, {})).resolves.toEqual({

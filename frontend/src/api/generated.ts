@@ -533,6 +533,31 @@ export interface components {
         ProjectMonthsResponseDto: {
             data: components["schemas"]["ProjectMonthsDataDto"];
         };
+        ProjectDetailDataDto: {
+            /** Format: uuid */
+            id: string;
+            /** @description Trimmed, NFC-normalised, counted in graphemes by the backend. */
+            title: string;
+            year: number;
+            /** @description Who the calendar is for. */
+            recipientName: string;
+            /** @enum {string} */
+            status: "WORKING" | "ARCHIVED";
+            /** @description ETag value; advances on every change. */
+            version: number;
+            /** @description Must be a preset approved by the captured template revision. */
+            stylePresetId: string;
+            baseline: components["schemas"]["ProjectBaselineDto"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description Whether the Project has never been ordered and is currently eligible for permanent deletion. */
+            deletionEligible: boolean;
+        };
+        ProjectDetailResponseDto: {
+            data: components["schemas"]["ProjectDetailDataDto"];
+        };
         ProjectPatchDto: {
             /** @description Trimmed, NFC-normalised, counted in graphemes by the backend. */
             title?: string;
@@ -2283,7 +2308,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectResponseDto"];
+                    "application/json": components["schemas"]["ProjectDetailResponseDto"];
                 };
             };
             401: {

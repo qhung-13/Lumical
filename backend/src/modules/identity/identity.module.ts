@@ -13,5 +13,5 @@ import { AuthAbuseProtection, IdentitySecrets, ScryptPasswordHash, SystemClock }
     { provide: ActiveAccounts, useExisting: IdentityService },
     { provide: AuthAttempts, useExisting: AuthAbuseProtection }, { provide: Clock, useClass: SystemClock },
     { provide: PasswordHash, useClass: ScryptPasswordHash }, { provide: IdentityRepository, useClass: PrismaIdentityRepository }],
-  exports: [ActiveAccounts, IdentityPolicy] })
+  exports: [ActiveAccounts, Clock, IdentityPolicy] })
 export class IdentityModule {}

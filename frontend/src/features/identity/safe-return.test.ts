@@ -6,13 +6,14 @@ describe('safe auth return context', () => {
   it('preserves only the supported local account destination and template UUID', () => {
     expect(safeReturnTo(`/account?templateId=${id}`)).toBe(`/account?templateId=${id}`);
     expect(safeReturnTo('/account')).toBe('/account');
+    expect(safeReturnTo(`/projects/${id}`)).toBe(`/projects/${id}`);
     expect(safeTemplateId(id)).toBe(id);
     expect(safeTemplateId('not-a-uuid')).toBeUndefined();
     expect(singleSearchParam(id)).toBe(id);
     expect(singleSearchParam([id, id])).toBeUndefined();
   });
   it('rejects external, unsupported, ambiguous and malformed destinations', () => {
-    for (const value of ['https://evil.invalid', '//evil.invalid/account', '/projects', '/account#section', `/account?templateId=${id}&next=https://evil.invalid`, `/account?templateId=${id}&templateId=${id}`, '/account?templateId=bad', '/account\\@evil.invalid']) {
+    for (const value of ['https://evil.invalid', '//evil.invalid/account', '/projects', `/projects/${id}?next=/`, '/account#section', `/account?templateId=${id}&next=https://evil.invalid`, `/account?templateId=${id}&templateId=${id}`, '/account?templateId=bad', '/account\\@evil.invalid']) {
       expect(safeReturnTo(value)).toBe('/account');
     }
     expect(safeReturnTo(null)).toBe('/account');

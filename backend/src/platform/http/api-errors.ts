@@ -1,7 +1,22 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { Response } from 'express';
+import { ProjectError } from '../../modules/calendar-projects/domain/project';
 import { IdentityError } from '../../modules/identity/domain/identity';
 import { TemplateAdminError } from '../../modules/templates/domain/template-admin';
+
+// ProjectError names only its code, so the transport owns the mapping to the
+// status and stable message key of API contract §9.
+const PROJECT_ERROR = {
+  UNAUTHENTICATED: { status: 401, messageKey: 'errors.unauthenticated' },
+  NOT_FOUND: { status: 404, messageKey: 'errors.notFound' },
+  IDEMPOTENCY_CONFLICT: { status: 409, messageKey: 'errors.idempotencyConflict' },
+  PROJECT_HAS_ORDERS: { status: 409, messageKey: 'errors.projectHasOrders' },
+  INVALID_TRANSITION: { status: 409, messageKey: 'errors.invalidTransition' },
+  TEMPLATE_UNAVAILABLE: { status: 409, messageKey: 'errors.templateUnavailable' },
+  VERSION_CONFLICT: { status: 412, messageKey: 'errors.versionConflict' },
+  VALIDATION_FAILED: { status: 422, messageKey: 'errors.validation' },
+  PRECONDITION_REQUIRED: { status: 428, messageKey: 'errors.preconditionRequired' },
+} as const satisfies Record<string, { status: number; messageKey: string }>;
 
 @Catch()
 export class ApiErrors implements ExceptionFilter {
@@ -23,14 +38,17 @@ export class ApiErrors implements ExceptionFilter {
         ('received' in error && typeof error.received === 'number' && Number.isSafeInteger(error.received) && error.received > error.limit));
     // Both error vocabularies describe safe, non-retryable operational outcomes and must keep
     // their status instead of degrading to a 500.
-    const managed = error instanceof IdentityError || error instanceof TemplateAdminError;
-    const status = managed ? error.status : oversized ? 413 : parseFailure ? 422 : error instanceof HttpException ? (error.getStatus() === 400 ? 422 : error.getStatus()) : 500;
-    const code = managed ? error.code : status === 404 ? 'NOT_FOUND' : status === 413 || status === 422 ? 'VALIDATION_FAILED' : 'INTERNAL_ERROR';
+    const project = error instanceof ProjectError ? error : undefined;
+    const legacy = error instanceof IdentityError || error instanceof TemplateAdminError ? error : undefined;
+    const managed = project ?? legacy;
+    const status = project ? PROJECT_ERROR[project.code].status : legacy ? legacy.status : oversized ? 413 : parseFailure ? 422 : error instanceof HttpException ? (error.getStatus() === 400 ? 422 : error.getStatus()) : 500;
+    const code = project ? project.code : legacy ? legacy.code : status === 404 ? 'NOT_FOUND' : status === 413 || status === 422 ? 'VALIDATION_FAILED' : 'INTERNAL_ERROR';
+    const messageKey = project ? PROJECT_ERROR[project.code].messageKey : legacy ? legacy.messageKey : status === 404 ? 'errors.notFound' : status === 413 || status === 422 ? 'errors.validation' : 'errors.unavailable';
     const requestId = String(response.getHeader('X-Request-Id'));
     if (status >= 500 || [401, 403, 409, 412, 429].includes(status)) this.logger.warn(JSON.stringify({ requestId, code, status }));
-    response.status(status).json({ error: { code, messageKey: managed ? error.messageKey : status === 404 ? 'errors.notFound' : status === 413 || status === 422 ? 'errors.validation' : 'errors.unavailable',
+    response.status(status).json({ error: { code, messageKey,
       requestId, retryable: status >= 500 || status === 429,
-      ...(managed && error.currentVersion ? { currentVersion: error.currentVersion } : {}),
-      fieldErrors: managed && error.field ? [{ path: error.field, code: 'INVALID', messageKey: `validation.${error.field}` }] : [] } });
+      ...(managed?.currentVersion ? { currentVersion: managed.currentVersion } : {}),
+      fieldErrors: managed?.field ? [{ path: managed.field, code: 'INVALID', messageKey: `validation.${managed.field}` }] : [] } });
   }
 }

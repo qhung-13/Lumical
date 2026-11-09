@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // I00 excludes automatically generated agent instruction files.
   agentRules: false,
+  // Personal media use authenticated backend streams; disable the shared optimizer.
+  images: {
+    unoptimized: true,
+    localPatterns: [],
+    remotePatterns: [],
+  },
   // Development HTTP proxy only; Compose/deployed traffic uses the separate gateway.
   async rewrites() {
     if (process.env.NODE_ENV !== 'development') return [];

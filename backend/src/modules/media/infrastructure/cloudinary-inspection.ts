@@ -106,13 +106,15 @@ export function inspectCloudinaryResource(
     typeof data.format === 'string' ? mime[category][data.format] : undefined;
   if (!contentType || typeof data.bytes !== 'number')
     return rejected('INVALID_CONTENT');
+  if (typeof data.etag !== 'string' || !/^[a-f0-9]{32}$/i.test(data.etag))
+    return rejected('INVALID_CONTENT');
   const duration = category === 'IMAGE' ? null : data.duration;
   if (duration !== null && typeof duration !== 'number')
     return rejected('INVALID_CONTENT');
   const facts: VerifiedMediaFacts = {
     object: {
       binding,
-      storageKey: `${data.resource_type}/authenticated/${key}`,
+      storageKey: `${data.resource_type}/authenticated/${key}#${data.format as string}:${data.etag.toLowerCase()}`,
       contentVersion: String(data.version),
     },
     category,

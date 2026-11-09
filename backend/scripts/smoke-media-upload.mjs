@@ -9,6 +9,9 @@ const {
   CloudinaryInspection,
 } = require('../dist/modules/media/infrastructure/cloudinary-inspection.js');
 const { assessReadiness } = require('../dist/modules/media/domain/media.js');
+const {
+  CloudinaryContent,
+} = require('../dist/modules/media/infrastructure/cloudinary-content.js');
 const config = [
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
@@ -82,6 +85,77 @@ try {
   assert.equal(inspected.facts.bytes, object.bytes);
   assert.equal(inspected.facts.object.contentVersion, String(object.version));
   assert.equal(inspected.facts.contentType, 'image/png');
+  const storage = new CloudinaryContent(new CloudinaryInspection());
+  const contentRequest = {
+    object: inspected.facts.object,
+    access: {
+      kind: 'OWNER',
+      actorId: result.intent.binding.ownerId,
+      ownerId: result.intent.binding.ownerId,
+    },
+    method: 'GET',
+    rendition: 'ORIGINAL',
+  };
+  const abort = new AbortController();
+  try {
+    let original;
+    for (const range of [
+      undefined,
+      { kind: 'CLOSED', start: 0, end: 3 },
+      { kind: 'OPEN', start: 4 },
+      { kind: 'SUFFIX', length: 4 },
+    ]) {
+      const content = await storage.fetch(
+        { ...contentRequest, range },
+        abort.signal,
+      );
+      assert.equal(
+        content.kind,
+        'CONTENT',
+        'Pinned private original/range must stream through the adapter',
+      );
+      assert.equal(content.status, range ? 206 : 200);
+      const chunks = [];
+      for await (const chunk of content.body) chunks.push(chunk);
+      const bytes = Buffer.concat(chunks);
+      assert.equal(bytes.length, content.contentLength);
+      if (!range) original = bytes;
+      else
+        assert.deepEqual(
+          bytes,
+          original.subarray(
+            content.contentRange.start,
+            content.contentRange.end + 1,
+          ),
+        );
+    }
+    const head = await storage.fetch(
+      { ...contentRequest, method: 'HEAD' },
+      abort.signal,
+    );
+    assert.equal(head.kind, 'CONTENT');
+    assert.equal(head.body, undefined);
+    assert.equal(head.contentLength, object.bytes);
+    const wrongVersion = await storage.fetch(
+      {
+        ...contentRequest,
+        object: { ...contentRequest.object, contentVersion: '1' },
+      },
+      abort.signal,
+    );
+    assert.equal(wrongVersion.kind, 'REJECTED', 'No latest-version fallback');
+    const anonymous = await fetch(
+      `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/authenticated/v${object.version}/${fields.public_id}.png`,
+      { redirect: 'manual', signal: AbortSignal.timeout(10000) },
+    );
+    await anonymous.body?.cancel();
+    assert.ok(
+      [401, 403, 404].includes(anonymous.status),
+      'Anonymous original must remain denied after signed streaming',
+    );
+  } finally {
+    abort.abort();
+  }
   const second = await upload();
   const replay = await second.json();
   assert.ok(
@@ -90,7 +164,7 @@ try {
   );
   if (second.ok) assert.equal(replay.version, object.version);
   console.log(
-    'PASS: configured Cloudinary synthetic private intake, overwrite protection and independently inspected P03 readiness; P07 privacy acceptance remains separate.',
+    'PASS: configured Cloudinary intake/readiness, pinned GET/HEAD/ranges, anonymous original denial and overwrite protection; P07 prepared derivative acceptance remains separate.',
   );
 } finally {
   if (attempted) {

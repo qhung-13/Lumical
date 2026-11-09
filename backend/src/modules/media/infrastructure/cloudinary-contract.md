@@ -1,6 +1,6 @@
 # Cloudinary private adapter contract (I06-P01)
 
-Implementation contract for P02-P04; no live adapter or endpoint is registered by P01.
+Implementation contract for P02-P04; P02 registers upload intake only.
 Authority: ARCHITECTURE section 11, BR-MED-001..006, API_CONTRACT media rows.
 LEAD security review remains pending; this document does not constitute approval.
 
@@ -33,3 +33,29 @@ LEAD security review remains pending; this document does not constitute approval
 - Policy uses decimal MB (1 MB = 1,000,000 bytes), conservatively bounded. Initial formats are
   JPEG/PNG/WebP, MP4/WebM video, MPEG/MP4/Ogg/WAV/WebM audio; active content is excluded.
   Expanding formats requires trusted inspection and security review.
+
+P02 configuration and provider limitations:
+
+- Configure backend-only `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
+  `CLOUDINARY_API_SECRET` and `CLOUDINARY_UPLOAD_PRESET_IMAGE/VIDEO/AUDIO`.
+  Each preset must be signed, minimal, with category `allowed_formats`; hidden
+  transformations, eval hooks, folders, delivery/access overrides are rejected.
+- Signature SHA-256 covers the fixed public ID, authenticated delivery type,
+  overwrite=false, exact formats and owner/asset/intent context. Endpoint is built
+  from an allowlisted cloud name, never supplied by the caller. The public API key
+  identifies the account; the API secret and delivery signatures remain internal.
+- Cloudinary enforces a one-hour signature lifetime, not a caller-supplied short
+  expires_at. Intake returns that actual expiry, anchored to asset creation;
+  retries never extend it or create another asset. Expired/closed intents return
+  conflict; deliberate new uploads use a new idempotency key.
+- Cloudinary presets do not support per-preset byte limits. Declared bytes and
+  optional duration are validated here; actual category/bytes/duration remain
+  untrusted until P03 inspection. P02 never marks an asset Ready. Strict byte caps
+  before provider storage would require an approved bounded upload gateway;
+  direct-upload signatures alone cannot provide that guarantee.
+- Official references: https://cloudinary.com/documentation/authentication_signatures
+  and https://cloudinary.com/documentation/upload_presets .
+- `test:media-upload` exercises real-DB/API initiation with a deterministic upload
+  fake. `test:media-upload:smoke` uses configured Cloudinary with a synthetic PNG,
+  verifies overwrite rejection, and deletes only that run's fixed object. It is
+  not P07 account/derivative privacy acceptance.

@@ -3,8 +3,9 @@ import { CalendarProjectsModule } from './modules/calendar-projects/calendar-pro
 import { HealthModule } from './modules/health/health.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { MediaModule } from './modules/media/media.module';
 
 @Module({
-  imports: [HealthModule, IdentityModule, TemplatesModule, CalendarProjectsModule],
+  imports: [HealthModule, IdentityModule, TemplatesModule, CalendarProjectsModule, MediaModule],
 })
 export class AppModule {}

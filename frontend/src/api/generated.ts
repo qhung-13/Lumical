@@ -306,6 +306,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/media/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reserve one owned Pending asset and authorize a non-overwriting private upload. */
+        post: operations["initiateMediaUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -568,6 +585,34 @@ export interface components {
         };
         ProjectDeleteDto: {
             confirmed: boolean;
+        };
+        UploadCreateDto: {
+            /** @enum {string} */
+            category: "IMAGE" | "VIDEO" | "AUDIO";
+            fileName: string;
+            /** @description Declared bytes: image <=10 MB, video <=100 MB, audio <=20 MB. Trusted verification follows at finalization. */
+            declaredBytes: number;
+            declaredDurationSeconds?: number;
+        };
+        UploadFieldsDto: {
+            /**
+             * Format: uri
+             * @description Exact private Cloudinary upload endpoint; never a delivery URL.
+             */
+            url: string;
+            fields: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        UploadIntentDto: {
+            /** Format: uuid */
+            assetId: string;
+            upload: components["schemas"]["UploadFieldsDto"];
+        };
+        UploadResponseDto: {
+            data: components["schemas"]["UploadIntentDto"];
         };
     };
     responses: never;
@@ -2766,6 +2811,73 @@ export interface operations {
                 };
             };
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    initiateMediaUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResponseDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

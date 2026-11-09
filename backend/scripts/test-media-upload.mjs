@@ -15,6 +15,9 @@ const { configureApp } = require('../dist/config/configure-app.js');
 const {
   UploadAuthorization,
 } = require('../dist/modules/media/application/upload-intake.js');
+const {
+  MediaInspection,
+} = require('../dist/modules/media/application/finalize-media.js');
 const backend = fileURLToPath(new URL('..', import.meta.url));
 const originalEnv = { ...process.env };
 const origin = 'https://lumical.test';
@@ -46,6 +49,28 @@ try {
     await db.connect();
     let failing = false;
     let calls = 0;
+    let inspections = 0;
+    const verified = (binding, category = 'IMAGE') => ({
+      kind: 'VERIFIED',
+      facts: {
+        object: {
+          binding,
+          storageKey: `${category === 'IMAGE' ? 'image' : 'video'}/authenticated/lumical/${binding.ownerId}/${binding.assetId}/${binding.uploadIntentId}`,
+          contentVersion: '1794200000',
+        },
+        category,
+        contentType: {
+          IMAGE: 'image/png',
+          VIDEO: 'video/mp4',
+          AUDIO: 'audio/mpeg',
+        }[category],
+        bytes: 67,
+        durationSeconds: category === 'IMAGE' ? null : 60,
+        privateOriginal: true,
+        privateDerivatives: true,
+      },
+    });
+    let inspectResult = async (binding) => verified(binding);
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(UploadAuthorization)
       .useValue({
@@ -60,6 +85,13 @@ try {
               fields: { signature: 'synthetic', overwrite: 'false' },
             },
           };
+        },
+      })
+      .overrideProvider(MediaInspection)
+      .useValue({
+        inspect: async (binding) => {
+          inspections++;
+          return inspectResult(binding);
         },
       })
       .compile();
@@ -173,6 +205,285 @@ try {
       failing = false;
       const retried = await upload(owner, retryKey).expect(201);
       assert.equal(retried.body.data.assetId, failed.resource_id);
+
+      const finalize = (
+        actor,
+        id,
+        key = randomUUID(),
+        input = { uploadCompleted: true },
+      ) =>
+        api()
+          .post(`/api/v1/media/${id}/finalize`)
+          .set('Origin', origin)
+          .set('Cookie', actor.cookie)
+          .set('X-CSRF-Token', actor.csrf)
+          .set('Idempotency-Key', key)
+          .send(input);
+      const fresh = async (category = 'IMAGE') =>
+        (await upload(owner, randomUUID(), { ...body, category }).expect(201))
+          .body.data.assetId;
+      const finalId = await fresh();
+      const finalKey = randomUUID();
+      await finalize(other, finalId).expect(404);
+      await finalize(other, randomUUID()).expect(404);
+      await finalize(owner, finalId, finalKey, {
+        uploadCompleted: true,
+        verifiedBytes: 1,
+      }).expect(422);
+      await finalize({ ...owner, csrf: 'wrong' }, finalId).expect(403);
+      assert.equal(
+        inspections,
+        0,
+        'Access and input validation precede provider calls',
+      );
+      inspectResult = async () => ({ kind: 'PENDING' });
+      const pending = await finalize(owner, finalId, finalKey)
+        .expect(202)
+        .expect('Cache-Control', 'no-store');
+      assert.deepEqual(pending.body.data, {
+        assetId: finalId,
+        status: 'PENDING',
+      });
+      inspectResult = async () => ({ kind: 'UNAVAILABLE', retryable: true });
+      await finalize(owner, finalId, finalKey).expect(503);
+      assert.equal(
+        (
+          await db.query(
+            'SELECT status FROM lumical.media_assets WHERE id=$1',
+            [finalId],
+          )
+        ).rows[0].status,
+        'PENDING',
+      );
+      inspectResult = async (binding) => verified(binding);
+      const ready = await finalize(owner, finalId, finalKey).expect(200);
+      assert.deepEqual(ready.body.data, {
+        id: finalId,
+        category: 'IMAGE',
+        status: 'READY',
+        verifiedBytes: 67,
+      });
+      const persisted = (
+        await db.query('SELECT * FROM lumical.media_assets WHERE id=$1', [
+          finalId,
+        ])
+      ).rows[0];
+      assert.equal(persisted.content_version, 1794200000);
+      assert.equal(persisted.content_type, 'image/png');
+      assert.ok(persisted.verified_at);
+      const oldInspections = inspections;
+      assert.deepEqual(
+        (await finalize(owner, finalId, finalKey).expect(200)).body,
+        ready.body,
+      );
+      assert.equal(
+        inspections,
+        oldInspections,
+        'Ready replay does not fetch a newer provider object',
+      );
+      await finalize(owner, await fresh(), finalKey).expect(409);
+      assert.equal(
+        JSON.stringify(ready.body).match(
+          /ownerId|storageKey|storageReference|contentVersion|cloudinary|https:/,
+        ),
+        null,
+      );
+
+      // T23: all requests inspect concurrently, then serialize one readiness transition.
+      const concurrentId = await fresh();
+      let arrivals = 0;
+      let release;
+      const gate = new Promise((resolve) => {
+        release = resolve;
+      });
+      const timer = setTimeout(() => release(), 10000);
+      inspectResult = async (binding) => {
+        if (++arrivals === 4) release();
+        await gate;
+        return verified(binding);
+      };
+      try {
+        const key = randomUUID();
+        const results = await Promise.all(
+          Array.from({ length: 4 }, () =>
+            finalize(owner, concurrentId, key).expect(200),
+          ),
+        );
+        for (const result of results)
+          assert.deepEqual(result.body, results[0].body);
+        assert.equal(arrivals, 4);
+        assert.equal(
+          (
+            await db.query(
+              "SELECT count(*) FROM lumical.idempotency_records WHERE operation='FINALIZE_MEDIA_UPLOAD' AND resource_id=$1",
+              [concurrentId],
+            )
+          ).rows[0].count,
+          '1',
+        );
+        const row = (
+          await db.query('SELECT * FROM lumical.media_assets WHERE id=$1', [
+            concurrentId,
+          ])
+        ).rows[0];
+        assert.equal(row.content_version, 1794200000);
+        assert.equal(row.verified_bytes, 67);
+        assert.ok(row.verified_at);
+      } finally {
+        clearTimeout(timer);
+      }
+
+      // Different idempotency keys still finalize one immutable asset.
+      inspectResult = async (binding) => verified(binding);
+      const differentKeysId = await fresh();
+      const differentKeys = await Promise.all(
+        Array.from({ length: 3 }, () =>
+          finalize(owner, differentKeysId).expect(200),
+        ),
+      );
+      for (const result of differentKeys)
+        assert.deepEqual(result.body, differentKeys[0].body);
+      for (const category of ['VIDEO', 'AUDIO']) {
+        inspectResult = async (binding) => verified(binding, category);
+        const timed = await finalize(owner, await fresh(category)).expect(200);
+        assert.equal(timed.body.data.category, category);
+        assert.equal(timed.body.data.durationSeconds, 60);
+      }
+      const invalidCases = [
+        (facts) => ({ ...facts, bytes: 10_000_001 }),
+        (facts) => ({ ...facts, bytes: -1 }),
+        (facts) => ({ ...facts, contentType: 'image/svg+xml' }),
+        (facts) => ({ ...facts, privateOriginal: false }),
+        (facts) => ({ ...facts, privateDerivatives: false }),
+        (facts) => ({
+          ...facts,
+          object: {
+            ...facts.object,
+            binding: { ...facts.object.binding, ownerId: other.id },
+          },
+        }),
+        (facts) => ({
+          ...facts,
+          object: { ...facts.object, contentVersion: 'bad' },
+        }),
+        (facts) => ({
+          ...facts,
+          category: 'VIDEO',
+          contentType: 'video/mp4',
+          durationSeconds: 61,
+        }),
+      ];
+      for (const change of invalidCases) {
+        const badId = await fresh();
+        inspectResult = async (binding) => ({
+          kind: 'VERIFIED',
+          facts: change(verified(binding).facts),
+        });
+        const key = randomUUID();
+        await finalize(owner, badId, key).expect(422);
+        const row = (
+          await db.query(
+            'SELECT status,verified_at,storage_reference FROM lumical.media_assets WHERE id=$1',
+            [badId],
+          )
+        ).rows[0];
+        assert.deepEqual(row, {
+          status: 'UNAVAILABLE',
+          verified_at: null,
+          storage_reference: null,
+        });
+        inspectResult = async (binding) => verified(binding);
+        await finalize(owner, badId, key).expect(422);
+      }
+      const collisionId = await fresh();
+      inspectResult = async () => ({ kind: 'REJECTED', reason: 'CONFLICT' });
+      const collisionKey = randomUUID();
+      await finalize(owner, collisionId, collisionKey).expect(409);
+      await finalize(owner, collisionId, collisionKey).expect(409);
+      for (const category of ['VIDEO', 'AUDIO']) {
+        for (const patch of [
+          { durationSeconds: 60.001 },
+          { bytes: category === 'VIDEO' ? 100_000_001 : 20_000_001 },
+        ]) {
+          const badId = await fresh(category);
+          inspectResult = async (binding) => ({
+            kind: 'VERIFIED',
+            facts: { ...verified(binding, category).facts, ...patch },
+          });
+          await finalize(owner, badId).expect(422);
+          assert.equal(
+            (
+              await db.query(
+                'SELECT status FROM lumical.media_assets WHERE id=$1',
+                [badId],
+              )
+            ).rows[0].status,
+            'UNAVAILABLE',
+          );
+        }
+      }
+      // A slow rejected inspection cannot demote a Ready result committed by another worker.
+      const slowId = await fresh();
+      let started;
+      let resume;
+      const slowStarted = new Promise((resolve) => {
+        started = resolve;
+      });
+      const slowGate = new Promise((resolve) => {
+        resume = resolve;
+      });
+      let worker = 0;
+      inspectResult = async (binding) => {
+        if (++worker === 1) {
+          started();
+          await slowGate;
+          return { kind: 'REJECTED', reason: 'INVALID_CONTENT' };
+        }
+        return verified(binding);
+      };
+      const slow = finalize(owner, slowId).then((result) => result);
+      const slowTimer = setTimeout(() => {
+        started();
+        resume();
+      }, 10000);
+      try {
+        await slowStarted;
+        const accepted = await finalize(owner, slowId).expect(200);
+        resume();
+        const late = await slow;
+        assert.equal(late.status, 200);
+        assert.deepEqual(late.body, accepted.body);
+      } finally {
+        resume();
+        clearTimeout(slowTimer);
+        await slow;
+      }
+      // The second authorization observes account disablement during external I/O.
+      const disabledId = await fresh();
+      inspectResult = async (binding) => {
+        await db.query(
+          "UPDATE lumical.users SET status='DISABLED' WHERE id=$1",
+          [owner.id],
+        );
+        return verified(binding);
+      };
+      await finalize(owner, disabledId).expect(401);
+      assert.equal(
+        (
+          await db.query(
+            'SELECT status FROM lumical.media_assets WHERE id=$1',
+            [disabledId],
+          )
+        ).rows[0].status,
+        'PENDING',
+      );
+      await db.query("UPDATE lumical.users SET status='ACTIVE' WHERE id=$1", [
+        owner.id,
+      ]);
+      console.log(
+        'PASS: T23 trusted finalization, real-DB concurrent duplicate handling, limits, binding, immutable replay, provider uncertainty and account disable race.',
+      );
+
       await db.query(
         "UPDATE lumical.media_assets SET created_at=created_at-interval '2 hours' WHERE id=$1",
         [failed.resource_id],

@@ -11,6 +11,22 @@ import type { MediaCategory } from '../domain/media';
 
 const operation = 'INITIATE_MEDIA_UPLOAD';
 
+export function retryableMediaTransaction(error: unknown): boolean {
+  const e = error as {
+    code?: string;
+    meta?: {
+      code?: string;
+      driverAdapterError?: { cause?: { originalCode?: string } };
+    };
+  } | null;
+  const sql = e?.meta?.code ?? e?.meta?.driverAdapterError?.cause?.originalCode;
+  return (
+    e?.code === 'P2002' ||
+    e?.code === 'P2034' ||
+    (e?.code === 'P2010' && (sql === '40001' || sql === '40P01'))
+  );
+}
+
 @Injectable()
 export class PrismaUploadIntents extends UploadIntents {
   constructor(
@@ -74,19 +90,6 @@ export class PrismaUploadIntents extends UploadIntents {
     };
   }
   isRetryable(error: unknown): boolean {
-    const e = error as {
-      code?: string;
-      meta?: {
-        code?: string;
-        driverAdapterError?: { cause?: { originalCode?: string } };
-      };
-    } | null;
-    const sql =
-      e?.meta?.code ?? e?.meta?.driverAdapterError?.cause?.originalCode;
-    return (
-      e?.code === 'P2002' ||
-      e?.code === 'P2034' ||
-      (e?.code === 'P2010' && (sql === '40001' || sql === '40P01'))
-    );
+    return retryableMediaTransaction(error);
   }
 }

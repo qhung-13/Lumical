@@ -323,6 +323,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/media/{id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Independently verify an owned upload and pin immutable Ready media. */
+        post: operations["finalizeMediaUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -613,6 +630,35 @@ export interface components {
         };
         UploadResponseDto: {
             data: components["schemas"]["UploadIntentDto"];
+        };
+        MediaFinalizeDto: {
+            /**
+             * @description Upload completion hint only; all facts are verified independently.
+             * @enum {boolean}
+             */
+            uploadCompleted: true;
+        };
+        FinalizedMediaDto: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            category: "IMAGE" | "VIDEO" | "AUDIO";
+            /** @enum {string} */
+            status: "READY";
+            verifiedBytes: number;
+            durationSeconds?: number;
+        };
+        FinalizedMediaResponseDto: {
+            data: components["schemas"]["FinalizedMediaDto"];
+        };
+        PendingMediaDto: {
+            /** Format: uuid */
+            assetId: string;
+            /** @enum {string} */
+            status: "PENDING";
+        };
+        PendingMediaResponseDto: {
+            data: components["schemas"]["PendingMediaDto"];
         };
     };
     responses: never;
@@ -2862,6 +2908,91 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    finalizeMediaUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                Origin: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaFinalizeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinalizedMediaResponseDto"];
+                };
+            };
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingMediaResponseDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

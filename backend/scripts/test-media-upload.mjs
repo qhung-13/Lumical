@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { get as getHttp } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import request from 'supertest';
@@ -18,6 +19,12 @@ const {
 const {
   MediaInspection,
 } = require('../dist/modules/media/application/finalize-media.js');
+const {
+  MediaContent,
+} = require('../dist/modules/media/application/owner-media.js');
+const {
+  resolveMediaRange,
+} = require('../dist/modules/media/application/media-range.js');
 const backend = fileURLToPath(new URL('..', import.meta.url));
 const originalEnv = { ...process.env };
 const origin = 'https://lumical.test';
@@ -50,6 +57,10 @@ try {
     let failing = false;
     let calls = 0;
     let inspections = 0;
+    let fetches = 0;
+    let fetchResult;
+    let lastFetch;
+    const privateBytes = Buffer.alloc(67, 42);
     const verified = (binding, category = 'IMAGE') => ({
       kind: 'VERIFIED',
       facts: {
@@ -92,6 +103,35 @@ try {
         inspect: async (binding) => {
           inspections++;
           return inspectResult(binding);
+        },
+      })
+      .overrideProvider(MediaContent)
+      .useValue({
+        fetch: async (input, signal) => {
+          fetches++;
+          lastFetch = input;
+          if (fetchResult) return fetchResult(input, signal);
+          const range = input.range
+            ? resolveMediaRange(input.range, privateBytes.length)
+            : undefined;
+          const bytes = range
+            ? privateBytes.subarray(range.start, range.end + 1)
+            : privateBytes;
+          return {
+            kind: 'CONTENT',
+            status: range ? 206 : 200,
+            contentType: 'image/png',
+            contentLength: bytes.length,
+            totalBytes: privateBytes.length,
+            ...(range ? { contentRange: range } : {}),
+            ...(input.method === 'HEAD'
+              ? {}
+              : {
+                  body: (async function* () {
+                    yield bytes;
+                  })(),
+                }),
+          };
         },
       })
       .compile();
@@ -287,6 +327,211 @@ try {
           /ownerId|storageKey|storageReference|contentVersion|cloudinary|https:/,
         ),
         null,
+      );
+
+      const statusOf = (actor, id) =>
+        api().get(`/api/v1/media/${id}`).set('Cookie', actor.cookie);
+      const contentOf = (actor, id, method = 'get', range) => {
+        const req = api()
+          [method](`/api/v1/media/${id}/content`)
+          .set('Cookie', actor.cookie);
+        return range === undefined ? req : req.set('Range', range);
+      };
+      const status = await statusOf(owner, finalId)
+        .expect(200)
+        .expect('Cache-Control', 'private, no-store');
+      assert.deepEqual(status.body.data, {
+        ...ready.body.data,
+        contentPath: `/api/v1/media/${finalId}/content`,
+      });
+      const pendingId = await fresh();
+      assert.equal(
+        (await statusOf(owner, pendingId).expect(200)).body.data.contentPath,
+        undefined,
+      );
+      await contentOf(owner, pendingId).expect(409);
+      const beforeDenied = fetches;
+      await api().get(`/api/v1/media/${finalId}/content`).expect(401);
+      await statusOf(other, finalId).expect(404);
+      for (const method of ['get', 'head']) {
+        await contentOf(other, finalId, method, 'bytes=0-1')
+          .expect(404)
+          .expect('Cache-Control', 'private, no-store');
+        await contentOf(other, randomUUID(), method, 'bytes=0-1').expect(404);
+        await contentOf(other, finalId, method, 'bytes=999-').expect(404);
+      }
+      assert.equal(
+        fetches,
+        beforeDenied,
+        'GET/HEAD/range denial must precede storage access',
+      );
+      const original = await contentOf(owner, finalId)
+        .expect(200)
+        .expect('Content-Type', 'image/png')
+        .expect('Content-Length', '67')
+        .expect('Cache-Control', 'private, no-store')
+        .expect('X-Content-Type-Options', 'nosniff')
+        .expect('Accept-Ranges', 'bytes');
+      assert.deepEqual(original.body, privateBytes);
+      assert.equal(original.headers.location, undefined);
+      assert.equal(original.headers.etag, undefined);
+      assert.deepEqual(lastFetch.access, {
+        kind: 'OWNER',
+        actorId: owner.id,
+        ownerId: owner.id,
+      });
+      for (const [range, start, end] of [
+        ['bytes=0-3', 0, 3],
+        ['bytes=63-', 63, 66],
+        ['bytes=-4', 63, 66],
+        ['bytes=65-100', 65, 66],
+      ]) {
+        const partial = await contentOf(owner, finalId, 'get', range)
+          .expect(206)
+          .expect('Content-Range', `bytes ${start}-${end}/67`)
+          .expect('Content-Length', String(end - start + 1));
+        assert.deepEqual(partial.body, privateBytes.subarray(start, end + 1));
+      }
+      const head = await contentOf(owner, finalId, 'head')
+        .expect(200)
+        .expect('Content-Length', '67');
+      assert.equal(head.text, undefined);
+      const partialHead = await contentOf(owner, finalId, 'head', 'bytes=0-3')
+        .expect(206)
+        .expect('Content-Length', '4')
+        .expect('Content-Range', 'bytes 0-3/67');
+      assert.equal(partialHead.text, undefined);
+      const beforeInvalidRange = fetches;
+      await contentOf(owner, finalId, 'get', 'bytes=0-3')
+        .set('If-Range', '"unknown-validator"')
+        .expect(200)
+        .expect('Content-Length', '67');
+      const beforeMalformedRange = fetches;
+      for (const range of [
+        'bytes=67-',
+        'bytes=0-1,3-4',
+        'bytes=-0',
+        'bytes=9007199254740992-',
+      ])
+        await contentOf(owner, finalId, 'get', range)
+          .expect(416)
+          .expect('Content-Range', 'bytes */67');
+      assert.equal(fetches, beforeMalformedRange);
+      assert.equal(beforeMalformedRange, beforeInvalidRange + 1);
+      fetchResult = async () => ({ kind: 'UNAVAILABLE', retryable: true });
+      await contentOf(owner, finalId).expect(503);
+      fetchResult = async () => ({ kind: 'NOT_FOUND' });
+      await contentOf(owner, finalId).expect(409);
+      fetchResult = async () => ({
+        kind: 'CONTENT',
+        status: 200,
+        contentType: 'text/html',
+        contentLength: 67,
+        totalBytes: 67,
+        body: (async function* () {
+          yield privateBytes;
+        })(),
+      });
+      await contentOf(owner, finalId).expect(503);
+      fetchResult = async () => {
+        await db.query(
+          "UPDATE lumical.users SET status='DISABLED' WHERE id=$1",
+          [owner.id],
+        );
+        return {
+          kind: 'CONTENT',
+          status: 200,
+          contentType: 'image/png',
+          contentLength: 67,
+          totalBytes: 67,
+          body: (async function* () {
+            yield privateBytes;
+          })(),
+        };
+      };
+      await contentOf(owner, finalId).expect(401);
+      await db.query("UPDATE lumical.users SET status='ACTIVE' WHERE id=$1", [
+        owner.id,
+      ]);
+      fetchResult = undefined;
+      // Logout revokes the same cookie for each new full/ranged/HEAD request.
+      const revoked = await account('stream-revoked@example.invalid');
+      const revokedId = (await upload(revoked, randomUUID()).expect(201)).body
+        .data.assetId;
+      await finalize(revoked, revokedId).expect(200);
+      await api()
+        .delete('/api/v1/auth/session')
+        .set('Origin', origin)
+        .set('Cookie', revoked.cookie)
+        .set('X-CSRF-Token', revoked.csrf)
+        .expect(204);
+      const beforeRevoked = fetches;
+      for (const method of ['get', 'head'])
+        await contentOf(revoked, revokedId, method, 'bytes=0-1').expect(401);
+      assert.equal(fetches, beforeRevoked);
+      // A client disconnect must abort upstream work and return its iterator.
+      let abortSeen = false;
+      let stopped;
+      const upstreamStopped = new Promise((resolve) => {
+        stopped = resolve;
+      });
+      fetchResult = async (_input, signal) => {
+        const aborted = new Promise((resolve) =>
+          signal.addEventListener(
+            'abort',
+            () => {
+              abortSeen = true;
+              resolve();
+            },
+            { once: true },
+          ),
+        );
+        return {
+          kind: 'CONTENT',
+          status: 200,
+          contentType: 'image/png',
+          contentLength: 67,
+          totalBytes: 67,
+          body: (async function* () {
+            try {
+              yield privateBytes.subarray(0, 1);
+              await aborted;
+            } finally {
+              stopped();
+            }
+          })(),
+        };
+      };
+      await app.listen(0, '127.0.0.1');
+      const address = app.getHttpServer().address();
+      const client = getHttp(
+        `http://127.0.0.1:${address.port}/api/v1/media/${finalId}/content`,
+        { headers: { Cookie: owner.cookie } },
+        (response) => {
+          response.once('data', () => response.destroy());
+          response.on('error', () => {});
+        },
+      );
+      client.on('error', () => {});
+      let abortTimeout;
+      try {
+        await Promise.race([
+          upstreamStopped,
+          new Promise((_, reject) => {
+            abortTimeout = setTimeout(
+              () => reject(new Error('Upstream did not stop after disconnect')),
+              5000,
+            );
+          }),
+        ]);
+        assert.equal(abortSeen, true);
+      } finally {
+        clearTimeout(abortTimeout);
+        client.destroy();
+        fetchResult = undefined;
+      }
+      console.log(
+        'PASS: P04 owner status and Supertest private GET/HEAD/ranges, no-store/nosniff, safe denial, provider validation and revocation.',
       );
 
       // T23: all requests inspect concurrently, then serialize one readiness transition.

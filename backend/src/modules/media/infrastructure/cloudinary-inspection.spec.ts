@@ -11,6 +11,7 @@ const binding: MediaBinding = {
   uploadIntentId: randomUUID(),
 };
 const resource = (category: MediaCategory = 'IMAGE') => ({
+  etag: 'a'.repeat(32),
   public_id: `lumical/${binding.ownerId}/${binding.assetId}/${binding.uploadIntentId}`,
   context: {
     custom: {
@@ -92,6 +93,8 @@ describe('trusted Cloudinary metadata translation', () => {
     { version: '1794200000' },
     { version: 2_147_483_648 },
     { access_mode: 'public' },
+    { etag: undefined },
+    { etag: 'invalid-checksum' },
     { moderation: 'approved' },
     { access_control: [{ access_type: 'anonymous' }] },
   ])('rejects unsafe/malformed image metadata %j', (patch) => {

@@ -1,6 +1,6 @@
 # Cloudinary private adapter contract (I06-P01)
 
-Implementation contract for P02-P04; P02 registers upload intake and P03 registers finalization.
+Implementation contract for P02-P04: upload intake, trusted finalization and private owner delivery.
 Authority: ARCHITECTURE section 11, BR-MED-001..006, API_CONTRACT media rows.
 LEAD security review remains pending; this document does not constitute approval.
 
@@ -93,3 +93,48 @@ P03 trusted finalization:
   API before cleanup. P07 anonymous original/derivative acceptance remains separate.
 - Provider references: https://cloudinary.com/documentation/admin_api and
   https://cloudinary.com/documentation/control_access_to_media .
+
+P04 owner status and delivery:
+
+- `GET /media/{id}` projects readiness and verified metadata only. Ready assets
+  advertise `/api/v1/media/{id}/content`, never a provider URL. GET/HEAD content
+  establishes current active-account ownership before range parsing or storage
+  work. Cross-owner and unknown IDs use the same safe 404. Recheck current access
+  after slow upstream headers before releasing bytes; no DB transaction spans I/O.
+- Status, content and error responses use `Cache-Control: private, no-store`,
+  `X-Content-Type-Options: nosniff` and `Vary: Cookie`. GET streams with backpressure;
+  HEAD returns verified headers with no body. Do not forward upstream URLs,
+  redirects, cookies, cache validators or delivery signatures to the browser.
+- Accept one closed/open/suffix byte range with safe integer bounds. Clamp ends
+  and long suffixes to the verified total. Malformed/multiple/out-of-bounds ranges
+  return controlled 416 with `Content-Range: bytes */total`, after ownership checks.
+  HEAD supports the same range headers without a body. If-Range has no exported
+  validator to compare, so it conservatively yields a full 200 response.
+- Cloudinary URL versions are cache selectors, not immutable-version retrieval.
+  P04 strengthens P03 inspection to pin the exact original format and provider
+  checksum in the opaque storage reference (`#format:etag`). Delivery re-inspects
+  the binding, matches the pinned key/version/checksum and checks the upstream
+  strong ETag, MIME, Content-Length, status, Content-Range and identity encoding.
+  Changed content, missing checksum or an unsupported legacy key fails closed;
+  never update a Ready identity or silently fall back to latest. Existing Ready
+  assets without the checksum need a new upload intent; there is no implicit re-pin.
+- Only the original is currently registered. PREVIEW requests are rejected until
+  a named prepared rendition has an immutable verified record; arbitrary caller
+  transformations are never accepted. Access contexts remain reusable contracts,
+  not grants for future Order/recipient/Admin endpoints.
+- Backend builds only the fixed HTTPS `res.cloudinary.com` account/path and signs
+  original delivery internally using SHA-256 (8-character URL signature, matching
+  the provider SDK default URL-signature length). Redirects are forbidden. Client
+  disconnect or the bounded upstream timeout cancels storage work; truncated or
+  oversized streams terminate instead of appending a JSON/provider error.
+- Next's shared image optimizer is disabled, with no configured API/provider image allowlists.
+  Private media must use the backend content path. CORS supports HEAD/Range and
+  exposes only the necessary byte-range response headers.
+- `test:media-upload` covers status/content Supertest denial, HEAD/range, current
+  session revocation, slow-upstream account disable and real client disconnect.
+  Adapter tests reject changed pins, unsafe upstream headers, redirects and corrupt
+  lengths. Configured synthetic smoke verifies original GET/HEAD/ranges and actual
+  anonymous original denial after signed access. Prepared-derivative acceptance
+  remains P07, and no participant-media acceptance is claimed here.
+- Version/signing references: https://cloudinary.com/documentation/image_transformations
+  and https://github.com/cloudinary/cloudinary_npm/blob/master/lib/utils/index.js .

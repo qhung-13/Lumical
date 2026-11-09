@@ -102,3 +102,32 @@ test('unavailable Template keeps the entered draft and offers a route back to ca
   await expect(page.getByRole('link', { name: 'Chọn mẫu khác' })).toHaveAttribute('href', '/templates');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
+
+test.describe('creation year across browser/server New Year zones', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+  test('does not block a year allowed by the backend when the browser is still in the prior year', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-12-31T17:00:00.000Z') });
+    await mockJourney(page);
+    const attempts: unknown[] = [];
+    await page.route('**/api/v1/projects', async route => {
+      if (route.request().method() !== 'POST') { await route.fallback(); return; }
+      attempts.push(route.request().postDataJSON());
+      await route.fulfill({ status: 201, json: { data: { ...project, year: 2029 } } });
+    });
+    await page.goto(`/login?next=${encodeURIComponent(`/account?templateId=${templateId}`)}`);
+    await page.getByLabel('Email (required)').fill('owner@example.test');
+    await page.getByLabel('Password (required)').fill('synthetic passphrase 2026');
+    await page.getByRole('button', { name: 'Log in', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Create your calendar' })).toBeVisible();
+    expect(await page.evaluate(() => new Date().getFullYear())).toBe(2026);
+    await page.getByLabel('Calendar name (required)').fill('New Year boundary');
+    await page.getByLabel('Made for (required)').fill('Synthetic recipient');
+    await page.getByLabel('Style (required)').selectOption('classic');
+    // At this instant the configured backend zone is already in 2027, so 2029
+    // is in its current..+2 window. The browser cannot derive that zone locally.
+    await page.getByLabel('Calendar year (required)').fill('2029');
+    await page.getByRole('button', { name: 'Create calendar', exact: true }).click();
+    await expect.poll(() => attempts.length).toBe(1);
+    expect(attempts[0]).toMatchObject({ year: 2029 });
+  });
+});

@@ -21,7 +21,7 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({ origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
     if (!origin) return callback(null, false);
     try { policy.assertOrigin(origin); callback(null, true); } catch { callback(null, false); }
-  }, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  }, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'Idempotency-Key', 'If-Match'], exposedHeaders: ['ETag', 'X-Request-Id'] });
   SwaggerModule.setup('api/v1/openapi', app, openApiDocument(app), { ui: false, jsonDocumentUrl: 'api/v1/openapi.json' });
 }

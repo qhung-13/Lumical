@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '../../design-system/foundations/preferences-provider';
 import { IdentityProvider } from '../identity/provider';
 import { ProjectWorkspace } from './project-workspace';
-import { resetProjectWorkspaceDraftStore } from './workspace-draft';
+import { readProjectWorkspaceDraft, resetProjectWorkspaceDraftStore } from './workspace-draft';
 import { useIdentity } from '../identity/provider';
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -48,6 +48,44 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); push.mockClear(); resetProjectWorkspaceDraftStore(); });
 
 describe('Calendar Project creation experience', () => {
+  it('uses the backend year-window refusal and keeps the rejected year draft', async () => {
+    const posts: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/auth/session')) return json({ data: { authenticated: true,
+        principal: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
+      if (url.includes('/templates/')) return json({ data: template });
+      if (init?.method === 'POST') { posts.push(JSON.parse(String(init.body))); return json({ error: { code: 'VALIDATION_FAILED', fieldErrors: [{ path: 'year', code: 'INVALID', messageKey: 'validation.year' }] } }, 422); }
+      return json({ data: [], meta: { nextCursor: null, hasMore: false } });
+    }));
+    renderWorkspace(); await screen.findByText('Bright day');
+    fireEvent.change(screen.getByLabelText(/Calendar name/), { target: { value: 'Year draft' } });
+    fireEvent.change(screen.getByLabelText(/Made for/), { target: { value: 'Synthetic recipient' } });
+    fireEvent.change(screen.getByLabelText('Style (required)'), { target: { value: 'classic' } });
+    fireEvent.change(screen.getByLabelText(/Calendar year/), { target: { value: '2025' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create calendar' }));
+    expect(await screen.findByText('Choose this year or one of the next two years.')).toBeVisible();
+    expect(posts).toHaveLength(1); expect(posts[0]).toMatchObject({ year: 2025 });
+    expect(screen.getByLabelText(/Calendar year/)).toHaveValue(2025);
+    expect(push).not.toHaveBeenCalled();
+  });
+  it('clears a private draft on logout even after the workspace has unmounted', async () => {
+    const actorId = '11111111-1111-4111-8111-111111111111';
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/auth/session') && init?.method === 'DELETE') return new Response(null, { status: 204 });
+      if (url.endsWith('/auth/session')) return json({ data: { authenticated: true, principal: { id: actorId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
+      if (url.includes('/templates/')) return json({ data: template });
+      return json({ data: [], meta: { nextCursor: null, hasMore: false } });
+    }));
+    const view = renderWorkspace({ actorId });
+    await screen.findByText('Bright day');
+    fireEvent.change(screen.getByLabelText(/Calendar name/), { target: { value: 'Private offscreen draft' } });
+    expect(readProjectWorkspaceDraft(actorId).title).toBe('Private offscreen draft');
+    view.unmount();
+    await view.manager.logout();
+    expect(readProjectWorkspaceDraft(actorId).title).toBe('');
+  });
   it('renders published options, preserves draft and reuses the same key/body on retry, then navigates to server ID', async () => {
     const postIntents: { key: string | null; body: unknown }[] = [];
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {

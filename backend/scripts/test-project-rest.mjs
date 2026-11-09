@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import pg from 'pg';
 import request from 'supertest';
 import { withDisposablePostgres } from './disposable-postgres.mjs';
@@ -13,6 +14,7 @@ const require = createRequire(import.meta.url);
 const { Test } = require('@nestjs/testing');
 const { AppModule } = require('../dist/app.module.js');
 const { configureApp } = require('../dist/config/configure-app.js');
+const { Clock } = require('../dist/modules/identity/application/ports.js');
 const backend = fileURLToPath(new URL('..', import.meta.url));
 const originalEnv = { ...process.env };
 const password = '  TEST ONLY memory passphrase  ';
@@ -45,6 +47,7 @@ try {
     process.env.IDENTITY_AUTH_ATTEMPTS = '1000';
     process.env.IDENTITY_AUTH_BUCKETS = '10000';
     process.env.IDENTITY_TRUSTED_PROXY_IPS = '';
+    process.env.CALENDAR_TIME_ZONE = 'Asia/Ho_Chi_Minh';
     process.env.DATABASE_URL = url('runtime', 'lumical_i01_blank');
     await promisify(execFile)(process.execPath, ['scripts/prisma.mjs', 'migrate', 'deploy'], {
       cwd: backend, env: { ...process.env, MIGRATION_DATABASE_URL: url('migration', 'lumical_i01_blank') }, maxBuffer: 2 * 1024 * 1024,
@@ -52,8 +55,10 @@ try {
     const runtime = await connect(process.env.DATABASE_URL);
     const migration = await connect(url('migration', 'lumical_i01_blank'));
     let app;
+    let now = new Date('2026-11-09T05:00:00.000Z');
     const start = async () => {
-      const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+      const module = await Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(Clock).useValue({ now: () => now }).compile();
       const record = value => logs.push(String(value));
       app = module.createNestApplication({ logger: { log: record, warn: record, error: record, debug: record, verbose: record } });
       configureApp(app); await app.init();
@@ -81,7 +86,7 @@ try {
     const deleteProject = (actor, id, body, etag) => api().delete(`/api/v1/projects/${id}`)
       .set('Origin', origin).set('Cookie', actor.cookie).set('X-CSRF-Token', actor.csrf).set('If-Match', etag).send(body);
 
-    const year = new Date().getUTCFullYear() + 1;
+    const year = now.getUTCFullYear() + 1;
     const projectBody = (over = {}) => ({ templateId: templateId ?? randomUUID(), title: 'A year of memories', year,
       recipientName: 'Bà ngoại', stylePresetId: 'classic', ...over });
     let templateId;
@@ -134,6 +139,10 @@ try {
       });
 
       await check('creation validation, session guards and duplicate intents are refused safely', async () => {
+        await api().options('/api/v1/projects').set('Origin', origin)
+          .set('Access-Control-Request-Method', 'PATCH')
+          .set('Access-Control-Request-Headers', 'x-csrf-token,if-match')
+          .expect(204).expect('Access-Control-Allow-Methods', /\bPATCH\b/);
         const before = await ownerProjects();
         // Origin, CSRF and session are checked before any write (§10).
         await api().post('/api/v1/projects').set('Cookie', owner.cookie).set('X-CSRF-Token', owner.csrf)
@@ -351,7 +360,7 @@ try {
         if (patched.status === 200)
           assert.deepEqual({ title: row.title, status: row.status }, { title: 'Race C', status: 'WORKING' });
         else
-          assert.deepEqual({ title: row.title, status: row.status }, { title: 'Race calendar', status: 'ARCHIVED' });
+          assert.deepEqual({ title: row.title, status: row.status }, { title: stored.title, status: 'ARCHIVED' });
         const survivor = patched.status === 200 ? patched : archived;
         assert.equal(survivor.body.data.version, 3);
       });
@@ -383,7 +392,9 @@ try {
         await runtime.query(
           `INSERT INTO lumical.project_month_media (id,project_id,owner_id,month_id,asset_id,position,alt_text)
            VALUES ($1,$2,$3,$4,$5,1,'TEST ONLY')`, [randomUUID(), doomed.id, ownerId, monthRow.id, assetId]);
-        await orderFixture(runtime, ordered.id, ownerId);
+        const orderId = await orderFixture(runtime, ordered.id, ownerId);
+        await runtime.query("UPDATE lumical.orders SET status='CANCELLED' WHERE id=$1", [orderId]);
+        const historyBefore = (await runtime.query('SELECT * FROM lumical.orders WHERE id=$1', [orderId])).rows;
         const before = await ownerProjects();
 
         // BR-PRJ-006: explicit confirmation first, then the precondition, then history.
@@ -398,6 +409,11 @@ try {
           { code: 'PROJECT_HAS_ORDERS', messageKey: 'errors.projectHasOrders', retryable: false });
         assert.equal((await getProject(owner, ordered.id).expect(200)).body.data.deletionEligible, false,
           'detail eligibility reflects trusted order history, including non-deletable Projects');
+        const orderedEdit = await patchProject(owner, ordered.id, { title: 'Working remains editable after cancelled Order' }, '"1"').expect(200);
+        assert.equal(orderedEdit.body.data.version, 2);
+        await deleteProject(owner, ordered.id, { confirmed: true }, '"2"').expect(409);
+        assert.deepEqual((await runtime.query('SELECT * FROM lumical.orders WHERE id=$1', [orderId])).rows, historyBefore,
+          'edits and refused deletion must preserve cancelled financial history');
         assert.equal(await ownerProjects(), before, 'a refused deletion must not remove a Project');
         assert.equal((await runtime.query('SELECT count(*) FROM lumical.orders WHERE project_id=$1', [ordered.id])).rows[0].count, '1');
 
@@ -445,6 +461,139 @@ try {
           const current = (await runtime.query('SELECT version FROM lumical.templates WHERE id=$1', [templateId])).rows[0];
           await availability('ACTIVE', current.version).expect(200);
         }
+      });
+
+      if (process.env.LUMICAL_I05_LIVE_UI === '1' || process.env.LUMICAL_I05_MANUAL_UI === '1') {
+        const uiCheck = process.env.LUMICAL_I05_MANUAL_UI === '1'
+          ? 'I05 disposable manual fixture cleanup only; manual acceptance recorded separately'
+          : 'I05 live Chromium through Next.js, Nest and disposable PostgreSQL';
+        await check(uiCheck, async () => {
+          const beforeUiNow = now;
+          // Product zone has entered 2027 while America/Los_Angeles is in 2026.
+          now = new Date('2026-12-31T17:00:00.000Z');
+          await app.close();
+          process.env.NODE_ENV = 'development';
+          process.env.IDENTITY_COOKIE_MODE = 'loopback';
+          process.env.IDENTITY_ALLOWED_ORIGINS = 'http://127.0.0.1:3211';
+          await start();
+          await app.listen(0, '127.0.0.1');
+          // I09 is absent: this is explicitly a schema-history fixture, never an Order API claim.
+          // Supertest mutations above use the HTTPS Origin, so seed this one root via
+          // the same real application with the live Origin rather than a database shortcut.
+          const liveOrigin = 'http://127.0.0.1:3211';
+          const loginResponse = await api().post('/api/v1/auth/login').set('Origin', liveOrigin)
+            .send({ email: 'owner@example.invalid', password }).expect(200);
+          owner = { cookie: cookie(loginResponse), csrf: loginResponse.body.data.csrfToken, id: loginResponse.body.data.id };
+          const fixture = await api().post('/api/v1/projects').set('Origin', liveOrigin).set('Cookie', owner.cookie)
+            .set('X-CSRF-Token', owner.csrf).set('Idempotency-Key', randomUUID())
+            .send(projectBody({ title: 'I05 live ordered fixture' })).expect(201);
+          const orderedId = fixture.body.data.id;
+          const orderId = await orderFixture(runtime, orderedId, ownerId);
+          await runtime.query("UPDATE lumical.orders SET status='CANCELLED' WHERE id=$1", [orderId]);
+          const frontend = fileURLToPath(new URL('../../frontend/', import.meta.url));
+          const env = { ...originalEnv, NODE_ENV: 'test', LUMICAL_I05_LIVE_BACKEND: await app.getUrl(),
+            LUMICAL_I05_TEMPLATE_ID: templateId, LUMICAL_I05_ORDERED_ID: orderedId,
+            LUMICAL_I05_CALENDAR_YEAR: '2027', LUMICAL_I05_BOUNDARY_TIME: now.toISOString() };
+          delete env.DATABASE_URL; delete env.MIGRATION_DATABASE_URL;
+          try {
+            if (process.env.LUMICAL_I05_MANUAL_UI === '1') {
+              const directory = new URL('../../.cache/i05-hardening/', import.meta.url);
+              await mkdir(directory, { recursive: true });
+              const stopFile = fileURLToPath(new URL(`manual-${randomUUID()}.stop`, directory));
+              const manual = execFile(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', '3211'], {
+                cwd: frontend, env: { ...env, NODE_ENV: 'development', ACCOUNT_COOKIE_NAME: 'lumical_session_dev', BACKEND_URL: await app.getUrl() },
+              });
+              manual.stdout.on('data', chunk => process.stdout.write(chunk));
+              manual.stderr.on('data', chunk => process.stderr.write(chunk));
+              manual.on('error', () => { /* Exit/readiness is checked below. */ });
+              try {
+                const session = { origin: liveOrigin, projectUrl: `${liveOrigin}/projects/${orderedId}`, templateId, stopFile,
+                  ownerEmail: 'owner@example.invalid', fixtureOnly: true };
+                await writeFile(new URL('manual-session.json', directory), JSON.stringify(session, null, 2));
+                console.log(`MANUAL: disposable fixture ready; session metadata is in .cache/i05-hardening/manual-session.json`);
+                const deadline = Date.now() + 15 * 60_000;
+                for (;;) {
+                  if (await access(stopFile).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; })) break;
+                  if (Date.now() > deadline || manual.exitCode !== null) throw new Error('Manual fixture expired or frontend exited.');
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              } finally {
+                if (manual.exitCode === null) {
+                  if (process.platform === 'win32') await promisify(execFile)('taskkill', ['/PID', String(manual.pid), '/T', '/F']);
+                  else manual.kill('SIGTERM');
+                }
+              }
+              console.log('PASS: manual fixture session completed and its frontend stopped (manual outcomes recorded separately).');
+            } else {
+              const browserRun = promisify(execFile)(process.execPath,
+                ['node_modules/@playwright/test/cli.js', 'test', '--project=i05-live-chromium', '--workers=1'],
+                { cwd: frontend, env, timeout: 240_000, maxBuffer: 4 * 1024 * 1024 });
+              browserRun.child.stdout.on('data', chunk => process.stdout.write(chunk));
+              browserRun.child.stderr.on('data', chunk => process.stderr.write(chunk));
+              await browserRun;
+            }
+          } catch (error) {
+            throw new Error(`I05 live Chromium failed (${error.code ?? 'runner error'}).`);
+          } finally {
+            await app.close();
+            now = beforeUiNow;
+            process.env.NODE_ENV = 'production'; process.env.IDENTITY_COOKIE_MODE = 'https';
+            process.env.IDENTITY_ALLOWED_ORIGINS = origin;
+            await start(); owner = await session('owner@example.invalid');
+          }
+        });
+      }
+
+      await check('controlled Clock advances a year: old Projects stay readable/editable and creation replay stays original', async () => {
+        const body = projectBody({ year: 2026, title: 'Created before year advance' });
+        const key = randomUUID();
+        const original = (await createProject(owner, body, key).expect(201)).body.data;
+        now = new Date('2027-01-01T05:00:00.000Z');
+        // Renew the genuinely expired session; project validity is independent of session lifetime.
+        owner = await session('owner@example.invalid');
+        assert.equal((await getProject(owner, original.id).expect(200)).body.data.year, 2026);
+        assert.equal((await monthsOf(owner, original.id).expect(200)).body.data.months.length, 12);
+        await patchProject(owner, original.id, { title: 'Still editable in 2027' }, '"1"').expect(200);
+        assert.deepEqual((await createProject(owner, body, key).expect(201)).body.data, original);
+        const refused = await createProject(owner, body).expect(422);
+        assert.equal(refused.body.error.fieldErrors[0].path, 'year');
+      });
+
+      await check('legacy P02 intent without a safe body fails closed and never duplicates or reconstructs a changed Project', async () => {
+        const body = projectBody({ title: 'Legacy replay characterization' });
+        const key = randomUUID();
+        const created = (await createProject(owner, body, key).expect(201)).body.data;
+        await patchProject(owner, created.id, { title: 'Changed since the legacy creation' }, '"1"').expect(200);
+        await runtime.query("UPDATE lumical.idempotency_records SET safe_result=NULL WHERE actor_id=$1 AND operation='PROJECT_CREATE' AND key=$2", [ownerId, key]);
+        const before = await ownerProjects();
+        const replay = await createProject(owner, body, key).expect(500);
+        assert.equal(replay.body.error.code, 'INTERNAL_ERROR');
+        assert.equal(await ownerProjects(), before);
+        const unchanged = (await getProject(owner, created.id).expect(200)).body.data;
+        assert.equal(unchanged.version, 2);
+        assert.equal(unchanged.title, 'Changed since the legacy creation');
+        // Characterization of a migration/rollout gap, NOT a claim that legacy replay meets §11.
+      });
+
+      await check('D02 read-only inventory classifies the legacy fixture without changing replay records', async () => {
+        const fingerprint = async () => (await runtime.query(`SELECT count(*) AS count,
+          md5(string_agg(id::text || condition || coalesce(safe_result::text, 'SQL_NULL'), '|' ORDER BY id)) AS digest
+          FROM lumical.idempotency_records WHERE operation='PROJECT_CREATE'`)).rows[0];
+        const before = await fingerprint();
+        const sql = await readFile(new URL('./inventory-project-replay.sql', import.meta.url), 'utf8');
+        const results = await runtime.query(sql);
+        const snapshot = results.find(result => result.fields.some(field => field.name === 'transaction_read_only')).rows[0];
+        assert.equal(snapshot.transaction_read_only, 'on');
+        const counts = results.find(result => result.fields.some(field => field.name === 'sql_null_records')).rows[0];
+        assert.equal(Number(counts.sql_null_records), 1, 'only this run\'s explicit legacy fixture has SQL NULL');
+        assert.ok(Number(counts.object_records) > 0);
+        const groups = results.find(result => result.fields.some(field => field.name === 'payload_class')).rows;
+        assert.ok(groups.some(row => row.payload_class === 'SQL_NULL' && row.resource_class === 'ROOT_CHANGED'));
+        assert.deepEqual(await fingerprint(), before);
+        assert.equal((await runtime.query('SHOW transaction_read_only')).rows[0].transaction_read_only, 'off');
+        console.log(JSON.stringify({ inventoryScope: 'DISPOSABLE_FIXTURE_ONLY', sqlNullRecords: Number(counts.sql_null_records),
+          objectRecords: Number(counts.object_records), totalRecords: Number(counts.total_records), readOnly: true, unchanged: true }));
+        // This is disposable fixture evidence, never inventory of a deployed environment.
       });
     } finally {
       if (app) await app.close();

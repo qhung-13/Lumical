@@ -26,12 +26,13 @@ function validProject(value: unknown, detail = false): value is Project | Projec
   const name = record(baseline.name);
   const layout = record(baseline.layout);
   return typeof data.id === 'string' && uuid.test(data.id) && typeof data.title === 'string' &&
-    Number.isInteger(data.year) && typeof data.recipientName === 'string' &&
-    (data.status === 'WORKING' || data.status === 'ARCHIVED') && Number.isSafeInteger(data.version) &&
+    typeof data.year === 'number' && Number.isInteger(data.year) && data.year >= 1 && data.year <= 9999 && typeof data.recipientName === 'string' &&
+    (data.status === 'WORKING' || data.status === 'ARCHIVED') && typeof data.version === 'number' && Number.isSafeInteger(data.version) && data.version >= 1 &&
     typeof data.stylePresetId === 'string' && typeof name.vi === 'string' && typeof name.en === 'string' &&
     layout.version === 1 && (layout.type === 'PHOTO_FOCUS' || layout.type === 'COLLAGE') &&
     layout.monthCount === 12 && layout.maxImagesPerMonth === 4 &&
-    typeof data.createdAt === 'string' && typeof data.updatedAt === 'string' &&
+    typeof data.createdAt === 'string' && !Number.isNaN(Date.parse(data.createdAt)) &&
+    typeof data.updatedAt === 'string' && !Number.isNaN(Date.parse(data.updatedAt)) &&
     (!detail || typeof data.deletionEligible === 'boolean');
 }
 function parseProject(value: unknown, detail = false): Project | ProjectDetail {
@@ -113,7 +114,7 @@ export function projectApi(options: ProjectApiOptions) {
     detail: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}`, 'GET', value => parseProject(value, true) as ProjectDetail, signal),
     months: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/months`, 'GET', value => {
       const data = record(record(value).data);
-      if (!Number.isSafeInteger(data.projectVersion) || !Array.isArray(data.months) || data.months.length !== 12) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+      if (typeof data.projectVersion !== 'number' || !Number.isSafeInteger(data.projectVersion) || data.projectVersion < 1 || !Array.isArray(data.months) || data.months.length !== 12) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
       const months = data.months.map(item => record(item));
       if (months.some((month, index) => month.monthNumber !== index + 1 || !(month.caption === null || typeof month.caption === 'string'))) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
       return data as unknown as ProjectMonths;

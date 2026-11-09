@@ -10,6 +10,20 @@ const keys: string[] = [];
 afterEach(() => { keys.length = 0; });
 
 describe('Project HTTP API and private query contract', () => {
+  it.each([
+    { version: 0 }, { version: -1 }, { year: 0 }, { year: 10000 },
+    { createdAt: 'invalid timestamp' }, { updatedAt: 'invalid timestamp' },
+  ])('rejects an invalid persisted Project boundary value %j', async invalid => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { ...project, ...invalid, deletionEligible: true } }));
+    await expect(projectApi({ csrf: () => undefined, fetcher }).detail(project.id))
+      .rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
+  });
+  it('rejects an invalid root version in a twelve-Month response', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { projectVersion: 0,
+      months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null })) } }));
+    await expect(projectApi({ csrf: () => undefined, fetcher }).months(project.id))
+      .rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
+  });
   it('sends exactly the five generated create fields with cookie, CSRF and stable idempotency headers', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: project }, 201));
     const api = projectApi({ csrf: () => 'csrf-test', fetcher });

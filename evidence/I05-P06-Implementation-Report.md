@@ -6,6 +6,8 @@
 **Integration test result:** **PASSED — 11/11 checks**  
 **Evidence:** PowerShell console output provided by the user (November 9, 2026, Vietnam time)
 
+**Repository audit correction — November 9, 2026:** `git show --stat 5194460` proves that the merged P06 delivery changed `backend/scripts/test-project-rest.mjs` and this report. It did **not** add `docs/verification/I05-P06.md`; that path is absent from this checkout. The original two-file delivery/zip description below is historical supplied evidence, not a verified repository manifest. See [I05 Full Integration Audit](I05-Full-Integration-Audit.md) for the current executed checks, remaining decisions, corrected coverage and I07 child/version handoff. The original 11/11 result alone is not full I05 acceptance.
+
 ## 1. Objective
 
 Verify that the Calendar Project REST lifecycle preserves critical data and authorization invariants, including ownership boundaries, exactly twelve Months per Project, safe concurrent writes, year-to-year isolation, Template snapshot preservation, and deletion safeguards.
@@ -17,7 +19,7 @@ The delivery changes only two files; no production application code was changed.
 | File | Change | Description |
 | --- | --- | --- |
 | `backend/scripts/test-project-rest.mjs` | Modified | Added integration scenarios for future-year isolation and Template deactivation with existing-Project preservation. |
-| `docs/verification/I05-P06.md` | Added | Documented the invariant coverage matrix, verification steps, I07 child-version contract, and acceptance checklist. |
+| `evidence/I05-P06-Implementation-Report.md` | Added | This supplied implementation/test report; the separately mentioned verification document was not merged. |
 
 ### 2.1 Future-year isolation
 
@@ -79,8 +81,8 @@ An earlier direct invocation of `node.exe scripts/test-project-rest.mjs` failed 
 
 **Result for the Project REST integration suite:** **PASS.** The console output supports the I05-P06 integration coverage exercised by `test:project-rest`, including the two newly added scenarios.
 
-This report does **not** claim that all LumiCal checks or every I05-P06 acceptance dependency passed. The provided execution evidence does not include a complete frontend, browser/Playwright, lint, typecheck, or repository-wide test run. Review any additional acceptance criteria in `docs/verification/I05-P06.md` before marking the entire task complete.
+This report does **not** claim that all LumiCal checks or every I05-P06 acceptance dependency passed. The provided execution evidence does not include a complete frontend, browser/Playwright, lint, typecheck, or repository-wide test run. Use the planning item's acceptance criteria and the linked full audit before marking the entire task complete; the previously cited verification file is absent.
 
 ## 7. Delivery Notes
 
-The separate `I05-P06-changed-files-only.zip` archive includes only the two changed paths listed in Section 2, preserving their relative paths. The implementation was delivered as an archive; no GitHub push is claimed.
+The original handoff described a separate `I05-P06-changed-files-only.zip` containing two changed paths. That archive was not available for this repository audit, so its contents are unverified. The merged commit's actual paths are listed in Section 2. No audit commit, push or merge is claimed.

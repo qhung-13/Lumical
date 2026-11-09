@@ -12,10 +12,11 @@ interface DialogProps {
   onConfirm?: () => void;
   destructive?: boolean;
   dismissible?: boolean;
+  disabled?: boolean;
   children?: ReactNode;
 }
 export function Dialog({ triggerLabel, title, description, cancelLabel, confirmLabel, onConfirm,
-  destructive = false, dismissible = true, children }: DialogProps) {
+  destructive = false, dismissible = true, disabled = false, children }: DialogProps) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLSpanElement>(null);
@@ -28,7 +29,7 @@ export function Dialog({ triggerLabel, title, description, cancelLabel, confirmL
     setOpen(false); trigger.current?.querySelector('button')?.focus();
   };
   return <>
-    <span ref={trigger}><Button aria-haspopup="dialog" aria-controls={id} aria-expanded={open} onClick={() => {
+    <span ref={trigger}><Button disabled={disabled} aria-haspopup="dialog" aria-controls={id} aria-expanded={open} onClick={() => {
       if (!dialog.current || dialog.current.open) return;
       dialog.current.showModal(); setOpen(true);
       // Cancel is safe for confirmations; the heading is intentional for information.
@@ -84,7 +85,7 @@ export function Dialog({ triggerLabel, title, description, cancelLabel, confirmL
       <div className={styles.body}>{children}</div>
       <div className={styles.actions} ref={cancel}>
         <Button onClick={close}>{cancelLabel}</Button>
-        {confirmLabel && <Button variant={destructive ? 'destructive' : 'primary'} onClick={() => { onConfirm?.(); close(); }}>{confirmLabel}</Button>}
+        {confirmLabel && <Button disabled={disabled} variant={destructive ? 'destructive' : 'primary'} onClick={() => { onConfirm?.(); close(); }}>{confirmLabel}</Button>}
       </div>
     </dialog>
   </>;

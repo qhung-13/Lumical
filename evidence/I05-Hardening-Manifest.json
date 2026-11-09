@@ -1,0 +1,184 @@
+{
+  "status": "PREPARED_NOT_STAGED",
+  "baseHead": "1a3a094c8d0e7e7c6c4dd383745f5949cafee459",
+  "branch": "fix/i05-integration-hardening",
+  "proposedPrTitle": "fix(i05): harden project lifecycle, privacy and integration",
+  "includedFiles": [
+    {
+      "path": "backend/scripts/export-openapi.mjs",
+      "kind": "implementation"
+    },
+    {
+      "path": "backend/scripts/test-project-rest.mjs",
+      "kind": "verification"
+    },
+    {
+      "path": "backend/src/config/configure-app.ts",
+      "kind": "implementation"
+    },
+    {
+      "path": "evidence/I05-P06-Implementation-Report.md",
+      "kind": "review evidence/documentation"
+    },
+    {
+      "path": "frontend/e2e/project-lifecycle.spec.ts",
+      "kind": "verification"
+    },
+    {
+      "path": "frontend/playwright.config.ts",
+      "kind": "verification"
+    },
+    {
+      "path": "frontend/src/api/projects.test.ts",
+      "kind": "verification"
+    },
+    {
+      "path": "frontend/src/api/projects.ts",
+      "kind": "implementation"
+    },
+    {
+      "path": "frontend/src/design-system/composites/dialog.tsx",
+      "kind": "implementation"
+    },
+    {
+      "path": "frontend/src/features/calendar-projects/project-detail.test.tsx",
+      "kind": "verification"
+    },
+    {
+      "path": "frontend/src/features/calendar-projects/project-detail.tsx",
+      "kind": "implementation"
+    },
+    {
+      "path": "frontend/src/features/calendar-projects/project-workspace.test.tsx",
+      "kind": "verification"
+    },
+    {
+      "path": "frontend/src/features/calendar-projects/project-workspace.tsx",
+      "kind": "implementation"
+    },
+    {
+      "path": "frontend/src/features/calendar-projects/workspace-draft.ts",
+      "kind": "implementation"
+    },
+    {
+      "path": "evidence/I05-Full-Integration-Audit.md",
+      "kind": "review evidence/documentation"
+    },
+    {
+      "path": "frontend/e2e/project-integration.spec.ts",
+      "kind": "verification"
+    },
+    {
+      "path": "frontend/e2e/project-creation.spec.ts",
+      "kind": "verification"
+    },
+    {
+      "path": "backend/scripts/inventory-project-replay.sql",
+      "kind": "read-only inventory (not migration)"
+    },
+    {
+      "path": "evidence/I05-Contract-Decisions-PROPOSED.md",
+      "kind": "proposal only (not approval)"
+    },
+    {
+      "path": "evidence/I05-Hardening-Final-Verification.md",
+      "kind": "review evidence/documentation"
+    },
+    {
+      "path": "evidence/I05-Hardening-PR.md",
+      "kind": "review evidence/documentation"
+    },
+    {
+      "path": "evidence/I05-Hardening-Manifest.json",
+      "kind": "review evidence/documentation"
+    }
+  ],
+  "excludedLocalFiles": [
+    {
+      "path": "evidence/i05-audit-runtime.mjs",
+      "reason": "machine-specific third-party instrumentation isolation; preserved, not a PR dependency"
+    }
+  ],
+  "preservedUnrelatedUntracked": [
+    {
+      "path": "I05-P01-review-final.patch",
+      "sha256": "fe93682d188d9299fe084c5a19d691f8a311a256f202e514ac2994457bcc8480"
+    },
+    {
+      "path": "I05-P01-review-v2.patch",
+      "sha256": "42610d715e322bb9c1951c69090d3c35417b28fe41a2fd5500fec5a053efdcbf"
+    },
+    {
+      "path": "I05-P01-review.patch",
+      "sha256": "f1e5e1931a8c76bcea9b295d532131326ac5e14329bac6e2e3bce2ee26d0d5ed"
+    },
+    {
+      "path": "I05-P02-review-v2.patch",
+      "sha256": "5da4ed62f2d87bd72191ce83fcc71f25fe5fb1497f51073ca8112f453718688f"
+    },
+    {
+      "path": "I05-P02-review-v3.patch",
+      "sha256": "0391a108972a39dc3e38c206440105b2fef74bfa925b01e6dfb7d7c9a3678185"
+    },
+    {
+      "path": "I05-P02-review.patch",
+      "sha256": "e9914d3dadf45b3f47ef08a1902f847c78957481aad4954a0336cfdb040ab392"
+    },
+    {
+      "path": "backend/scripts/audit-release-history.mjs",
+      "sha256": "8352a9535f5b8962cfb95e350ba27b171af02ee0d97930395c3954832ecb2b45"
+    },
+    {
+      "path": "backend/scripts/deploy-staged-audit.mjs",
+      "sha256": "3bc6ac51064ff03c7221160f3bda7bbb661e6301415939a65fc0a44f7e6a7906"
+    },
+    {
+      "path": "backend/scripts/neon-deploy-bootstrap.mjs",
+      "sha256": "f9e83433ebb346958d5415a9b620b9dac4510847be72511cab5528d9c2b6f85d"
+    },
+    {
+      "path": "backend/scripts/neon-deploy-inspect.mjs",
+      "sha256": "4b7484b6dbff0fc7a57bc160ef235e08311ffec7e7c015b5a99ab71039d6ddb8"
+    },
+    {
+      "path": "backend/scripts/neon-deploy-verify.mjs",
+      "sha256": "5e1d1876935cc92236a19253d7fe5bfacc9b258fccffb08d2236f14d79cb7bc7"
+    },
+    {
+      "path": "backend/scripts/neon-i01-roles.review.sql",
+      "sha256": "e0208e39a8a9afd7f6600e013690f3685b51c0fa0dd2416c82e0d5bf4844d7d9"
+    },
+    {
+      "path": "backend/scripts/prepare-demo-env.mjs",
+      "sha256": "5355afbf8a4464b8f43797fe5d6c2981f0ee28d0afeac1a5c2ebaa273f319075"
+    },
+    {
+      "path": "evidence/neon-deployment-preflight-2026-11-05.md",
+      "sha256": "35cbff998cfc1f528afba3a5d3a8f59ec5c24525ac978eb8c4fa68522170a062"
+    },
+    {
+      "path": "i03-closeout.diff",
+      "sha256": "50dd27e819bb3db4bb9289b6498ee5b0ca9f9c1069f1dbfc648170a1fb0ad4a6"
+    },
+    {
+      "path": "lumical.dbml",
+      "sha256": "e9e156d69bb4c1b242922ac9361379e8998e02d6f5b1c1d8464639fd9fa77fe0"
+    }
+  ],
+  "excludedGeneratedOrLocal": [
+    ".cache/**",
+    "**/*.log",
+    "**/node_modules/**",
+    "**/.next/**",
+    "backend/dist/**",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    "backend/src/platform/database/infrastructure/generated/**"
+  ],
+  "decisions": {
+    "D01": "PROPOSED / DECISION REQUIRED",
+    "D02": "DEPLOYMENT INVENTORY UNVERIFIED / DECISION REQUIRED"
+  },
+  "stagingPerformed": false,
+  "commitPushPrMergePerformed": false
+}

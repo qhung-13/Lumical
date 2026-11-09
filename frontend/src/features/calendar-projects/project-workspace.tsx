@@ -13,28 +13,16 @@ import { usePreferences } from '../../design-system/foundations/preferences-prov
 import { useIdentity } from '../identity/provider';
 import { IdentityScreen } from '../identity/identity-screen';
 import { projectCopy } from './copy';
-import { clearProjectWorkspaceDraft, readProjectWorkspaceDraft, writeProjectWorkspaceDraft, type ProjectWorkspaceDraft } from './workspace-draft';
+import { bindProjectWorkspaceDraftIdentity, readProjectWorkspaceDraft, writeProjectWorkspaceDraft, type ProjectWorkspaceDraft } from './workspace-draft';
 import styles from './projects.module.css';
 
 const graphemes = (value: string, locale: string) => [...new Intl.Segmenter(locale, { granularity: 'grapheme' }).segment(value)].length;
 
 export function ProjectWorkspace({ templateId }: { templateId?: string }) {
   const { manager, state } = useIdentity();
-  const previousActor = useRef<string | undefined>(undefined);
   const workspaceActor = state.phase === 'authenticated' ? state.principal?.id ?? 'anonymous' : 'anonymous';
   useEffect(() => {
-    const clearOnIdentityBoundary = () => {
-      const snapshot = manager.getSnapshot();
-      if (snapshot.phase === 'unauthenticated') {
-        if (previousActor.current) clearProjectWorkspaceDraft(previousActor.current);
-        previousActor.current = undefined;
-      } else if (snapshot.phase === 'authenticated' && snapshot.principal) {
-        if (previousActor.current && previousActor.current !== snapshot.principal.id) clearProjectWorkspaceDraft(previousActor.current);
-        previousActor.current = snapshot.principal.id;
-      }
-    };
-    clearOnIdentityBoundary();
-    return manager.subscribe(clearOnIdentityBoundary);
+    bindProjectWorkspaceDraftIdentity(manager);
   }, [manager]);
   return <ProjectWorkspaceActor key={workspaceActor} templateId={templateId} />;
 }
@@ -82,7 +70,9 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
       const errors: Record<string, string> = {};
       if (!cleanTitle || graphemes(cleanTitle, locale) > 80) errors.title = copy.titleError;
       if (!cleanRecipient || graphemes(cleanRecipient, locale) > 80) errors.recipientName = copy.recipientError;
-      if (!Number.isInteger(year) || year < new Date().getFullYear() || year > new Date().getFullYear() + 2) errors.year = copy.yearError;
+      // Only the backend's configured calendar zone/Clock defines current..+2.
+      // Browser-local New Year can differ, so validate shape/storage bounds here.
+      if (!Number.isInteger(year) || year < 1 || year > 9999) errors.year = copy.yearError;
       if (!template?.publishedRevision.presets.some(item => item.id === selectedPreset)) errors.stylePresetId = copy.presetError;
       updateDraft({ fieldErrors: errors, submitError: undefined });
       if (Object.keys(errors).length) { updateDraft({ submitError: 'VALIDATION_FAILED' }); return; }
@@ -154,7 +144,7 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
             <fieldset disabled={pending || !state.mutationReady} className={styles.fields}>
               <FormField disabled={Boolean(draft.intent)} name="title" required label={copy.calendarTitle} requirementLabel={copy.required} description={copy.titleHint} value={draft.title} onChange={event => setInput('title', event.target.value)} error={draft.fieldErrors.title} autoComplete="off" />
               <FormField disabled={Boolean(draft.intent)} name="recipientName" required label={copy.recipient} requirementLabel={copy.required} description={copy.recipientHint} value={draft.recipient} onChange={event => setInput('recipient', event.target.value)} error={draft.fieldErrors.recipientName} autoComplete="off" />
-              <FormField disabled={Boolean(draft.intent)} name="year" required label={copy.year} requirementLabel={copy.required} type="number" min={new Date().getFullYear()} max={new Date().getFullYear() + 2} value={draft.year} onChange={event => updateDraft({ year: Number(event.target.value), submitError: undefined, fieldErrors: {} })} error={draft.fieldErrors.year} />
+              <FormField disabled={Boolean(draft.intent)} name="year" required label={copy.year} requirementLabel={copy.required} type="number" min={1} max={9999} value={draft.year} onChange={event => updateDraft({ year: Number(event.target.value), submitError: undefined, fieldErrors: {} })} error={draft.fieldErrors.year} />
               <div className={styles.selectField}><label htmlFor="project-preset">{copy.preset} ({copy.required})</label><select disabled={Boolean(draft.intent)} id="project-preset" name="stylePresetId" required value={selectedPreset} onChange={event => updateDraft({ preset: event.target.value, submitError: undefined, fieldErrors: {} })} aria-invalid={Boolean(draft.fieldErrors.stylePresetId)} aria-describedby={draft.fieldErrors.stylePresetId ? 'project-preset-error' : undefined}>
                 {!selectedPreset && <option value="">{copy.choosePreset}</option>}
                 {template.publishedRevision.presets.map(item => <option key={item.id} value={item.id}>{item.name[locale]}</option>)}

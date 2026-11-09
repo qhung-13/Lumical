@@ -21,7 +21,8 @@ async function setup(page: Page, options: { initialStatus?: 'WORKING' | 'ARCHIVE
       await route.fulfill({ status: 200, headers: { ETag: `"${version}"` }, contentType: 'application/json', body: JSON.stringify({ data: { ...project, status, version, deletionEligible: eligible } }) }); return;
     }
     if (request.method() === 'POST' && (url.pathname.endsWith('/archive') || url.pathname.endsWith('/restore'))) {
-      if (options.stale) { await route.fulfill({ status: 412, contentType: 'application/json', body: JSON.stringify({ error: { code: 'VERSION_CONFLICT', currentVersion: version + 1 } }) }); return; }
+      if (options.stale) { status = 'ARCHIVED'; version = 2; options.stale = false; await route.fulfill({ status: 412, contentType: 'application/json', body: JSON.stringify({ error: { code: 'VERSION_CONFLICT', currentVersion: version } }) }); return; }
+      expect(request.headers()['if-match']).toBe(`"${version}"`);
       status = url.pathname.endsWith('/archive') ? 'ARCHIVED' : 'WORKING'; version++;
       await route.fulfill({ status: 200, headers: { ETag: `"${version}"` }, contentType: 'application/json', body: JSON.stringify({ data: { ...project, status, version } }) }); return;
     }
@@ -57,6 +58,7 @@ test('archived calendar is read-only and can be restored', async ({ page }) => {
   await page.getByRole('button', { name: 'Restore calendar' }).click();
   await page.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText('In progress')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Archive calendar' })).toBeFocused();
 });
 
 test('permanent deletion requires confirmation and is hidden when backend eligibility is false', async ({ page }) => {
@@ -76,6 +78,10 @@ test('stale lifecycle version shows feedback and reloads authoritative state', a
   await page.getByRole('button', { name: 'Archive calendar' }).click();
   await page.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.locator('p[role="alert"]')).toContainText('This calendar changed elsewhere.');
+  await expect(page.getByText('Archived', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Archive calendar' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Restore calendar' }).click();
+  await page.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText('In progress')).toBeVisible();
 });
 

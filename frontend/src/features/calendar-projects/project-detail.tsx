@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { projectApi, projectDetailOptions, projectKeys, projectMonthsOptions, ProjectApiError } from '../../api/projects';
 import { Button } from '../../design-system/primitives/button';
@@ -15,18 +15,30 @@ import styles from './projects.module.css';
 export function ProjectDetail({ id }: { id: string }) {
   const { manager, state } = useIdentity(); const { locale } = usePreferences(); const copy = projectCopy[locale]; const router = useRouter();
   const client = useQueryClient(); const [selectedMonth, setSelectedMonth] = useState(1); const [actionError, setActionError] = useState('');
+  const [pending, setPending] = useState(false); const pendingGuard = useRef(false);
+  const actions = useRef<HTMLDivElement>(null); const restoreLifecycleFocus = useRef(false);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
   const actorId = state.principal?.id ?? 'anonymous';
   const api = useMemo(() => projectApi({ csrf: manager.csrfToken, epoch: manager.requestEpoch, unauthorized: () => manager.bootstrap() }), [manager]);
   const detail = useQuery({ ...projectDetailOptions(actorId, id, api), enabled: state.phase === 'authenticated' });
   const months = useQuery({ ...projectMonthsOptions(actorId, id, api), enabled: state.phase === 'authenticated' && Boolean(detail.data) });
   const returnTo = `/projects/${encodeURIComponent(id)}`;
+  useEffect(() => {
+    if (pending || !restoreLifecycleFocus.current) return;
+    restoreLifecycleFocus.current = false;
+    // Native dialog focus restoration cannot target a disabled/unmounted trigger.
+    // Recover only lost/action focus; respect a user who moved into the Months.
+    if (document.activeElement === document.body || actions.current?.contains(document.activeElement)) {
+      actions.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    }
+  }, [pending]);
   const refresh = async () => {
     await Promise.all([detail.refetch(), months.refetch()]);
     await client.invalidateQueries({ queryKey: projectKeys.lists(actorId) });
   };
   async function lifecycle(action: 'archive' | 'restore' | 'remove') {
-    if (!detail.data) return;
+    if (!detail.data || !state.mutationReady || pendingGuard.current) return;
+    pendingGuard.current = true; restoreLifecycleFocus.current = true; setPending(true);
     setActionError('');
     try {
       if (action === 'archive') await api.archive(id, detail.data.version);
@@ -44,6 +56,8 @@ export function ProjectDetail({ id }: { id: string }) {
         error instanceof ProjectApiError && error.status === 412 ? copy.stale :
           error instanceof ProjectApiError && error.status === 409 ? copy.lifecycleConflict : copy.lifecycleError);
       await refresh();
+    } finally {
+      pendingGuard.current = false; setPending(false);
     }
   }
   function moveTab(index: number) { const next = (index + 12) % 12; setSelectedMonth(next + 1); tabs.current[next]?.focus(); }
@@ -59,10 +73,10 @@ export function ProjectDetail({ id }: { id: string }) {
     </section>}
     {state.phase === 'authenticated' && detail.data && <article className={styles.panel}>
       <div className={styles.workspaceHeading}><div><p className={styles.eyebrow}>{copy.status[detail.data.status]}</p><h2>{detail.data.title}</h2></div>
-        <div className={styles.projectActions}>
-          {detail.data.status === 'WORKING' && <Dialog triggerLabel={copy.archive} title={copy.archiveTitle} description={copy.archiveDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('archive')} />}
-          {detail.data.status === 'ARCHIVED' && <Dialog triggerLabel={copy.restore} title={copy.restoreTitle} description={copy.restoreDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('restore')} />}
-          {detail.data.deletionEligible && <Dialog triggerLabel={copy.delete} title={copy.deleteTitle} description={copy.deleteDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.delete} destructive onConfirm={() => void lifecycle('remove')} />}
+        <div ref={actions} className={styles.projectActions}>
+          {detail.data.status === 'WORKING' && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.archive} title={copy.archiveTitle} description={copy.archiveDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('archive')} />}
+          {detail.data.status === 'ARCHIVED' && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.restore} title={copy.restoreTitle} description={copy.restoreDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('restore')} />}
+          {detail.data.deletionEligible && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.delete} title={copy.deleteTitle} description={copy.deleteDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.delete} destructive onConfirm={() => void lifecycle('remove')} />}
         </div>
       </div>
       {detail.data.status === 'ARCHIVED' && <p className={styles.summary} role="status">{copy.archivedReadOnly}</p>}

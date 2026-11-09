@@ -11,7 +11,7 @@ try {
   const result = JSON.stringify(document, null, 2) + '\n';
   const file = new URL('../openapi.json', import.meta.url);
   if (process.argv.includes('--check')) {
-    if (await readFile(file, 'utf8') !== result) throw new Error('OpenAPI drift: run pnpm contract:generate.');
+    if ((await readFile(file, 'utf8')).replaceAll('\r\n', '\n') !== result) throw new Error('OpenAPI drift: run pnpm contract:generate.');
     console.log('PASS: backend HTTP OpenAPI matches the reviewed artifact.');
   } else { await writeFile(file, result); console.log('Generated backend HTTP OpenAPI.'); }
 } finally { await app.close(); }

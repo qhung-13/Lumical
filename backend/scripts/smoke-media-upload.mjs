@@ -5,6 +5,10 @@ const require = createRequire(import.meta.url);
 const {
   CloudinaryUpload,
 } = require('../dist/modules/media/infrastructure/cloudinary-upload.js');
+const {
+  CloudinaryInspection,
+} = require('../dist/modules/media/infrastructure/cloudinary-inspection.js');
+const { assessReadiness } = require('../dist/modules/media/domain/media.js');
 const config = [
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
@@ -63,6 +67,21 @@ try {
   assert.equal(object.format, 'png');
   assert.equal(object.width, 1);
   assert.equal(object.height, 1);
+  const inspected = await new CloudinaryInspection().inspect(
+    result.intent.binding,
+  );
+  assert.equal(
+    inspected.kind,
+    'VERIFIED',
+    'Authenticated Admin API inspection must independently verify the upload',
+  );
+  assert.equal(
+    assessReadiness(result.intent.binding, 'IMAGE', inspected).status,
+    'READY',
+  );
+  assert.equal(inspected.facts.bytes, object.bytes);
+  assert.equal(inspected.facts.object.contentVersion, String(object.version));
+  assert.equal(inspected.facts.contentType, 'image/png');
   const second = await upload();
   const replay = await second.json();
   assert.ok(
@@ -71,7 +90,7 @@ try {
   );
   if (second.ok) assert.equal(replay.version, object.version);
   console.log(
-    'PASS: configured Cloudinary synthetic private intake and overwrite protection; P03/P07 readiness/privacy remain separate.',
+    'PASS: configured Cloudinary synthetic private intake, overwrite protection and independently inspected P03 readiness; P07 privacy acceptance remains separate.',
   );
 } finally {
   if (attempted) {

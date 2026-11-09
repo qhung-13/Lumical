@@ -9,12 +9,23 @@ import {
 import { CloudinaryUpload } from './infrastructure/cloudinary-upload';
 import { PrismaUploadIntents } from './infrastructure/prisma-upload-intents';
 import { UploadController } from './interface/upload.controller';
+import {
+  FinalizeMedia,
+  MediaFinalizations,
+  MediaInspection,
+} from './application/finalize-media';
+import { CloudinaryInspection } from './infrastructure/cloudinary-inspection';
+import { PrismaMediaFinalizations } from './infrastructure/prisma-media-finalizations';
+import { FinalizeController } from './interface/finalize.controller';
 
 @Module({
   imports: [DatabaseModule, IdentityModule],
-  controllers: [UploadController],
+  controllers: [UploadController, FinalizeController],
   providers: [
     UploadIntake,
+    FinalizeMedia,
+    { provide: MediaInspection, useClass: CloudinaryInspection },
+    { provide: MediaFinalizations, useClass: PrismaMediaFinalizations },
     { provide: UploadAuthorization, useClass: CloudinaryUpload },
     { provide: UploadIntents, useClass: PrismaUploadIntents },
   ],

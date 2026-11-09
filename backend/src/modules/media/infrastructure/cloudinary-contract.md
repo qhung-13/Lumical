@@ -1,6 +1,6 @@
 # Cloudinary private adapter contract (I06-P01)
 
-Implementation contract for P02-P04; P02 registers upload intake only.
+Implementation contract for P02-P04; P02 registers upload intake and P03 registers finalization.
 Authority: ARCHITECTURE section 11, BR-MED-001..006, API_CONTRACT media rows.
 LEAD security review remains pending; this document does not constitute approval.
 
@@ -59,3 +59,37 @@ P02 configuration and provider limitations:
   fake. `test:media-upload:smoke` uses configured Cloudinary with a synthetic PNG,
   verifies overwrite rejection, and deletes only that run's fixed object. It is
   not P07 account/derivative privacy acceptance.
+
+P03 trusted finalization:
+
+- `POST /media/{id}/finalize` requires the active asset owner, Origin, CSRF,
+  Idempotency-Key and exactly `{uploadCompleted:true}`. The body is a hint only.
+  Cross-owner/unknown IDs share a safe 404; client metadata/provider IDs are rejected.
+- Bind the finalize intent to actor, asset and canonical request before external
+  work. Cloudinary Admin API calls run outside DB transactions. Reauthorize the
+  account and lock the asset again before committing any transition.
+- Probe authenticated image/video namespaces using the backend-derived key.
+  Audio is provider video with audio codec evidence and no visual stream; video
+  requires visual codec/dimension evidence. Ambiguous namespaces are a conflict.
+  Verify context owner/asset/intent, delivery type, format-to-MIME mapping, byte
+  count, timed duration, moderation state and positive provider version. Do not
+  trust or expose provider delivery URLs or the browser upload response.
+- Missing/in-progress resources return 202 Pending. Provider auth/config/rate/
+  network uncertainty returns controlled 503 and retains Pending for retry.
+  Unsafe facts commit Unavailable before returning 422; immutable collisions
+  return 409. Rejected uploads cannot be promoted by retrying finalization.
+- Safe finalization atomically pins storage key, provider version, actual bytes,
+  content type, duration (rounded up to milliseconds) and verified timestamp.
+  The current DB schema supports positive 32-bit provider versions; values beyond
+  that range fail closed. Only Ready results are returned with 200; no contentPath
+  is advertised before the P04 stream endpoint exists.
+- Repeated/concurrent finalization returns the pinned result without fetching a
+  newer object or rewriting verified facts. Pending/503 responses do not freeze
+  the intent: the same key can retry inspection. Completed replays still check
+  current owner/account access. A stale worker cannot demote Ready content.
+- `test:media-upload` includes T23 real-DB/API duplicate-finalization tests,
+  invalid metadata and account-disable-during-inspection checks. The configured
+  image smoke independently inspects uploaded synthetic PNG metadata via Admin
+  API before cleanup. P07 anonymous original/derivative acceptance remains separate.
+- Provider references: https://cloudinary.com/documentation/admin_api and
+  https://cloudinary.com/documentation/control_access_to_media .

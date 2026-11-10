@@ -1,0 +1,11 @@
+.field { display: grid; gap: var(--space-2); min-width: 0; margin-block-end: var(--space-5); }
+.field label { font-size: var(--type-label); line-height: var(--type-label-line); font-weight: 600; }
+.field input[type='file'] { min-width: 0; max-width: 100%; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text-primary); padding: var(--space-3); }
+.field input[type='file']:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.field input[type='file']::file-selector-button { min-height: var(--control-sm); margin-inline-end: var(--space-3); padding-inline: var(--space-3); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-surface-subtle); color: var(--color-text-primary); font: inherit; cursor: pointer; }
+.field p { margin: 0; }
+.help, .fileName { color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.field .error { color: var(--color-danger); }
+.progress { display: flex; align-items: center; gap: var(--space-3); }
+.progress progress { width: 100%; min-width: 0; min-height: var(--control-sm); accent-color: var(--color-brand); }
+.progress span { min-width: 3ch; font-variant-numeric: tabular-nums; }

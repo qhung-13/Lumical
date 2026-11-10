@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== backend || url.username || url.password) throw new Error('Invalid trusted BACKEND_URL.');
     return { beforeFiles: [{ source: '/api/:path*', destination: `${backend}/api/:path*` }] };
   },
+  async headers() {
+    // The backend supplies the bounded Cloudinary upload URL. Permit only its API origin;
+    // provider CORS remains an account-level setting verified separately.
+    return [{ source: '/:path*', headers: [{ key: 'Content-Security-Policy', value: "connect-src 'self' https://api.cloudinary.com;" }] }];
+  },
 };
 
 export default nextConfig;

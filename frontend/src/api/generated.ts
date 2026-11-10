@@ -351,7 +351,8 @@ export interface paths {
         get: operations["getOwnedMedia"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Revoke unused media immediately and durably schedule safe provider cleanup. */
+        delete: operations["deleteOwnedMedia"];
         options?: never;
         head?: never;
         patch?: never;
@@ -709,6 +710,13 @@ export interface components {
         };
         OwnedMediaResponseDto: {
             data: components["schemas"]["OwnedMediaDto"];
+        };
+        RetainedMediaDto: {
+            /** @enum {boolean} */
+            retainedForHistory: true;
+        };
+        RetainedMediaResponseDto: {
+            data: components["schemas"]["RetainedMediaDto"];
         };
     };
     responses: never;
@@ -3120,6 +3128,69 @@ export interface operations {
                 };
             };
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    deleteOwnedMedia: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+                Origin: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetainedMediaResponseDto"];
+                };
+            };
+            /** @description Access revoked; provider cleanup runs durably after upload signatures expire. Safe repeat. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdtemp, cp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, cp, writeFile, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,7 +92,7 @@ try {
                 'SELECT count(*) FROM lumical._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL',
               )
             ).rows[0].count,
-            '7',
+            String((await readdir(path.join(backend, 'prisma/migrations'), { withFileTypes: true })).filter(entry => entry.isDirectory()).length),
           );
           assert.equal(
             (

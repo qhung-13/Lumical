@@ -73,7 +73,7 @@ function cloudinaryUploadUrl(value: string, mediaCategory: MediaCategory): boole
     const url = new URL(value);
     const resource = mediaCategory === 'IMAGE' ? 'image' : 'video';
     return url.protocol === 'https:' && url.hostname === 'api.cloudinary.com' && !url.port && !url.username && !url.password &&
-      !url.search && !url.hash && new RegExp(`^/v1_1/[a-z0-9-]+/${resource}/upload$`, 'i').test(url.pathname);
+      !url.search && !url.hash && new RegExp(`^/v1_1/[a-z0-9_-]+/${resource}/upload$`, 'i').test(url.pathname);
   } catch { return false; }
 }
 
@@ -98,16 +98,18 @@ export function uploadToProvider(intent: UploadIntent, file: File, mediaCategory
     form.append('file', file, file.name);
     const abort = () => xhr.abort();
     xhr.open('POST', intent.upload.url);
+    xhr.timeout = 180000;
     xhr.responseType = 'text';
     xhr.upload.onprogress = event => { if (event.lengthComputable && event.total > 0) onProgress(Math.min(100, Math.round(event.loaded / event.total * 100))); };
     xhr.onload = () => {
       signal.removeEventListener('abort', abort);
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new ProviderUploadError(xhr.status, false));
+      else reject(new ProviderUploadError(xhr.status, xhr.status === 409));
     };
     xhr.onerror = () => { signal.removeEventListener('abort', abort); reject(new ProviderUploadError(undefined, true)); };
+    xhr.ontimeout = () => { signal.removeEventListener('abort', abort); reject(new ProviderUploadError(undefined, true)); };
     xhr.onabort = () => { signal.removeEventListener('abort', abort); reject(new DOMException('Upload cancelled', 'AbortError')); };
-    if (signal.aborted) { xhr.abort(); return; }
+    if (signal.aborted) { reject(new DOMException('Upload cancelled', 'AbortError')); return; }
     signal.addEventListener('abort', abort, { once: true });
     xhr.send(form);
   });

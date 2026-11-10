@@ -28,12 +28,19 @@ export class PrismaMediaFinalizations extends MediaFinalizations {
     context: TransactionContext,
   ): Promise<FinalizationAsset> {
     const client = this.transactions.clientFor(context);
+    if (
+      await client.jobRecord.findUnique({
+        where: { operationIdentity: `MEDIA_DELETE:${id}` },
+      })
+    )
+      throw new IdentityError('NOT_FOUND', 404, 'errors.notFound');
     const rows = await client.$queryRaw<
       Array<{ id: string }>
     >`SELECT id FROM lumical.media_assets WHERE id=${id}::uuid AND owner_id=${intent.ownerId}::uuid FOR UPDATE`;
     if (!rows.length)
       throw new IdentityError('NOT_FOUND', 404, 'errors.notFound');
     const asset = await client.mediaAsset.findUniqueOrThrow({ where: { id } });
+    if (asset.deletedAt) throw new IdentityError('NOT_FOUND', 404, 'errors.notFound');
     const replay = await client.idempotencyRecord.findUnique({
       where: {
         actorId_operation_key: {

@@ -15,9 +15,17 @@ export class PrismaOwnerMedia extends OwnerMediaRepository {
     super();
   }
   async find(id: string, ownerId: string, context: TransactionContext) {
+    if (
+      await this.transactions
+        .clientFor(context)
+        .jobRecord.findUnique({
+          where: { operationIdentity: `MEDIA_DELETE:${id}` },
+        })
+    )
+      return null;
     const asset = await this.transactions
       .clientFor(context)
-      .mediaAsset.findFirst({ where: { id, ownerId } });
+      .mediaAsset.findFirst({ where: { id, ownerId, deletedAt: null } });
     return asset
       ? {
           binding: {

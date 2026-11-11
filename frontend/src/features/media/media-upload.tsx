@@ -134,7 +134,9 @@ function MediaUploadExperience() {
     } catch (error) {
       if (!mounted.current || requestActor !== state.principal?.id || manager.requestEpoch() !== stateEpoch) return;
       if (error instanceof DOMException && error.name === 'AbortError') {
-        publish({ ...current, phase: 'PAUSED', errorStage: current.uploaded ? 'FINALIZE' : 'UPLOAD', errorKind: undefined });
+        // Cancellation can race provider success. Inspect before any explicit re-transfer.
+        publish({ ...current, verifyAfterUpload: stage === 'UPLOAD' || current.verifyAfterUpload,
+          phase: 'PAUSED', errorStage: stage === 'UPLOAD' || current.uploaded ? 'FINALIZE' : 'UPLOAD', errorKind: undefined });
       } else if (isExpired(error)) {
         publish({ ...current, phase: 'EXPIRED', errorStage: undefined, errorKind: undefined });
       } else {

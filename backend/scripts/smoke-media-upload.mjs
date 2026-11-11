@@ -10,6 +10,9 @@ const {
 } = require('../dist/modules/media/infrastructure/cloudinary-inspection.js');
 const { assessReadiness } = require('../dist/modules/media/domain/media.js');
 const {
+  CloudinaryPurge,
+} = require('../dist/modules/media/infrastructure/cloudinary-purge.js');
+const {
   CloudinaryContent,
 } = require('../dist/modules/media/infrastructure/cloudinary-content.js');
 const config = [
@@ -163,8 +166,32 @@ try {
     'Replay must reject overwrite or return existing object',
   );
   if (second.ok) assert.equal(replay.version, object.version);
+  const cleanupTarget = {
+    binding: result.intent.binding,
+    pinned: inspected.facts.object,
+  };
+  const purge = new CloudinaryPurge();
+  const abortPurge = new AbortController().signal;
+  assert.equal(
+    (
+      await purge.purge(
+        {
+          ...cleanupTarget,
+          pinned: { ...cleanupTarget.pinned, contentVersion: '1' },
+        },
+        abortPurge,
+      )
+    ).kind,
+    'REJECTED',
+  );
+  assert.equal((await purge.purge(cleanupTarget, abortPurge)).kind, 'DELETED');
+  assert.equal(
+    (await purge.purge(cleanupTarget, abortPurge)).kind,
+    'DELETED',
+    'Missing bytes are an idempotent cleanup success',
+  );
   console.log(
-    'PASS: configured Cloudinary intake/readiness, pinned GET/HEAD/ranges, anonymous original denial and overwrite protection; P07 prepared derivative acceptance remains separate.',
+    'PASS: configured Cloudinary intake/readiness, private delivery, original denial, overwrite protection and exact-identity P06 cleanup; P07 prepared derivative acceptance remains separate.',
   );
 } finally {
   if (attempted) {

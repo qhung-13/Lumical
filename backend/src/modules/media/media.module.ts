@@ -25,14 +25,31 @@ import {
 import { PrismaOwnerMedia } from './infrastructure/prisma-owner-media';
 import { CloudinaryContent } from './infrastructure/cloudinary-content';
 import { OwnerMediaController } from './interface/owner-media.controller';
+import {
+  MediaCleanup,
+  MediaCleanupRepository,
+  MediaPurge,
+} from './application/media-cleanup';
+import { PrismaMediaCleanup } from './infrastructure/prisma-media-cleanup';
+import { CloudinaryPurge } from './infrastructure/cloudinary-purge';
+import { DeleteMediaController } from './interface/delete-media.controller';
 
 @Module({
   imports: [DatabaseModule, IdentityModule],
-  controllers: [UploadController, FinalizeController, OwnerMediaController],
+  controllers: [
+    UploadController,
+    FinalizeController,
+    OwnerMediaController,
+    DeleteMediaController,
+  ],
+  exports: [MediaCleanup],
   providers: [
     UploadIntake,
     FinalizeMedia,
     OwnerMedia,
+    MediaCleanup,
+    { provide: MediaCleanupRepository, useClass: PrismaMediaCleanup },
+    { provide: MediaPurge, useClass: CloudinaryPurge },
     { provide: OwnerMediaRepository, useClass: PrismaOwnerMedia },
     { provide: MediaContent, useClass: CloudinaryContent },
     { provide: MediaInspection, useClass: CloudinaryInspection },

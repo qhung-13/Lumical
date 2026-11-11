@@ -138,3 +138,47 @@ P04 owner status and delivery:
   remains P07, and no participant-media acceptance is claimed here.
 - Version/signing references: https://cloudinary.com/documentation/image_transformations
   and https://github.com/cloudinary/cloudinary_npm/blob/master/lib/utils/index.js .
+
+P06 removal, retention and durable cleanup:
+
+- DELETE `/media/{id}` requires active ownership, Origin and CSRF. Current Month/AR
+  references or other active media jobs return 409. Historical Order references
+  return `{data:{retainedForHistory:true}}`: set irreversible owner `deletedAt`
+  while preserving Ready bytes/facts for historical grants. Owner status/content/
+  finalize immediately deny the removed asset. Repeated removal is safe.
+- Unreferenced removal atomically sets owner removal and Unavailable plus one
+  `MEDIA_DELETE:<assetId>` JobRecord. Physical deletion is outside the transaction
+  and waits at least until the original one-hour upload signature window plus a
+  one-minute boundary margin has passed. Failed deletion never restores access.
+- New Project Month/AR references, Order pins and media-consuming jobs coordinate
+  through asset row guards. Reference/job inserts perform a no-op status update
+  to advance the MVCC row version: cleanup with an older Serializable snapshot
+  must retry even when a racing consumer uses READ COMMITTED. All consuming media
+  jobs must use the asset ID as JobRecord.objectId. New references after owner
+  removal are forbidden; historical rows already committed remain unchanged.
+- The bounded scanner enqueues unreferenced Pending/Unavailable intake older than
+  24 hours, checking all current/historical refs and active jobs again under lock.
+  Ready assets are not implicitly expired; owners remove those explicitly.
+- The same-build worker rechecks references, claims a two-minute lease, invokes
+  storage outside DB transactions and fences completion with a fresh claim UUID.
+  Transient failures back off exponentially from 60 seconds; maximum five attempts.
+  Crashed leases can be reclaimed; exhausted/identity-mismatch work stays FAILED
+  with a safe code for operator review. Keep deletion jobs/tombstone rows for safe
+  replay; do not independently prune those records or clear deletedAt.
+- Provider cleanup reads authenticated image/video/raw namespaces and verifies exact binding.
+  Pinned objects must also match version/format/checksum. Delete via the Admin API
+  using only the independently inspected immutable asset ID; never a broad prefix,
+  tag, public-ID-only delete or participant-supplied URL. Missing bytes succeed.
+  A replacement/newer pinned object is rejected instead of being purged. CDN
+  invalidation is not required for access revocation: every backend stream still
+  requires current permission and a fresh authenticated provider inspection.
+- Run migrations with the migration role, then build and start the optional worker
+  with `pnpm --dir backend jobs:run` (use `-- --once` for one bounded pass).
+  It uses the runtime DATABASE_URL and the same backend Cloudinary configuration;
+  no broker, extra service boundary or public worker endpoint is introduced.
+- `test:media-cleanup` proves T24/T26 with real PostgreSQL/API and a failure fake,
+  including a blocked reference race, lease fencing/recovery, retry exhaustion,
+  historical retention and access loss before provider success. The synthetic
+  Cloudinary smoke verifies exact-identity deletion and missing-object replay.
+  P07 prepared-derivative/participant acceptance is still separate.
+- Provider delete reference: https://cloudinary.com/documentation/admin_api#delete_resources_by_asset_id .

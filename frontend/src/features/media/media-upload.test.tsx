@@ -122,7 +122,7 @@ describe('private media upload experience', () => {
     expect(api.initiate.mock.calls[1][1]).not.toBe(oldKey);
   });
 
-  it('cancels provider transfer and retries the same intent request without losing the selected file', async () => {
+  it('inspects the same intent after cancellation without re-uploading accepted bytes', async () => {
     const user = userEvent.setup();
     api.upload.mockImplementationOnce((_intent, _file, _category, _progress, signal: AbortSignal) => new Promise((_resolve, reject) => {
       signal.addEventListener('abort', () => reject(new DOMException('Upload cancelled', 'AbortError')), { once: true });
@@ -136,11 +136,12 @@ describe('private media upload experience', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel upload' }));
     expect(await screen.findByText(/Upload paused/u)).toBeVisible();
     expect(screen.getByText(/family\.jpg/u)).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Retry upload' }));
+    await user.click(screen.getByRole('button', { name: 'Retry server check' }));
     await waitFor(() => expect(screen.getByText('The file is verified and ready.')).toBeVisible());
-    expect(api.initiate).toHaveBeenCalledTimes(2);
-    expect(api.initiate.mock.calls[1][1]).toBe(firstKey);
-    expect(api.upload).toHaveBeenCalledTimes(2);
+    expect(api.initiate).toHaveBeenCalledTimes(1);
+    expect(api.initiate.mock.calls[0][1]).toBe(firstKey);
+    expect(api.upload).toHaveBeenCalledTimes(1);
+    expect(api.finalize).toHaveBeenCalledWith(assetId, expect.any(String), expect.any(AbortSignal));
   });
 
   it('shows UNAVAILABLE only from the backend status and lets the owner restart', async () => {

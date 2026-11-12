@@ -21,6 +21,7 @@
     "test:media-upload": "pnpm build && node scripts/test-media-upload.mjs",
     "test:media-cleanup": "pnpm build && node scripts/test-media-cleanup.mjs",
     "test:media-upload:smoke": "pnpm build && node --env-file-if-exists=.env scripts/smoke-media-upload.mjs",
+    "test:media:privacy": "pnpm build && node --dns-result-order=ipv4first --env-file-if-exists=.env scripts/accept-media-privacy.mjs",
     "test:identity": "pnpm build && node scripts/test-identity.mjs",
     "test:template-admin": "pnpm build && node scripts/test-template-admin.mjs",
     "test:docker": "node scripts/smoke-docker.mjs",

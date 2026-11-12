@@ -273,7 +273,7 @@ Private immutable MediaStorage behind Cloudinary; backend authorizes uploads and
 
 - Owner: MEMBER_4
 - Reviewer: LEAD
-- Status: TODO
+- Status: DONE
 - Depends on: [I06-P02](I06-private-media-pipeline.md#i06-p02); [I06-P03](I06-private-media-pipeline.md#i06-p03); [I06-P04](I06-private-media-pipeline.md#i06-p04); [I06-P05](I06-private-media-pipeline.md#i06-p05); [I06-P06](I06-private-media-pipeline.md#i06-p06) Inherited item hard gates: [I02](I02-identity-and-sessions.md); [I01](I01-database-foundation.md)
 - Can run in parallel with: No independent task within this item is named; eligible external tracks remain listed in Dependencies.
 
@@ -287,9 +287,9 @@ Private immutable MediaStorage behind Cloudinary; backend authorizes uploads and
 
 **Acceptance criteria:**
 
-- [ ] Anonymous originals and prepared derivatives are denied.
-- [ ] Owned private stream and readiness work.
-- [ ] T23/T24/T26 regressions and static gates pass.
+- [x] Anonymous originals and prepared derivatives are denied.
+- [x] Owned private stream and readiness work.
+- [x] T23/T24/T26 regressions and static gates pass.
 
 **Tests required:** Genuine configured Cloudinary acceptance plus deterministic fake/real-DB negative suites.
 
@@ -305,10 +305,10 @@ A Pxx normally maps to one small MR. Tests for its behavior belong in that MR; a
 
 ## Ixx Acceptance Criteria
 
-- [ ] Actual private originals/derivatives denied anonymously; verified limits, duplicate finalize and no public private-media URLs.
-- [ ] All in-scope Pxx acceptance criteria and integration scenarios are satisfied and evidenced.
-- [ ] Required typecheck, lint, tests and build pass; affected API/DB/provider/device/UI checks pass at the correct layer.
-- [ ] No unapproved scope, secret, dependency-boundary or historical-data change; LEAD and an independent reviewer approve where required.
+- [x] Actual private originals/derivatives denied anonymously; verified limits, duplicate finalize and no public private-media URLs.
+- [x] All in-scope Pxx acceptance criteria and integration scenarios are satisfied and evidenced.
+- [x] Required typecheck, lint, tests and build pass; affected API/DB/provider/device/UI checks pass at the correct layer.
+- [x] No unapproved scope, secret, dependency-boundary or historical-data change; LEAD and an independent reviewer approve where required.
 
 ## Demo Evidence
 

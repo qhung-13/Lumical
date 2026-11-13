@@ -166,7 +166,7 @@ export class CloudinaryInspection extends MediaInspection {
                 Authorization: `Basic ${Buffer.from(`${apiKey}:${secret}`).toString('base64')}`,
               },
               redirect: 'error',
-              signal: AbortSignal.timeout(5000),
+              signal: AbortSignal.timeout(15_000),
             },
           );
           if (response.status === 404) return { kind: 'MISSING' } as const;

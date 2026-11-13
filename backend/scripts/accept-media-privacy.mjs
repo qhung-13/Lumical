@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
+import { readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { deflateSync } from 'node:zlib';
@@ -57,15 +60,21 @@ const apiSecret = process.env.CLOUDINARY_API_SECRET;
 const secret = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
 
 const evidence = [];
+// PASS/NOTE/SKIP are counted separately so a mandatory gate can never be
+// reported as PASS when it only produced a NOTE or a SKIP (LEAD review).
+const counts = { pass: 0, note: 0, skip: 0 };
 function pass(text) {
+  counts.pass += 1;
   evidence.push(text);
   console.log(`PASS: ${text}`);
 }
 function note(text) {
+  counts.note += 1;
   evidence.push(`NOTE: ${text}`);
   console.log(`NOTE: ${text}`);
 }
 function skip(text) {
+  counts.skip += 1;
   evidence.push(`SKIP: ${text}`);
   console.log(`SKIP: ${text}`);
 }
@@ -132,6 +141,20 @@ function noisyPng(width, height) {
     pngChunk('IDAT', deflateSync(scanlines)),
     pngChunk('IEND', Buffer.alloc(0)),
   ]);
+}
+/**
+ * A PNG that must sit strictly between MEDIA_LIMITS (10,000,000) and the
+ * provider plan limit (10,485,760): the backend cap, not the provider, has to
+ * be the layer that refuses it at finalization.
+ */
+function inBandPng() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const bytes = noisyPng(1733, 2000);
+    if (bytes.length > 10_000_000 && bytes.length <= 10_485_760) return bytes;
+  }
+  return assert.fail(
+    'synthetic PNG must land between the backend cap and the provider limit',
+  );
 }
 /** 8-bit mono PCM WAV, 61 s of silence: over the 60 s audio policy by design. */
 function longWav(seconds = 61, sampleRate = 8000) {
@@ -301,6 +324,8 @@ await withDisposablePostgres(async ({ url }) => {
     );
   };
 
+  let primaryError = null;
+  const cleanupFailures = [];
   try {
     // ---- G0: credentials and signed preset precondition -------------------
     const presetResponse = await fetch(
@@ -326,36 +351,82 @@ await withDisposablePostgres(async ({ url }) => {
       `G0 image preset signed; settings keys [${presetSettings.join(', ')}]; ` +
         `allowed_formats=${allowedFormats || 'unreported'}`,
     );
-    const expectedFormats = ['jpg', 'png', 'webp'];
-    const presetFormats = allowedFormats
-      ? allowedFormats.split(',').map((format) => format.trim())
-      : [];
-    assert.ok(
-      presetFormats.length > 0,
-      'G0 image preset must declare allowed_formats',
+    const presetAllowlist = [
+      'allowed_formats',
+      'type',
+      'overwrite',
+      'use_filename',
+      'unique_filename',
+      'discard_original_filename',
+    ];
+    const assertPresetShape = (label, name, body, expectedFormats) => {
+      assert.equal(
+        body.unsigned,
+        false,
+        `G0 ${label} preset "${name}" must be signed`,
+      );
+      const formats = String(body.settings?.allowed_formats ?? '')
+        .split(',')
+        .map((format) => format.trim())
+        .filter(Boolean);
+      assert.ok(
+        formats.length > 0,
+        `G0 ${label} preset "${name}" must declare allowed_formats`,
+      );
+      assert.ok(
+        formats.every((format) => expectedFormats.includes(format)),
+        `G0 ${label} preset formats must stay inside the ${label} allowlist ` +
+          `(${formats.join(', ')})`,
+      );
+      assert.deepEqual(
+        Object.keys(body.settings ?? {})
+          .filter((key) => !presetAllowlist.includes(key))
+          .sort(),
+        [],
+        `G0 ${label} preset "${name}" must expose no hidden transformation, ` +
+          'eval or folder option',
+      );
+      return formats;
+    };
+    assertPresetShape(
+      'image',
+      process.env.CLOUDINARY_UPLOAD_PRESET_IMAGE,
+      preset,
+      ['jpg', 'png', 'webp'],
     );
-    assert.ok(
-      presetFormats.every((format) => expectedFormats.includes(format)),
-      `G0 preset formats must stay inside the image allowlist ` +
-        `(${presetFormats.join(', ')})`,
-    );
-    assert.deepEqual(
-      presetSettings
-        .filter(
-          (key) =>
-            ![
-              'allowed_formats',
-              'type',
-              'overwrite',
-              'use_filename',
-              'unique_filename',
-              'discard_original_filename',
-            ].includes(key),
-        )
-        .sort(),
-      [],
-      'G0 preset must expose no hidden transformation, eval or folder option',
-    );
+    // The G4 video/audio gates run on these presets, so they are preconditions.
+    for (const [label, envKey, formats] of [
+      ['video', 'CLOUDINARY_UPLOAD_PRESET_VIDEO', ['mp4', 'webm']],
+      [
+        'audio',
+        'CLOUDINARY_UPLOAD_PRESET_AUDIO',
+        ['mp3', 'm4a', 'ogg', 'wav', 'webm'],
+      ],
+    ]) {
+      const name = process.env[envKey];
+      if (!name) {
+        skip(`G0 ${label} preset: ${envKey} not configured on this runner`);
+        continue;
+      }
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloud}/upload_presets/${name}`,
+        {
+          headers: { Authorization: `Basic ${secret}` },
+          redirect: 'error',
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      assert.ok(
+        response.ok,
+        `G0 ${label} preset "${name}" must be readable (HTTP ` +
+          `${response.status})`,
+      );
+      const body = await response.json();
+      const verified = assertPresetShape(label, name, body, formats);
+      pass(
+        `G0 ${label} preset signed; allowed_formats=${verified.join(',')}`,
+      );
+    }
 
     const owner = await register('p07-owner@example.invalid');
     const other = await register('p07-other@example.invalid');
@@ -515,6 +586,53 @@ await withDisposablePostgres(async ({ url }) => {
     const version = facts.object.contentVersion;
     const publicId = firstIntake.upload.fields.public_id;
     const base = `https://res.cloudinary.com/${cloud}/image/authenticated`;
+    // Materialize a REAL prepared derivative first: a signed rendition of the
+    // w_100 transformation makes the provider create and cache it, and the
+    // Admin API must then report it. Denial is only proven against an asset
+    // that exists (LEAD review point: transformation URLs alone are not enough).
+    const derivativeSignature = createHash('sha256')
+      .update(`w_100/${publicId}.png${apiSecret}`)
+      .digest('base64url')
+      .slice(0, 8);
+    const preparedResponse = await fetch(
+      `${base}/s--${derivativeSignature}--/w_100/v${version}/${publicId}.png`,
+      { redirect: 'manual', signal: AbortSignal.timeout(30_000) },
+    );
+    const preparedBytes = Buffer.from(await preparedResponse.arrayBuffer());
+    assert.equal(
+      preparedResponse.status,
+      200,
+      `G2 prepared derivative must materialize through a signed rendition ` +
+        `(HTTP ${preparedResponse.status})`,
+    );
+    assert.ok(
+      looksLikeMedia(preparedBytes),
+      'G2 prepared derivative must return real media bytes',
+    );
+    const resourceResponse = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloud}/resources/image/` +
+        `authenticated/${encodeURIComponent(publicId)}?derived=true`,
+      {
+        headers: { Authorization: `Basic ${secret}` },
+        redirect: 'error',
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    assert.ok(
+      resourceResponse.ok,
+      `G2 admin resource read must succeed (HTTP ${resourceResponse.status})`,
+    );
+    const derivedResources = (await resourceResponse.json()).derived ?? [];
+    assert.ok(
+      Array.isArray(derivedResources) &&
+        derivedResources.some((entry) => entry.transformation === 'w_100'),
+      'G2 provider must report the prepared w_100 derivative for this original',
+    );
+    pass(
+      `G2 prepared derivative created for real: signed rendition HTTP 200 ` +
+        `with ${preparedBytes.length} bytes and Admin API reports derived ` +
+        'w_100',
+    );
     const anonymousTargets = [
       ['G1 original', `${base}/v${version}/${publicId}.png`],
       ['G2 derived w_100', `${base}/w_100/v${version}/${publicId}.png`],
@@ -560,6 +678,28 @@ await withDisposablePostgres(async ({ url }) => {
           `${payload.length} bytes, ${contentType || 'no content type'})`,
       );
     }
+    // The w_100 derivative above now exists at the provider: its anonymous
+    // denial must come from authentication, not from the asset being missing.
+    const anonymousPrepared = await fetch(
+      `${base}/w_100/v${version}/${publicId}.png`,
+      { redirect: 'manual', signal: AbortSignal.timeout(20_000) },
+    );
+    const anonymousPreparedBytes = Buffer.from(
+      await anonymousPrepared.arrayBuffer(),
+    );
+    assert.ok(
+      [401, 403].includes(anonymousPrepared.status),
+      `G2 the existing prepared derivative must be denied by ` +
+        `authentication (HTTP ${anonymousPrepared.status})`,
+    );
+    assert.ok(
+      !looksLikeMedia(anonymousPreparedBytes),
+      'G2 prepared derivative must not leak media bytes anonymously',
+    );
+    pass(
+      `G2 prepared derivative (existence proven) denied anonymously: ` +
+        `HTTP ${anonymousPrepared.status}, ${anonymousPreparedBytes.length} bytes`,
+    );
 
     // ---- G6: duplicate and concurrent finalization on the real object ----
     const replay = await finalize(owner, assetId, finalizeKey).expect(200);
@@ -587,16 +727,43 @@ await withDisposablePostgres(async ({ url }) => {
     assert.equal(assets.rows[0].count, 1, 'G6 exactly one Ready asset row');
     assert.equal(assets.rows[0].low, assets.rows[0].high);
     assert.equal(assets.rows[0].low_bytes, assets.rows[0].high_bytes);
+    const expectedKeys = [finalizeKey, ...keys].sort();
     const idempotency = await db.query(
-      "SELECT count(*)::int AS count FROM lumical.idempotency_records " +
+      'SELECT key, condition, safe_result, request_digest ' +
+        'FROM lumical.idempotency_records ' +
         "WHERE resource_id=$1 AND resource_type='MEDIA_ASSET' " +
         "AND operation='FINALIZE_MEDIA_UPLOAD'",
       [assetId],
     );
-    assert.ok(
-      idempotency.rows[0].count >= 1 &&
-        idempotency.rows[0].count <= keys.length + 1,
-      'G6 finalization records at most one durable outcome per key',
+    const durable = idempotency.rows;
+    assert.equal(
+      durable.length,
+      expectedKeys.length,
+      `G6 must keep exactly one durable record per finalize key ` +
+        `(got ${durable.length}, expected ${expectedKeys.length})`,
+    );
+    assert.deepEqual(
+      durable.map((row) => row.key).sort(),
+      expectedKeys,
+      'G6 durable records must match the exact finalize keys used',
+    );
+    const expectedOutcome = JSON.parse(JSON.stringify(first.body.data));
+    for (const row of durable) {
+      assert.equal(
+        row.condition,
+        'COMPLETED',
+        `G6 record for key ${row.key} must reach COMPLETED`,
+      );
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(row.safe_result)),
+        expectedOutcome,
+        `G6 record for key ${row.key} must store the same durable outcome`,
+      );
+    }
+    assert.equal(
+      new Set(durable.map((row) => row.request_digest)).size,
+      1,
+      'G6 every record must carry the same request digest',
     );
     const stranded = await db.query(
       "SELECT count(*)::int AS count FROM lumical.media_assets " +
@@ -606,8 +773,9 @@ await withDisposablePostgres(async ({ url }) => {
     assert.equal(stranded.rows[0].count, 0, 'G6 no second Ready asset row');
     pass(
       `G6 duplicate + 4 concurrent finalizations converge on one asset ` +
-        `(contentVersion ${assets.rows[0].low}, ` +
-        `${idempotency.rows[0].count} idempotency records, no conflict)`,
+        `(contentVersion ${assets.rows[0].low}; ${durable.length} durable ` +
+        'records, one per finalize key, all COMPLETED with the identical ' +
+        'stored outcome, no conflict)',
     );
 
     // ---- G4: provider-backed size / type / duration validation ------------
@@ -635,9 +803,21 @@ await withDisposablePostgres(async ({ url }) => {
           `(HTTP ${gifUpload.status}: ${reason(gifUpload.body)})`,
       );
     }
+    const gifReason = reason(gifUpload.body);
+    assert.equal(
+      gifUpload.status,
+      400,
+      `G4 GIF rejection must be the provider's HTTP 400 format validation, ` +
+        `not HTTP ${gifUpload.status} (${gifReason})`,
+    );
+    assert.match(
+      gifReason,
+      /format|allowed/i,
+      `G4 GIF rejection cause must name the format allowlist (${gifReason})`,
+    );
     pass(
-      `G4 provider type validation: GIF refused by the signed preset ` +
-        `(HTTP ${gifUpload.status}: ${reason(gifUpload.body)})`,
+      `G4 provider type validation: GIF refused for invalid format ` +
+        `(HTTP 400: ${gifReason})`,
     );
     note(
       `G4 type: preset issued an intent for asset ` +
@@ -658,13 +838,29 @@ await withDisposablePostgres(async ({ url }) => {
       const target = record(label, intent);
       return { target, upload: await toProvider(intent, png, 'p07-under-declared.png', 'image/png') };
     };
-    const planTrial = await sizeTrial('g4-size-plan', noisyPng(2100, 2100));
+    const planBytes = noisyPng(2100, 2100);
+    assert.ok(
+      planBytes.length > 10_485_760,
+      `the plan-limit trial must exceed the provider plan limit ` +
+        `(got ${planBytes.length})`,
+    );
+    const planTrial = await sizeTrial('g4-size-plan', planBytes);
     if (!planTrial.upload.ok) {
       const message = reason(planTrial.upload.body);
-      assert.match(message, /size/i, `G4 provider must refuse on size (${message})`);
+      assert.equal(
+        planTrial.upload.status,
+        400,
+        `G4 provider size refusal must be HTTP 400, not ` +
+          `${planTrial.upload.status} (${message})`,
+      );
+      assert.match(
+        message,
+        /size|too large/i,
+        `G4 provider must refuse on size (${message})`,
+      );
       pass(
-        `G4 provider size limit: provider refused 13236203 synthetic bytes ` +
-          `(HTTP ${planTrial.upload.status}: ${message})`,
+        `G4 provider size limit: provider refused ${planBytes.length} ` +
+          `synthetic bytes (HTTP 400: ${message})`,
       );
     } else {
       const final = await finalize(owner, planTrial.target.binding.assetId);
@@ -674,42 +870,43 @@ await withDisposablePostgres(async ({ url }) => {
           `${planTrial.upload.body.bytes} bytes; backend finalize rejected 422`,
       );
     }
-    const capTrial = await sizeTrial('g4-size-cap', noisyPng(1733, 2000));
-    if (capTrial.upload.ok) {
-      const stored = capTrial.upload.body.bytes;
-      assert.ok(
-        stored > 10_000_000 && stored <= 10_485_760,
-        `G4 trial must sit between the backend cap and the provider limit ` +
-          `(got ${stored})`,
-      );
-      const final = await finalize(owner, capTrial.target.binding.assetId);
-      assert.equal(
-        final.status,
-        422,
-        'G4 provider facts above MEDIA_LIMITS must never reach Ready',
-      );
-      const row = await db.query(
-        'SELECT status, verified_bytes, verified_at FROM lumical.media_assets ' +
-          'WHERE id=$1',
-        [capTrial.target.binding.assetId],
-      );
-      assert.deepEqual(row.rows[0], {
-        status: 'UNAVAILABLE',
-        verified_bytes: null,
-        verified_at: null,
-      });
-      pass(
-        `G4 backend size cap: provider stored ${stored} bytes (inside its ` +
-          'own 10485760 limit) and finalize rejected 422 with the asset ' +
-          'UNAVAILABLE — MEDIA_LIMITS is enforced from provider facts',
-      );
-    } else {
-      note(
-        `G4 backend size cap: provider also refused this object ` +
-          `(HTTP ${capTrial.upload.status}: ${reason(capTrial.upload.body)}); ` +
-          'backend cap not exercised at the provider boundary this run',
-      );
-    }
+    // The backend-cap trial is mandatory: the object sits strictly between
+    // MEDIA_LIMITS and the provider plan limit, so the provider MUST store it
+    // and the backend MUST be the layer that refuses it at finalization.
+    const capTrial = await sizeTrial('g4-size-cap', inBandPng());
+    assert.ok(
+      capTrial.upload.ok,
+      `G4 backend cap trial must be stored by the provider (HTTP ` +
+        `${capTrial.upload.status}: ${reason(capTrial.upload.body)}); the ` +
+        'object sits between MEDIA_LIMITS and the provider plan limit',
+    );
+    const stored = capTrial.upload.body.bytes;
+    assert.ok(
+      stored > 10_000_000 && stored <= 10_485_760,
+      `G4 trial must sit between the backend cap and the provider limit ` +
+        `(got ${stored})`,
+    );
+    const final = await finalize(owner, capTrial.target.binding.assetId);
+    assert.equal(
+      final.status,
+      422,
+      'G4 provider facts above MEDIA_LIMITS must never reach Ready',
+    );
+    const row = await db.query(
+      'SELECT status, verified_bytes, verified_at FROM lumical.media_assets ' +
+        'WHERE id=$1',
+      [capTrial.target.binding.assetId],
+    );
+    assert.deepEqual(row.rows[0], {
+      status: 'UNAVAILABLE',
+      verified_bytes: null,
+      verified_at: null,
+    });
+    pass(
+      `G4 backend size cap: provider stored ${stored} bytes (inside its ` +
+        'own 10485760 limit) and finalize rejected 422 with the asset ' +
+        'UNAVAILABLE — MEDIA_LIMITS is enforced from provider facts',
+    );
 
     // (d) duration: a 61 s object must be refused by the 60 s policy.
     if (!process.env.CLOUDINARY_UPLOAD_PRESET_AUDIO) {
@@ -755,27 +952,130 @@ await withDisposablePostgres(async ({ url }) => {
           'against the 60 s policy and finalize rejected 422',
       );
     }
-    skip(
-      'G4 video duration: no synthetic video source on this runner (no ' +
-        'ffmpeg), so video size/duration were not exercised; the audio trial ' +
-        'covers the same provider-reported duration path against MEDIA_LIMITS',
-    );
+    // (e) video duration: the same 60 s policy against a real VIDEO asset.
+    // Requires ffmpeg on the runner; without it this supplementary trial is an
+    // explicit SKIP — the audio trial above remains the mandatory duration gate.
+    const ffmpegBinary = process.env.P07_FFMPEG ?? 'ffmpeg';
+    let hasFfmpeg = true;
+    try {
+      await promisify(execFile)(ffmpegBinary, ['-version'], { timeout: 10_000 });
+    } catch {
+      hasFfmpeg = false;
+    }
+    if (!hasFfmpeg) {
+      skip(
+        'G4 video duration: ffmpeg not on this runner — supplementary video ' +
+          'trial skipped; the audio trial above is the mandatory duration ' +
+          'gate (set P07_FFMPEG to enable)',
+      );
+    } else {
+      const videoPath = join(tmpdir(), `p07-${randomUUID()}.mp4`);
+      try {
+        await promisify(execFile)(
+          ffmpegBinary,
+          [
+            '-y',
+            '-f',
+            'lavfi',
+            '-i',
+            'color=c=black:s=32x32:r=10:d=61',
+            '-c:v',
+            'libx264',
+            '-pix_fmt',
+            'yuv420p',
+            videoPath,
+          ],
+          { timeout: 120_000 },
+        );
+        const mp4 = await readFile(videoPath);
+        const videoIntake = (
+          await intake(owner, {
+            category: 'VIDEO',
+            fileName: 'p07-video.mp4',
+            declaredBytes: mp4.length,
+            declaredDurationSeconds: 50,
+          }).expect(201)
+        ).body.data;
+        const videoTarget = record('g4-video', videoIntake);
+        const videoUpload = await toProvider(
+          videoIntake,
+          mp4,
+          'p07-video.mp4',
+          'video/mp4',
+        );
+        authorizeOrExplain(videoUpload);
+        assert.equal(
+          videoUpload.body.format,
+          'mp4',
+          'G4 video must upload as mp4 through the signed VIDEO preset',
+        );
+        const videoDuration = Number(videoUpload.body.duration);
+        assert.ok(
+          Number.isFinite(videoDuration) && videoDuration > 60,
+          `G4 provider must report the real video duration (got ` +
+            `${videoUpload.body.duration ?? 'none'})`,
+        );
+        const videoFinalize = await finalize(
+          owner,
+          videoTarget.binding.assetId,
+        );
+        assert.equal(
+          videoFinalize.status,
+          422,
+          'G4 video duration above 60 s must never reach Ready',
+        );
+        const videoRow = await db.query(
+          'SELECT status FROM lumical.media_assets WHERE id=$1',
+          [videoTarget.binding.assetId],
+        );
+        assert.equal(
+          videoRow.rows[0].status,
+          'UNAVAILABLE',
+          'G4 over-duration video must end UNAVAILABLE',
+        );
+        pass(
+          `G4 video duration: provider reported ` +
+            `${videoDuration.toFixed(3)} s against the 60 s VIDEO policy ` +
+            'and finalize rejected 422',
+        );
+      } finally {
+        await rm(videoPath, { force: true }).catch(() => undefined);
+      }
+    }
+  } catch (error) {
+    primaryError = error;
   } finally {
-    const signal = AbortSignal.timeout(30_000);
+    // Cleanup is part of the acceptance: an object that survives this run is a
+    // FAIL, never a log line (LEAD review point).
     const purge = new CloudinaryPurge();
     for (const target of uploaded) {
       try {
         const result = await purge.purge(
           { binding: target.binding, pinned: null },
-          signal,
+          AbortSignal.timeout(30_000),
         );
-        console.log(`CLEANUP: ${target.label} ${result.kind}`);
+        if (result.kind === 'DELETED') {
+          console.log(`CLEANUP: ${target.label} DELETED`);
+        } else {
+          cleanupFailures.push(`${target.label}=${result.kind}`);
+          console.log(`CLEANUP-FAIL: ${target.label} ${result.kind}`);
+        }
       } catch (error) {
-        console.log(`CLEANUP: ${target.label} FAILED (${error?.name})`);
+        const failure = `${target.label}=${error?.name ?? 'ERROR'}`;
+        cleanupFailures.push(failure);
+        console.log(`CLEANUP-FAIL: ${failure}`);
       }
     }
     await app.close();
     await db.end();
+  }
+  if (primaryError) throw primaryError;
+  if (cleanupFailures.length) {
+    throw new Error(
+      'I06-P07 cleanup could not confirm destruction of every synthetic ' +
+        `object (${cleanupFailures.join(', ')}) — acceptance FAILS instead ` +
+        'of logging',
+    );
   }
 });
 
@@ -783,5 +1083,5 @@ console.log('\n=== I06-P07 provider acceptance evidence ===');
 for (const line of evidence) console.log(`- ${line}`);
 console.log(
   `\nPASS: I06-P07 genuine-provider media privacy acceptance ` +
-    `(${evidence.length} records).`,
+    `(${counts.pass} pass, ${counts.note} note, ${counts.skip} skip).`,
 );

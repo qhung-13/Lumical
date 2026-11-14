@@ -3,6 +3,7 @@ import type { TransactionContext } from '../../../platform/database/application/
 import { ActiveAccounts } from '../../identity/application/ports';
 import { IdentityError } from '../../identity/domain/identity';
 import type { FinalizationAsset } from './finalize-media';
+import type { MediaCategory, MediaReadiness } from '../domain/media';
 import type { MediaStorage, PrivateContent } from './media-storage';
 import { parseMediaRange, resolveMediaRange } from './media-range';
 
@@ -15,6 +16,12 @@ export abstract class OwnerMediaRepository {
     ownerId: string,
     context: TransactionContext,
   ): Promise<OwnedMedia | null>;
+  /** Lock owner-scoped candidates against availability changes and cleanup until commit. */
+  abstract lockForAttachment(
+    ownerId: string,
+    ids: readonly string[],
+    context: TransactionContext,
+  ): Promise<Array<{ id: string; category: MediaCategory; status: MediaReadiness }>>;
   abstract isRetryable(error: unknown): boolean;
 }
 /** Scope describes already-established access; implementations cannot grant access. */

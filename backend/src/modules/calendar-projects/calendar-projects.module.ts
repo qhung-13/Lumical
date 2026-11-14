@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../platform/database/database.module';
 import { IdentityModule } from '../identity/identity.module';
+import { MediaModule } from '../media/media.module';
 import { TemplatesModule } from '../templates/templates.module';
 import {
   CALENDAR_TIME_ZONE,
@@ -14,7 +15,7 @@ import { PrismaProjectRepository } from './infrastructure/prisma-project';
 import { ProjectController } from './interface/project.controller';
 
 @Module({
-  imports: [DatabaseModule, IdentityModule, TemplatesModule],
+  imports: [DatabaseModule, IdentityModule, TemplatesModule, MediaModule],
   controllers: [ProjectController],
   providers: [
     CreateProject,

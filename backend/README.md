@@ -1,4 +1,4 @@
-﻿# LumiCal backend
+# LumiCal backend
 
 See the [root README](../README.md) for pinned tools, installation, environment
 files, Docker and the shared quality gate.
@@ -204,3 +204,29 @@ persistence, with 422 field errors. Valid Unicode and password semantics remain
 unchanged. Known-length and streamed oversized JSON retain the parser's size
 limit and return safe, non-retryable 413 `VALIDATION_FAILED`; malformed JSON is
 still 422 and unrelated exceptions remain 500. Auth OpenAPI documents 413.
+
+## Project personalization (I07-P01)
+
+`pnpm test:project-personalization` runs the Nest/Supertest contract against
+disposable PostgreSQL using the runtime role. It includes held-row barriers for
+Project writes and media deletion, fault-injected rollback, and Order fixtures.
+
+- Month responses return current images in display order. The default crop is
+  `null` (or omit `crop` on write). Non-null crop requires an approved
+  schema before it can be enabled. Alt text uses text validation with no
+  additional length limit.
+- Current Month captions and Special Date title/notes use `TEXT` because
+  PostgreSQL `VARCHAR(n)` counts code points while the application counts
+  normalized grapheme clusters. The migration takes table locks and preserves
+  existing values. A down migration to `VARCHAR` must check code-point lengths
+  and preserve over-limit values before any narrowing. Historical Order
+  snapshot columns still have their existing limits. Order capture must
+  address that storage compatibility before copying such content.
+- AR writes atomically persist `PREPARING` and a durable `AR_PREPARE` job with
+  the Project ID as object ID and `AR_PREPARE:<projectId>:<sourceRevision>` as
+  operation identity. Replacement, removal, and Project deletion cancel
+  pending intents. I08 consumes committed jobs and must compare both current
+  configuration and Project revision under the root lock before publishing a
+  result. A missing configuration or stale source is ineligible. I08 also owns
+  preparation when later Project edits invalidate the target source. There is
+  currently no AR preparation handler or target artifact created by this write.

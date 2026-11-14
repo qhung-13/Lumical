@@ -3,6 +3,7 @@ import {
   Transactions,
   type TransactionContext,
 } from '../../../platform/database/application/transactions';
+import { Prisma } from '../../../platform/database/infrastructure/generated/client';
 import { PrismaTransactions } from '../../../platform/database/infrastructure/prisma-transactions';
 import { OwnerMediaRepository } from '../application/owner-media';
 import { retryableMediaTransaction } from './prisma-upload-intents';
@@ -43,6 +44,28 @@ export class PrismaOwnerMedia extends OwnerMediaRepository {
         }
       : null;
   }
+  async lockForAttachment(
+    ownerId: string,
+    ids: readonly string[],
+    context: TransactionContext,
+  ) {
+    if (ids.length === 0) return [];
+    return this.transactions.clientFor(context).$queryRaw<
+      Awaited<ReturnType<OwnerMediaRepository['lockForAttachment']>>
+    >`
+      SELECT m.id, m.category::text AS category, m.status::text AS status
+      FROM lumical.media_assets m
+      WHERE m.owner_id = ${ownerId}::uuid
+        AND m.id IN (${Prisma.join([...new Set(ids)].map(id => Prisma.sql`${id}::uuid`))})
+        AND m.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM lumical.job_records j
+          WHERE j.object_id = m.id AND j.kind = 'MEDIA_DELETE'
+        )
+      ORDER BY m.id
+      FOR UPDATE OF m`;
+  }
+
   isRetryable(error: unknown) {
     return retryableMediaTransaction(error);
   }

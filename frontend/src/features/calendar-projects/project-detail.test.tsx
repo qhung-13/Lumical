@@ -12,7 +12,7 @@ const id = '33333333-3333-4333-8333-333333333333';
 const stored = { id, title: 'Persisted title', year: 2027, recipientName: 'Grandma', status: 'WORKING', version: 3, stylePresetId: 'minimal',
   baseline: { name: { vi: 'Mẫu gốc', en: 'Captured design' }, layout: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 } },
   createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', deletionEligible: true };
-const months = { projectVersion: 3, months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: index === 0 ? 'January memory' : null })) };
+const months = { projectVersion: 3, months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: index === 0 ? 'January memory' : null, images: [] })) };
 afterEach(() => vi.unstubAllGlobals());
 describe('persisted Project reopen view', () => {
   beforeEach(() => {

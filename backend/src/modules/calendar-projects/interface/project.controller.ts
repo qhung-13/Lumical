@@ -1,11 +1,12 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query, Req, Res, applyDecorators } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req, Res, applyDecorators } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiHeader, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { IdentityPolicy } from '../../identity/application/ports';
 import { accountCookie } from '../../identity/domain/identity';
 import { ProjectOwnerService, type ProjectBrowserContext } from '../application/project-owner';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
-import { ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectResponseDto, ErrorResponseDto } from './dto';
+import { ARConfigResponseDto, ARWriteDto, EventWriteDto, MonthPatchDto, SpecialDateResponseDto, SpecialDatesResponseDto } from './personalization-dto';
+import { MonthResponseDto, ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectResponseDto, ErrorResponseDto } from './dto';
 
 // Local copies of the identity controller's transport decorators so Project
 // mutations read the same way in the generated contract as the account command.
@@ -71,6 +72,86 @@ export class ProjectController {
     const view = await this.service.months(this.id(id), this.auth(req));
     res.setHeader('ETag', `"${view.projectVersion}"`);
     res.status(200).json({ data: ProjectMonthsDataDto.from(view.projectVersion, view.months) });
+  }
+
+  private revision(res: Response, status: number, data: { projectVersion: number }) {
+    res.setHeader('ETag', `"${data.projectVersion}"`);
+    res.status(status).json({ data });
+  }
+
+  private removed(res: Response, projectVersion: number) {
+    res.setHeader('ETag', `"${projectVersion}"`);
+    res.status(204).end();
+  }
+
+  @Put(':id/months/:number') @origin() @csrf() @preconditions() @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'replaceProjectMonth', summary: 'Replace current Month content.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiParam({ name: 'number', schema: { type: 'integer', minimum: 1, maximum: 12 } })
+  @ApiBody({ type: MonthPatchDto })
+  @ApiResponse({ status: 200, type: MonthResponseDto, headers: etagHeader() })
+  async replaceMonth(@Param('id') id: string, @Param('number') number: string, @Body() body: unknown, @Req() req: Request, @Res() res: Response) {
+    const selected = /^\d+$/.test(number) ? Number(number) : NaN;
+    const data = await this.service.replaceMonth(this.id(id), selected, body, req.get('If-Match'), this.auth(req));
+    this.revision(res, 200, data);
+  }
+
+  @Get(':id/special-dates') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'listProjectSpecialDates', summary: 'List the Project’s current Special Dates.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiResponse({ status: 200, type: SpecialDatesResponseDto, headers: etagHeader() })
+  async specialDates(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    this.revision(res, 200, await this.service.specialDates(this.id(id), this.auth(req)));
+  }
+
+  @Post(':id/special-dates') @origin() @csrf() @preconditions() @intent() @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'createProjectSpecialDate', summary: 'Add a Special Date.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiBody({ type: EventWriteDto })
+  @ApiResponse({ status: 201, type: SpecialDateResponseDto, headers: etagHeader() })
+  async createSpecialDate(@Param('id') id: string, @Body() body: unknown, @Req() req: Request, @Res() res: Response) {
+    const data = await this.service.createSpecialDate(this.id(id), body, req.get('If-Match'), req.get('Idempotency-Key'), this.auth(req));
+    this.revision(res, 201, data);
+  }
+
+  @Put(':id/special-dates/:eventId') @origin() @csrf() @preconditions() @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'updateProjectSpecialDate', summary: 'Replace a current Special Date.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  @ApiBody({ type: EventWriteDto })
+  @ApiResponse({ status: 200, type: SpecialDateResponseDto, headers: etagHeader() })
+  async updateSpecialDate(@Param('id') id: string, @Param('eventId') eventId: string, @Body() body: unknown, @Req() req: Request, @Res() res: Response) {
+    const data = await this.service.updateSpecialDate(this.id(id), this.id(eventId), body, req.get('If-Match'), this.auth(req));
+    this.revision(res, 200, data);
+  }
+
+  @Delete(':id/special-dates/:eventId') @origin() @csrf() @preconditions() @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'deleteProjectSpecialDate', summary: 'Remove a current Special Date.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  @ApiResponse({ status: 204, headers: etagHeader() })
+  async deleteSpecialDate(@Param('id') id: string, @Param('eventId') eventId: string, @Req() req: Request, @Res() res: Response) {
+    const version = await this.service.deleteSpecialDate(this.id(id), this.id(eventId), req.get('If-Match'), this.auth(req));
+    this.removed(res, version);
+  }
+
+  @Put(':id/ar') @origin() @csrf() @preconditions() @intent() @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'writeProjectAR', summary: 'Save one reveal configuration with preparation pending.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiBody({ type: ARWriteDto })
+  @ApiResponse({ status: 200, type: ARConfigResponseDto, headers: etagHeader() })
+  async writeAR(@Param('id') id: string, @Body() body: unknown, @Req() req: Request, @Res() res: Response) {
+    const data = await this.service.saveAR(this.id(id), body, req.get('If-Match'), req.get('Idempotency-Key'), this.auth(req));
+    this.revision(res, 200, data);
+  }
+
+  @Delete(':id/ar') @origin() @csrf() @preconditions() @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'deleteProjectAR', summary: 'Remove the current reveal configuration.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiResponse({ status: 204, headers: etagHeader() })
+  async deleteAR(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const version = await this.service.deleteAR(this.id(id), req.get('If-Match'), this.auth(req));
+    this.removed(res, version);
   }
 
   @Get(':id') @ApiCookieAuth() @errors()

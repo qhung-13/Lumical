@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import type { TransactionContext } from '../../../platform/database/application/transactions';
+import type { OwnerMediaRepository } from '../../media/application/owner-media';
 import { ActiveAccounts, Clock } from '../../identity/application/ports';
 import type { ActiveAccountPrincipal } from '../../identity/domain/identity';
 import { ProjectError } from '../domain/project';
@@ -50,6 +51,7 @@ const service = (accounts: ActiveAccounts): ProjectOwnerService =>
     { now: () => new Date('2026-01-01T00:00:00.000Z') } as Clock,
     { list: async () => [] } as unknown as ProjectRepository,
     {} as CreateProject,
+    {} as OwnerMediaRepository,
   );
 
 const ownedRecord: ProjectRecord = {
@@ -58,6 +60,60 @@ const ownedRecord: ProjectRecord = {
   baselineStyle: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 },
   createdAt: new Date('2026-01-01T00:00:00.000Z'), updatedAt: new Date('2026-01-02T00:00:00.000Z'), stylePresets: [],
 };
+
+describe('Project child write boundary', () => {
+  const event = { date: '2027-01-01', title: 'New event' };
+  const key = 'synthetic-event-key';
+  function setup(project: ProjectRecord | null = ownedRecord) {
+    const advanceVersion = jest.fn().mockResolvedValue(3);
+    const saveSpecialDate = jest.fn().mockResolvedValue(ownedRecord.id);
+    const completeIntent = jest.fn();
+    const replayIntent = jest.fn().mockResolvedValue(null);
+    const lock = jest.fn().mockResolvedValue(project);
+    const repository = { lock, advanceVersion, saveSpecialDate, completeIntent, replayIntent };
+    const app = new ProjectOwnerService(
+      new FlakyAccounts(0, serialization),
+      { now: () => new Date('2026-01-03T00:00:00.000Z') },
+      repository as unknown as ProjectRepository,
+      {} as CreateProject,
+      {} as OwnerMediaRepository,
+    );
+    return { app, ...repository };
+  }
+
+  it.each([
+    [null, '"2"', 'NOT_FOUND'],
+    [ownedRecord, undefined, 'PRECONDITION_REQUIRED'],
+    [ownedRecord, '"1"', 'VERSION_CONFLICT'],
+    [{ ...ownedRecord, status: 'ARCHIVED' as const }, '"2"', 'INVALID_TRANSITION'],
+  ] as const)('rejects before mutating the child or advancing the root (%#)', async (row, etag, code) => {
+    const { app, advanceVersion, saveSpecialDate, completeIntent } = setup(row);
+    await expect(app.createSpecialDate(ownedRecord.id, event, etag, key, {})).rejects.toMatchObject({ code });
+    expect(saveSpecialDate).not.toHaveBeenCalled();
+    expect(advanceVersion).not.toHaveBeenCalled();
+    expect(completeIntent).not.toHaveBeenCalled();
+  });
+
+  it('binds the child result and original revision in the same context and replays it without writing', async () => {
+    const { app, lock, advanceVersion, saveSpecialDate, completeIntent, replayIntent } = setup();
+    const result = await app.createSpecialDate(ownedRecord.id, event, '"2"', key, {});
+    const [intent, digest, outcome, context] = completeIntent.mock.calls[0];
+    expect(intent).toEqual({ actorId: principal.id, operation: 'SPECIAL_DATE_CREATE', key });
+    expect(lock).toHaveBeenCalledWith(principal.id, ownedRecord.id, context);
+    expect(saveSpecialDate).toHaveBeenCalledWith(ownedRecord, { ...event, note: null }, undefined, context);
+    expect(advanceVersion).toHaveBeenCalledWith(ownedRecord, expect.any(Date), context);
+    expect(outcome).toEqual({ resourceId: ownedRecord.id, projectVersion: 3 });
+
+    lock.mockResolvedValue({ ...ownedRecord, version: 3, status: 'ARCHIVED' });
+    replayIntent.mockResolvedValue({ digest, ...outcome });
+    await expect(app.createSpecialDate(ownedRecord.id, event, '"2"', key, {})).resolves.toEqual(result);
+    await expect(app.createSpecialDate(ownedRecord.id, { ...event, title: 'Changed' }, '"2"', key, {}))
+      .rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    expect(saveSpecialDate).toHaveBeenCalledTimes(1);
+    expect(advanceVersion).toHaveBeenCalledTimes(1);
+    expect(completeIntent).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('Project restart boundary', () => {
   it.each([
@@ -73,6 +129,7 @@ describe('Project restart boundary', () => {
       { now: () => new Date('2026-01-03T00:00:00.000Z') } as Clock,
       repository,
       {} as CreateProject,
+      {} as OwnerMediaRepository,
     );
     await expect(app.get(ownedRecord.id, {})).resolves.toMatchObject({ id: ownedRecord.id, deletionEligible: eligible });
   });

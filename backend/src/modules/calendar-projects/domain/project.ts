@@ -33,6 +33,8 @@ type ProjectErrorCode =
   | 'VALIDATION_FAILED'
   | 'UNAUTHENTICATED'
   | 'TEMPLATE_UNAVAILABLE'
+  | 'MEDIA_UNAVAILABLE'
+  | 'CONFLICT'
   | 'IDEMPOTENCY_CONFLICT'
   | 'NOT_FOUND'
   | 'INVALID_TRANSITION'
@@ -48,7 +50,14 @@ export type ProjectField =
   | 'confirmed'
   | 'state'
   | 'cursor'
-  | 'limit';
+  | 'limit'
+  | 'caption'
+  | 'images'
+  | 'date'
+  | 'note'
+  | 'monthNumber'
+  | 'revealAssetId'
+  | 'readableText';
 
 export class ProjectError extends Error {
   constructor(
@@ -61,6 +70,14 @@ export class ProjectError extends Error {
 }
 
 export function projectName(input: unknown, field: ProjectNameField): string {
+  return projectText(input, field, { maxLength: 80 });
+}
+
+export function projectText(
+  input: unknown,
+  field: ProjectField,
+  { allowBlank = false, maxLength }: { allowBlank?: boolean; maxLength?: number } = {},
+): string {
   if (
     typeof input !== 'string' ||
     input.includes('\u0000') ||
@@ -74,12 +91,15 @@ export function projectName(input: unknown, field: ProjectNameField): string {
       value,
     )
   ) {
+    if (allowBlank && value === '') return value;
     throw new ProjectError('VALIDATION_FAILED', field);
   }
 
-  const graphemes = projectNameSegmenter.segment(value)[Symbol.iterator]();
-  for (let count = 1; !graphemes.next().done; count += 1) {
-    if (count > 80) throw new ProjectError('VALIDATION_FAILED', field);
+  if (maxLength !== undefined) {
+    const graphemes = projectNameSegmenter.segment(value)[Symbol.iterator]();
+    for (let count = 1; !graphemes.next().done; count += 1) {
+      if (count > maxLength) throw new ProjectError('VALIDATION_FAILED', field);
+    }
   }
   return value;
 }

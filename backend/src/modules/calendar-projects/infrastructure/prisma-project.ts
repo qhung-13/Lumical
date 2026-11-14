@@ -3,14 +3,18 @@ import type { TransactionContext } from '../../../platform/database/application/
 import { Transactions } from '../../../platform/database/application/transactions';
 import { Prisma } from '../../../platform/database/infrastructure/generated/client';
 import { PrismaTransactions } from '../../../platform/database/infrastructure/prisma-transactions';
+import type { ARWrite, EventWrite, MonthPatch } from '../domain/personalization';
+import { ProjectError } from '../domain/project';
 import type { ProjectOrderHistory, ProjectStatus } from '../domain/project';
 import type {
   ProjectIdentityValues,
+  ProjectIntent,
+  ProjectIntentResult,
   ProjectListInput,
   ProjectMonthRecord,
   ProjectRecord,
 } from '../application/project-repository';
-import { ProjectRepository } from '../application/project-repository';
+import { ConcurrentProjectIntent, ProjectRepository } from '../application/project-repository';
 
 interface ProjectRow {
   id: string;
@@ -27,11 +31,6 @@ interface ProjectRow {
   stylePresets: unknown;
   createdAt: Date;
   updatedAt: Date;
-}
-
-interface MonthRow {
-  monthNumber: number;
-  caption: string | null;
 }
 
 // The approved presets live on the captured revision, so one join reads both the
@@ -165,6 +164,7 @@ export class PrismaProjectRepository extends ProjectRepository {
     const client = this.client(context);
     // Every foreign key into these rows is Restrict, so project-scoped children
     // go first, deepest relation first. Media assets stay with the account.
+    await this.cancelARPreparation(client, id);
     await client.projectARExperience.deleteMany({
       where: { projectId: id, ownerId },
     });
@@ -195,19 +195,167 @@ export class PrismaProjectRepository extends ProjectRepository {
     return rows[0]?.exists ? 'HAS_ORDERS' : 'NEVER_ORDERED';
   }
 
+  async advanceVersion(project: ProjectRecord, now: Date, context: TransactionContext) {
+    const { version } = await this.client(context).calendarProject.update({
+      where: { id_ownerId: { id: project.id, ownerId: project.ownerId } },
+      data: { version: { increment: 1 }, updatedAt: now },
+      select: { version: true },
+    });
+    return version;
+  }
+
+  async replaceMonth(
+    project: ProjectRecord, number: number, patch: MonthPatch, context: TransactionContext,
+  ) {
+    const client = this.client(context);
+    const { id: projectId, ownerId } = project;
+    const month = await client.calendarMonth.findUnique({
+      where: { projectId_monthNumber: { projectId, monthNumber: number } },
+      select: { id: true },
+    });
+    if (!month) throw new ProjectError('NOT_FOUND');
+
+    await client.calendarMonth.update({ where: { id: month.id }, data: { caption: patch.caption } });
+    await client.projectMonthMedia.deleteMany({ where: { projectId, ownerId, monthId: month.id } });
+    if (patch.images.length > 0) {
+      await client.projectMonthMedia.createMany({
+        data: patch.images.map(({ assetId, altText }, position) => ({
+          projectId, ownerId, monthId: month.id, assetId, altText, position,
+        })),
+      });
+    }
+    return { monthNumber: number, ...patch };
+  }
+
+  async specialDates(project: ProjectRecord, context: TransactionContext) {
+    const rows = await this.client(context).specialDate.findMany({
+      where: { projectId: project.id },
+      orderBy: [{ eventDate: 'asc' }, { id: 'asc' }],
+      select: { id: true, eventDate: true, title: true, note: true },
+    });
+    return rows.map(({ eventDate, ...row }) => ({ ...row, date: eventDate.toISOString().slice(0, 10) }));
+  }
+
+  async saveSpecialDate(project: ProjectRecord, input: EventWrite, id: string | undefined, context: TransactionContext) {
+    const { date, ...text } = input;
+    // Prisma represents a PostgreSQL DATE as DateTime. UTC midnight here is
+    // only a transport encoding for the civil date validated by the domain.
+    const data = { ...text, eventDate: new Date(date + 'T00:00:00.000Z') };
+    const client = this.client(context);
+    if (id === undefined) {
+      const event = await client.specialDate.create({
+        data: { ...data, projectId: project.id }, select: { id: true },
+      });
+      return event.id;
+    }
+    const updated = await client.specialDate.updateMany({ where: { id, projectId: project.id }, data });
+    if (updated.count === 0) throw new ProjectError('NOT_FOUND');
+    return id.toLowerCase();
+  }
+
+  async deleteSpecialDate(project: ProjectRecord, id: string, context: TransactionContext) {
+    const removed = await this.client(context).specialDate.deleteMany({ where: { id, projectId: project.id } });
+    if (removed.count === 0) throw new ProjectError('NOT_FOUND');
+  }
+
+  async saveAR(project: ProjectRecord, input: ARWrite, now: Date, context: TransactionContext) {
+    const client = this.client(context);
+    const { id: projectId, ownerId } = project;
+    const month = await client.calendarMonth.findUnique({
+      where: { projectId_monthNumber: { projectId, monthNumber: input.monthNumber } },
+      select: { id: true },
+    });
+    if (!month) throw new ProjectError('NOT_FOUND');
+
+    const projectVersion = await this.advanceVersion(project, now, context);
+    const data = { ...input, sourceRevision: projectVersion, preparationStatus: 'PREPARING' as const, targetArtifactId: null };
+    const config = await client.projectARExperience.upsert({
+      where: { projectId_ownerId: { projectId, ownerId } },
+      create: { ...data, projectId, ownerId }, update: data, select: { id: true },
+    });
+    await this.cancelARPreparation(client, projectId, now);
+    // Transactional handoff: the poller can see the intent only after commit.
+    await client.jobRecord.create({ data: {
+      kind: 'AR_PREPARE',
+      objectId: projectId,
+      operationIdentity: `AR_PREPARE:${projectId}:${projectVersion}`,
+      condition: 'PENDING',
+      dueAt: now,
+    }});
+    return { resourceId: config.id, projectVersion };
+  }
+
+  private async cancelARPreparation(client: Prisma.TransactionClient, projectId: string, now?: Date) {
+    await client.jobRecord.updateMany({
+      where: { kind: 'AR_PREPARE', objectId: projectId, condition: 'PENDING' },
+      data: { condition: 'CANCELLED', ...(now && { updatedAt: now }) },
+    });
+  }
+
+  async deleteAR(project: ProjectRecord, now: Date, context: TransactionContext) {
+    const client = this.client(context);
+    const removed = await client.projectARExperience.deleteMany({
+      where: { projectId: project.id, ownerId: project.ownerId },
+    });
+    if (removed.count > 0) await this.cancelARPreparation(client, project.id, now);
+    return removed.count > 0;
+  }
+
+  async replayIntent(intent: ProjectIntent, context: TransactionContext) {
+    const record = await this.client(context).idempotencyRecord.findUnique({
+      where: { actorId_operation_key: intent },
+      select: { requestDigest: true, condition: true, resourceId: true, safeResult: true },
+    });
+    if (!record) return null;
+    const result = record.safeResult;
+    if (record.condition !== 'COMPLETED' || !record.resourceId ||
+        !result || typeof result !== 'object' || Array.isArray(result) ||
+        typeof result.projectVersion !== 'number' || !Number.isSafeInteger(result.projectVersion) ||
+        result.projectVersion < 1) {
+      throw new Error('Invalid Project mutation replay record.');
+    }
+    // The request digest authenticates the normalized input. Persist only the
+    // resource ID and original version to reconstruct the successful response.
+    return { digest: record.requestDigest, resourceId: record.resourceId, projectVersion: result.projectVersion };
+  }
+
+  async completeIntent(intent: ProjectIntent, digest: string, result: ProjectIntentResult, context: TransactionContext) {
+    try {
+      await this.client(context).idempotencyRecord.create({ data: {
+        ...intent,
+        requestDigest: digest,
+        condition: 'COMPLETED',
+        resourceType: intent.operation === 'SPECIAL_DATE_CREATE' ? 'SPECIAL_DATE' : 'PROJECT_AR_EXPERIENCE',
+        resourceId: result.resourceId,
+        safeResult: { projectVersion: result.projectVersion },
+      }});
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
+        throw new ConcurrentProjectIntent();
+      throw error;
+    }
+  }
+
   async months(
     ownerId: string,
     id: string,
     context: TransactionContext,
   ): Promise<ProjectMonthRecord[]> {
-    return this.client(context).$queryRaw<MonthRow[]>`
-      SELECT m.month_number AS "monthNumber", m.caption
-      FROM lumical.calendar_months m
-      WHERE m.project_id = ${id}::uuid
-        AND EXISTS (
-          SELECT 1 FROM lumical.calendar_projects p
-          WHERE p.id = m.project_id AND p.owner_id = ${ownerId}::uuid
-        )
-      ORDER BY m.month_number`;
+    const months = await this.client(context).calendarMonth.findMany({
+      where: { projectId: id, project: { ownerId } },
+      orderBy: { monthNumber: 'asc' },
+      select: {
+        monthNumber: true,
+        caption: true,
+        projectMonthMedia_month: {
+          orderBy: { position: 'asc' },
+          select: { assetId: true, altText: true },
+        },
+      },
+    });
+    return months.map(({ projectMonthMedia_month, ...month }) => ({
+      ...month,
+      images: projectMonthMedia_month.map(image => ({ ...image, crop: null })),
+    }));
   }
 }

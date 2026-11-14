@@ -20,7 +20,7 @@ describe('Project HTTP API and private query contract', () => {
   });
   it('rejects an invalid root version in a twelve-Month response', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { projectVersion: 0,
-      months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null })) } }));
+      months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null, images: [] })) } }));
     await expect(projectApi({ csrf: () => undefined, fetcher }).months(project.id))
       .rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
   });
@@ -50,7 +50,7 @@ describe('Project HTTP API and private query contract', () => {
     expect(projectDetailOptions('actor-a', project.id, api).queryKey).toEqual(projectKeys.detail('actor-a', project.id));
   });
   it('reads all twelve ordered Month summaries and sends conditional lifecycle requests', async () => {
-    const monthRows = Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null }));
+    const monthRows = Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null, images: [] }));
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: { projectVersion: 1, months: monthRows } }))
       .mockResolvedValueOnce(response({ data: project })).mockResolvedValueOnce(new Response(null, { status: 204 }));
     const api = projectApi({ csrf: () => 'csrf-test', fetcher });

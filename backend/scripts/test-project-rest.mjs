@@ -297,8 +297,9 @@ try {
         assert.equal(response.body.data.projectVersion, 5);
         assert.deepEqual(response.body.data.months.map(month => month.monthNumber), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
         assert.equal(response.body.data.months.length, 12);
-        for (const month of response.body.data.months) assert.deepEqual(Object.keys(month).sort(), ['caption', 'monthNumber']);
+        for (const month of response.body.data.months) assert.deepEqual(Object.keys(month).sort(), ['caption', 'images', 'monthNumber']);
         assert.equal(response.body.data.months[0].caption, null, 'an untouched Month carries no caption');
+        assert.ok(response.body.data.months.every(month => month.images.length === 0));
         await api().get(`/api/v1/projects/${project.id}/months`).expect(401);
         await monthsOf(owner, 'not-a-uuid').expect(422);
       });

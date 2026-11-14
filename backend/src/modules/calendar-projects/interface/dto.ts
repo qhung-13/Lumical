@@ -3,6 +3,7 @@ import {
   ApiPropertyOptional,
   type ApiPropertyOptions,
 } from '@nestjs/swagger';
+import { MonthImageDto } from './personalization-dto';
 import type { ProjectMonthRecord } from '../application/project-repository';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
 import type { ProjectDetailView } from '../application/project-owner';
@@ -131,7 +132,16 @@ export class ProjectListResponseDto {
 
 export class ProjectMonthDto {
   @ApiProperty({ type: Number, minimum: 1, maximum: 12 }) monthNumber: number;
-  @ApiProperty({ type: String, nullable: true, maxLength: 300 }) caption: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'At most 300 grapheme clusters.' }) caption: string | null;
+  @ApiProperty({ type: [MonthImageDto], maxItems: 4 }) images: MonthImageDto[];
+}
+
+export class MonthRevisionDto extends ProjectMonthDto {
+  @ApiProperty({ type: 'integer', minimum: 1 }) projectVersion: number;
+}
+
+export class MonthResponseDto {
+  @ApiProperty({ type: MonthRevisionDto }) data: MonthRevisionDto;
 }
 
 // BR-MON-001: the twelve Months are returned together, ordered, with the
@@ -144,7 +154,7 @@ export class ProjectMonthsDataDto {
   static from(projectVersion: number, months: ProjectMonthRecord[]): ProjectMonthsDataDto {
     return {
       projectVersion,
-      months: months.map((month) => ({ monthNumber: month.monthNumber, caption: month.caption })),
+      months,
     };
   }
 }

@@ -3691,6 +3691,25 @@
               }
             }
           },
+          "429": {
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new intent can be attempted.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "503": {
             "description": "",
             "content": {
@@ -4346,15 +4365,6 @@
               "format": "uuid",
               "type": "string"
             }
-          },
-          {
-            "name": "Range",
-            "in": "header",
-            "description": "Single byte range; returns matching headers without a body.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -4391,44 +4401,6 @@
             },
             "description": ""
           },
-          "206": {
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "type": "string",
-                  "example": "private, no-store"
-                }
-              },
-              "X-Content-Type-Options": {
-                "schema": {
-                  "type": "string",
-                  "example": "nosniff"
-                }
-              },
-              "Content-Type": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string",
-                  "example": "bytes"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          },
           "401": {
             "description": "",
             "content": {
@@ -4458,16 +4430,6 @@
                 }
               }
             }
-          },
-          "416": {
-            "headers": {
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
           },
           "503": {
             "description": "",

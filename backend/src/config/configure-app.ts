@@ -22,6 +22,6 @@ export function configureApp(app: INestApplication): void {
     if (!origin) return callback(null, false);
     try { policy.assertOrigin(origin); callback(null, true); } catch { callback(null, false); }
   }, credentials: true, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'Idempotency-Key', 'If-Match', 'Range'], exposedHeaders: ['ETag', 'X-Request-Id', 'Accept-Ranges', 'Content-Range', 'Content-Length'] });
+  allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'Idempotency-Key', 'If-Match', 'Range'], exposedHeaders: ['ETag', 'X-Request-Id', 'Accept-Ranges', 'Content-Range', 'Content-Length', 'Retry-After'] });
   SwaggerModule.setup('api/v1/openapi', app, openApiDocument(app), { ui: false, jsonDocumentUrl: 'api/v1/openapi.json' });
 }

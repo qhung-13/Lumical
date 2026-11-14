@@ -1,12 +1,23 @@
 import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
 import { setTimeout } from 'node:timers/promises';
-import { AppModule } from './app.module';
-import { DurableJobRunner } from './platform/jobs/job-runner';
+import { runtimeDatabaseUrl } from './config/database';
 
 async function main() {
+  const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
+  if (!/^[a-z0-9_-]+$/i.test(CLOUDINARY_CLOUD_NAME ?? '') ||
+      !/^\d+$/.test(CLOUDINARY_API_KEY ?? '') ||
+      !CLOUDINARY_API_SECRET || /\s/.test(CLOUDINARY_API_SECRET)) {
+    console.error('Media worker requires valid Cloudinary credentials');
+    process.exitCode = 1;
+    return;
+  }
+  runtimeDatabaseUrl(process.env.DATABASE_URL);
+  const { NestFactory } = await import('@nestjs/core');
+  const { AppModule } = await import('./app.module.js');
+  const { DurableJobRunner } = await import('./platform/jobs/job-runner.js');
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
+    abortOnError: false,
   });
   const controller = new AbortController();
   const stop = () => controller.abort();

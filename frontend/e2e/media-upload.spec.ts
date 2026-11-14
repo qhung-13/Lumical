@@ -50,6 +50,10 @@ test('owner uploads privately and sees READY only after backend status confirms 
   await expect(page.getByRole('heading', { name: 'Tải nội dung cá nhân' })).toBeVisible();
   await page.getByLabel('Loại nội dung').selectOption('IMAGE');
   await page.getByLabel('Chọn tệp').setInputFiles({ name: 'family.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('synthetic image') });
+  const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/session'));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await refreshed;
+  await expect(page.getByText(/family\.jpg/)).toBeVisible();
   await page.getByRole('button', { name: 'Tải tệp lên' }).click();
   await expect(page.getByText('Tệp đã được xác minh và sẵn sàng.')).toBeVisible();
   expect(statusReads).toBeGreaterThanOrEqual(2);

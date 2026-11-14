@@ -133,12 +133,13 @@ export function inspectCloudinaryResource(
 
 @Injectable()
 export class CloudinaryInspection extends MediaInspection {
-  async inspect(binding: MediaBinding): ReturnType<MediaStorage['inspect']> {
+  async inspect(binding: MediaBinding, signal?: AbortSignal): ReturnType<MediaStorage['inspect']> {
     const unavailable = { kind: 'UNAVAILABLE', retryable: true } as const;
     const cloud = process.env.CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;
     const secret = process.env.CLOUDINARY_API_SECRET;
     if (
+      signal?.aborted ||
       !cloud ||
       !/^[a-z0-9_-]+$/i.test(cloud) ||
       !apiKey ||
@@ -154,6 +155,11 @@ export class CloudinaryInspection extends MediaInspection {
     const key = encodeURIComponent(
       `lumical/${binding.ownerId}/${binding.assetId}/${binding.uploadIntentId}`,
     );
+    const probes = new AbortController();
+    const timeout = AbortSignal.timeout(15_000);
+    const probeSignal = AbortSignal.any(
+      signal ? [signal, timeout, probes.signal] : [timeout, probes.signal],
+    );
     try {
       // The port deliberately has no provider resource type. Probe both namespaces;
       // ambiguity is a collision, never a guess based on caller-declared category.
@@ -166,19 +172,21 @@ export class CloudinaryInspection extends MediaInspection {
                 Authorization: `Basic ${Buffer.from(`${apiKey}:${secret}`).toString('base64')}`,
               },
               redirect: 'error',
-              signal: AbortSignal.timeout(15_000),
+              signal: probeSignal,
             },
           );
-          if (response.status === 404) return { kind: 'MISSING' } as const;
-          if (!response.ok) return unavailable;
+          if (!response.ok) {
+            await response.body?.cancel();
+            if (response.status === 404) return { kind: 'MISSING' } as const;
+            throw new Error('Media inspection unavailable');
+          }
           const data: unknown = await response.json();
           if (record(data).resource_type !== resourceType)
             return { kind: 'REJECTED', reason: 'BINDING_MISMATCH' } as const;
           return { kind: 'FOUND', data } as const;
         }),
       );
-      if (responses.some((response) => response.kind === 'UNAVAILABLE'))
-        return unavailable;
+      if (probeSignal.aborted) return unavailable;
       if (responses.some((response) => response.kind === 'REJECTED'))
         return { kind: 'REJECTED', reason: 'BINDING_MISMATCH' };
       const found = responses.filter((response) => response.kind === 'FOUND');
@@ -187,6 +195,8 @@ export class CloudinaryInspection extends MediaInspection {
       return inspectCloudinaryResource(binding, found[0].data);
     } catch {
       return unavailable;
+    } finally {
+      probes.abort();
     }
   }
 }

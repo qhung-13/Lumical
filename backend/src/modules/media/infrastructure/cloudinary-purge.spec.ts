@@ -42,21 +42,14 @@ describe('Cloudinary exact-binding cleanup', () => {
       CLOUDINARY_API_KEY: '123',
       CLOUDINARY_API_SECRET: 'test-secret',
     });
-    provider = jest
-      .fn()
-      .mockImplementation((url: string) =>
-        Promise.resolve(
-          url.endsWith('/resources')
-            ? {
-                ok: true,
-                json: () =>
-                  Promise.resolve({ deleted: { [data.asset_id]: 'deleted' } }),
-              }
-            : url.includes('/image/')
-              ? { ok: true, json: () => Promise.resolve(data) }
-              : { ok: false, status: 404 },
-        ),
-      );
+    let deleted = false;
+    provider = jest.fn().mockImplementation(async (url: string) => {
+      if (url.endsWith('/resources')) {
+        deleted = true;
+        return Response.json({ deleted: { [data.asset_id]: 'deleted' } });
+      }
+      return !deleted && url.includes('/image/') ? Response.json(data) : new Response(null, { status: 404 });
+    });
     global.fetch = provider as typeof fetch;
   });
   afterEach(() => {
@@ -65,9 +58,11 @@ describe('Cloudinary exact-binding cleanup', () => {
   });
   it('deletes only the independently verified provider asset ID', async () => {
     expect(
-      await new CloudinaryPurge().purge(target, new AbortController().signal),
+      await new CloudinaryPurge().purge({ ...target, uploadsQuiescent: true }, new AbortController().signal),
     ).toEqual({ kind: 'DELETED' });
-    const [url, options] = provider.mock.calls.at(-1)!;
+    expect(provider.mock.calls.slice(4).map(([url]) => new URL(url).pathname.split('/')[4]))
+      .toEqual(['image', 'video', 'raw']);
+    const [url, options] = provider.mock.calls[3];
     expect(url).toBe('https://api.cloudinary.com/v1_1/test-cloud/resources');
     expect(options.redirect).toBe('error');
     expect(options.method).toBe('DELETE');
@@ -77,14 +72,91 @@ describe('Cloudinary exact-binding cleanup', () => {
       `Basic ${Buffer.from('123:test-secret').toString('base64')}`,
     );
   });
-  it('missing bytes are idempotent success without a destructive provider call', async () => {
+  it('reports observed absence without claiming that physical deletion completed', async () => {
     provider.mockResolvedValue({ ok: false, status: 404 });
     expect(
       await new CloudinaryPurge().purge(target, new AbortController().signal),
-    ).toEqual({ kind: 'DELETED' });
+    ).toEqual({ kind: 'MISSING' });
     expect(
       provider.mock.calls.some(([url]) => String(url).endsWith('/resources')),
     ).toBe(false);
+  });
+  it('reports a disappearing candidate as missing when DELETE returns not_found', async () => {
+    const inspect = provider.getMockImplementation()!;
+    provider.mockImplementation((url: string) => url.endsWith('/resources')
+      ? Promise.resolve(Response.json({ deleted: { [data.asset_id]: 'not_found' } }))
+      : inspect(url));
+    await expect(new CloudinaryPurge().purge(target, new AbortController().signal))
+      .resolves.toEqual({ kind: 'MISSING' });
+  });
+  it('reports HTTP 404 during DELETE as unconfirmed absence', async () => {
+    const inspect = provider.getMockImplementation()!;
+    provider.mockImplementation((url: string) => url.endsWith('/resources')
+      ? Promise.resolve(new Response(null, { status: 404 })) : inspect(url));
+    await expect(new CloudinaryPurge().purge(target, new AbortController().signal))
+      .resolves.toEqual({ kind: 'MISSING' });
+  });
+  it('defers the missing result when an earlier namespace gets a late upload', async () => {
+    let lateImage: typeof data | undefined;
+    provider.mockImplementation(async (url: string) => {
+      if (url.includes('/image/') && lateImage) return Response.json(lateImage);
+      if (url.includes('/raw/')) lateImage = data;
+      return new Response(null, { status: 404 });
+    });
+    await expect(new CloudinaryPurge().purge({ binding, pinned: null }, new AbortController().signal))
+      .resolves.toEqual({ kind: 'MISSING' });
+    expect(lateImage).toBeDefined();
+    expect(provider.mock.calls.some(([, options]) => options.method === 'DELETE')).toBe(false);
+  });
+  it('defers completion when an earlier namespace gains an object before DELETE succeeds', async () => {
+    const video = { ...data, asset_id: 'c'.repeat(32), resource_type: 'video' };
+    let lateImage = false;
+    let videoDeleted = false;
+    provider.mockImplementation(async (url: string, options: RequestInit) => {
+      if (options.method === 'DELETE') {
+        expect(lateImage).toBe(true);
+        videoDeleted = true;
+        return Response.json({ deleted: { [video.asset_id]: 'deleted' } });
+      }
+      if (url.includes('/image/') && lateImage) return Response.json(data);
+      if (url.includes('/video/') && !videoDeleted) return Response.json(video);
+      if (url.includes('/raw/')) lateImage = true;
+      return new Response(null, { status: 404 });
+    });
+    await expect(new CloudinaryPurge().purge({ binding, pinned: null }, new AbortController().signal))
+      .resolves.toEqual({ kind: 'DELETE_UNCONFIRMED' });
+    expect(provider.mock.calls.map(([url, options]) => options.method ?? new URL(url).pathname.split('/')[4]))
+      .toEqual(['image', 'video', 'raw', 'DELETE', 'image']);
+    expect(provider.mock.calls[3][1].body.get('asset_ids[]')).toBe(video.asset_id);
+  });
+  it('defers even with three clean post-delete probes when upload quiescence is unknown', async () => {
+    await expect(new CloudinaryPurge().purge(target, new AbortController().signal))
+      .resolves.toEqual({ kind: 'DELETE_UNCONFIRMED' });
+    expect(provider).toHaveBeenCalledTimes(7);
+  });
+  it.each([503, 'network error'])('defers when verification fails after DELETE: %s', async failure => {
+    const inspect = provider.getMockImplementation()!;
+    provider.mockImplementation((url: string, options: RequestInit) => {
+      if (provider.mock.calls.length <= 4) return inspect(url, options);
+      return failure === 503 ? Promise.resolve(new Response(null, { status: 503 })) : Promise.reject(new Error('upstream'));
+    });
+    await expect(new CloudinaryPurge().purge({ ...target, uploadsQuiescent: true }, new AbortController().signal))
+      .resolves.toEqual({ kind: 'DELETE_UNCONFIRMED' });
+  });
+  it('refuses a legacy unversioned reference before contacting the provider', async () => {
+    const legacy = { ...target, pinned: { ...target.pinned!, storageKey: `image/authenticated/${key}` } };
+    await expect(new CloudinaryPurge().purge(legacy, new AbortController().signal))
+      .resolves.toMatchObject({ kind: 'REJECTED' });
+    expect(provider).not.toHaveBeenCalled();
+  });
+  it('refuses multiple exact bindings in different namespaces even without a Ready pin', async () => {
+    provider.mockImplementation(async (url: string) => {
+      const resource_type = url.includes('/image/') ? 'image' : 'video';
+      return Response.json({ ...data, resource_type });
+    });
+    await expect(new CloudinaryPurge().purge({ binding, pinned: null }, new AbortController().signal))
+      .resolves.toMatchObject({ kind: 'REJECTED' });
+    expect(provider.mock.calls.some(([, options]) => options.method === 'DELETE')).toBe(false);
   });
   it.each([
     { version: 1794200001 },
@@ -106,26 +178,11 @@ describe('Cloudinary exact-binding cleanup', () => {
     ).toBe(false);
   });
   it('cleans unfinalized unsafe media by trusted binding without requiring a safe content format', async () => {
-    provider.mockImplementation((url: string) =>
-      Promise.resolve(
-        url.endsWith('/resources')
-          ? {
-              ok: true,
-              json: () =>
-                Promise.resolve({ deleted: { [data.asset_id]: 'deleted' } }),
-            }
-          : url.includes('/image/')
-            ? {
-                ok: true,
-                json: () => Promise.resolve({ ...data, format: 'svg' }),
-              }
-            : { ok: false, status: 404 },
-      ),
-    );
+    provider.mockResolvedValueOnce(Response.json({ ...data, format: 'svg' }));
     expect(
       (
         await new CloudinaryPurge().purge(
-          { binding, pinned: null },
+          { binding, pinned: null, uploadsQuiescent: true },
           new AbortController().signal,
         )
       ).kind,

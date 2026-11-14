@@ -43,13 +43,16 @@ export class OwnerMedia {
   private async owned(
     auth: Parameters<ActiveAccounts['withActiveAccount']>[0],
     id: string,
+    signal?: AbortSignal,
   ): Promise<OwnedMedia> {
     for (let attempt = 0; ; attempt++) {
       try {
+        signal?.throwIfAborted();
         return await this.accounts.withActiveAccount(
           auth,
           false,
           async (actor, context) => {
+            signal?.throwIfAborted();
             if (
               !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
                 id,
@@ -98,7 +101,8 @@ export class OwnerMedia {
   ): Promise<
     PrivateContent | { kind: 'RANGE_NOT_SATISFIABLE'; totalBytes: number }
   > {
-    const asset = await this.owned(auth, id);
+    const asset = await this.owned(auth, id, signal);
+    signal.throwIfAborted();
     if (
       asset.status !== 'READY' ||
       !asset.storageKey ||
@@ -109,7 +113,7 @@ export class OwnerMedia {
     let range;
     let resolved;
     try {
-      range = parseMediaRange(header);
+      range = method === 'GET' ? parseMediaRange(header) : undefined;
       resolved = range
         ? resolveMediaRange(range, asset.verifiedBytes)
         : undefined;
@@ -150,7 +154,8 @@ export class OwnerMedia {
     )
       throw mediaUnavailable(true);
     // No account lock spans provider I/O. Recheck before releasing bytes after a slow upstream.
-    const current = await this.owned(auth, id);
+    const current = await this.owned(auth, id, signal);
+    signal.throwIfAborted();
     if (
       current.status !== 'READY' ||
       current.storageKey !== asset.storageKey ||

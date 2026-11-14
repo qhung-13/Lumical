@@ -1,25 +1,32 @@
 import type { ByteRange } from './media-storage';
 
-/** One byte range only. Reject unsafe integers before they can reach provider headers. */
+const MAX_RANGE_HEADER_LENGTH = 256;
+const MAX_BYTE_POSITION = BigInt(Number.MAX_SAFE_INTEGER);
+
+/** Parse one byte range before resolving it against the verified object size. */
 export function parseMediaRange(
   header: string | undefined,
 ): ByteRange | undefined {
   if (header === undefined) return undefined;
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  const value = header.trim();
+  const unit = /^([!#$%&'*+.^_`|~0-9A-Za-z-]+)=/.exec(value)?.[1];
+  if (unit && unit.toLowerCase() !== 'bytes') return undefined;
+  if (header.length > MAX_RANGE_HEADER_LENGTH) throw new RangeError();
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(value);
   if (!match || (!match[1] && !match[2])) throw new RangeError();
-  const number = (value: string) => {
-    const result = Number(value);
-    if (!Number.isSafeInteger(result) || result < 0) throw new RangeError();
-    return result;
-  };
+  // Verified lengths are safe integers. Larger ends and suffixes always clamp.
+  const clamp = (value: bigint) =>
+    Number(value > MAX_BYTE_POSITION ? MAX_BYTE_POSITION : value);
   if (!match[1]) {
-    const length = number(match[2]);
+    const length = clamp(BigInt(match[2]));
     if (length === 0) throw new RangeError();
     return { kind: 'SUFFIX', length };
   }
-  const start = number(match[1]);
+  const first = BigInt(match[1]);
+  if (first > MAX_BYTE_POSITION) throw new RangeError();
+  const start = Number(first);
   if (!match[2]) return { kind: 'OPEN', start };
-  const end = number(match[2]);
+  const end = clamp(BigInt(match[2]));
   if (end < start) throw new RangeError();
   return { kind: 'CLOSED', start, end };
 }

@@ -46,6 +46,8 @@ export class ApiErrors implements ExceptionFilter {
     const messageKey = project ? PROJECT_ERROR[project.code].messageKey : legacy ? legacy.messageKey : status === 404 ? 'errors.notFound' : status === 413 || status === 422 ? 'errors.validation' : 'errors.unavailable';
     const requestId = String(response.getHeader('X-Request-Id'));
     if (status >= 500 || [401, 403, 409, 412, 429].includes(status)) this.logger.warn(JSON.stringify({ requestId, code, status }));
+    if (status === 429 && error instanceof IdentityError && error.retryAfterSeconds !== undefined)
+      response.setHeader('Retry-After', String(error.retryAfterSeconds));
     response.status(status).json({ error: { code, messageKey,
       requestId, retryable: status >= 500 || status === 429,
       ...(managed?.currentVersion ? { currentVersion: managed.currentVersion } : {}),

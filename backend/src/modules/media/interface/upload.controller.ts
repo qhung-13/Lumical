@@ -81,6 +81,11 @@ export class UploadController {
   @ApiResponse({ status: 403, type: ErrorResponseDto })
   @ApiResponse({ status: 409, type: ErrorResponseDto })
   @ApiResponse({ status: 422, type: ErrorResponseDto })
+  @ApiResponse({
+    status: 429,
+    type: ErrorResponseDto,
+    headers: { 'Retry-After': { description: 'Seconds until a new intent can be attempted.', schema: { type: 'integer', minimum: 1 } } },
+  })
   @ApiResponse({ status: 503, type: ErrorResponseDto })
   async create(@Req() req: Request, @Body() input: unknown) {
     const data = await this.intake.execute(

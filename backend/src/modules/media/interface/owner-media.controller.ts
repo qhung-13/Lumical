@@ -15,7 +15,8 @@ import { pipeline } from 'node:stream/promises';
 import { IdentityPolicy } from '../../identity/application/ports';
 import { accountCookie } from '../../identity/domain/identity';
 import { ErrorResponseDto } from '../../calendar-projects/interface/dto';
-import { OwnerMedia } from '../application/owner-media';
+import { mediaUnavailable, OwnerMedia } from '../application/owner-media';
+import { beforeMediaDeadline } from './media-request-deadline';
 
 class OwnedMediaDto {
   @ApiProperty({ type: String, format: 'uuid' }) id: string;
@@ -133,23 +134,7 @@ export class OwnerMediaController {
       'Read verified private content headers with the same current-access checks as GET.',
   })
   @ApiParam({ name: 'id', type: String, format: 'uuid' })
-  @ApiHeader({
-    name: 'Range',
-    required: false,
-    description: 'Single byte range; returns matching headers without a body.',
-  })
   @ApiResponse({ status: 200, headers: streamHeaders })
-  @ApiResponse({
-    status: 206,
-    headers: {
-      ...streamHeaders,
-      'Content-Range': { schema: { type: 'string' } },
-    },
-  })
-  @ApiResponse({
-    status: 416,
-    headers: { 'Content-Range': { schema: { type: 'string' } } },
-  })
   async head(
     @Req() req: Request,
     @Res() res: Response,
@@ -165,12 +150,17 @@ export class OwnerMediaController {
     req.once('aborted', abort);
     res.once('close', abort);
     try {
-      const result = await this.service.content(
-        this.auth(req),
-        id,
-        req.method === 'HEAD' ? 'HEAD' : 'GET',
-        req.get('If-Range') ? undefined : req.get('Range'),
+      if (req.aborted || res.destroyed) return;
+      const result = await beforeMediaDeadline(
         controller.signal,
+        () => mediaUnavailable(true),
+        (signal) => this.service.content(
+          this.auth(req),
+          id,
+          req.method === 'HEAD' ? 'HEAD' : 'GET',
+          req.get('If-Range') ? undefined : req.get('Range'),
+          signal,
+        ),
       );
       if (controller.signal.aborted) return;
       res.setHeader('Accept-Ranges', 'bytes');
@@ -195,12 +185,15 @@ export class OwnerMediaController {
       // pipeline applies backpressure and closes both ends on disconnect/error.
       // Never serialize a provider error or URL into an already-started stream.
       try {
+        res.flushHeaders();
         await pipeline(Readable.from(result.body!), res, {
           signal: controller.signal,
         });
       } catch {
         if (!res.destroyed) res.destroy();
       }
+    } catch (error) {
+      if (!controller.signal.aborted) throw error;
     } finally {
       controller.abort();
       req.off('aborted', abort);

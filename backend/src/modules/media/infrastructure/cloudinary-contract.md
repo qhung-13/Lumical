@@ -108,7 +108,7 @@ P04 owner status and delivery:
 - Accept one closed/open/suffix byte range with safe integer bounds. Clamp ends
   and long suffixes to the verified total. Malformed/multiple/out-of-bounds ranges
   return controlled 416 with `Content-Range: bytes */total`, after ownership checks.
-  HEAD supports the same range headers without a body. If-Range has no exported
+  HEAD ignores Range and returns full-object headers without a body. If-Range has no exported
   validator to compare, so it conservatively yields a full 200 response.
 - Cloudinary URL versions are cache selectors, not immutable-version retrieval.
   P04 strengthens P03 inspection to pin the exact original format and provider

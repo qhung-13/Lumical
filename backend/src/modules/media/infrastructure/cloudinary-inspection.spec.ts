@@ -183,6 +183,41 @@ describe('authenticated Cloudinary inspection boundary', () => {
       kind: 'PENDING',
     });
   });
+  it('cancels both outstanding Admin probes when the caller disconnects', async () => {
+    const controller = new AbortController();
+    const cancelled = jest.fn();
+    provider.mockImplementation((_url, { signal }: RequestInit) => new Promise((_resolve, reject) => {
+      signal!.addEventListener('abort', () => {
+        cancelled();
+        reject(signal!.reason);
+      }, { once: true });
+    }));
+    const pending = new CloudinaryInspection().inspect(binding, controller.signal);
+    expect(provider).toHaveBeenCalledTimes(2);
+    controller.abort();
+    await expect(pending).resolves.toMatchObject({ kind: 'UNAVAILABLE' });
+    expect(cancelled).toHaveBeenCalledTimes(2);
+  });
+  it('returns controlled uncertainty and aborts both slow Admin probes at 15 s', async () => {
+    const timer = new AbortController();
+    const timeout = jest.spyOn(AbortSignal, 'timeout').mockReturnValue(timer.signal);
+    try {
+      const aborted = jest.fn();
+      provider.mockImplementation((_url, { signal }: RequestInit) => new Promise((_resolve, reject) => {
+        signal!.addEventListener('abort', () => {
+          aborted();
+          reject(signal!.reason);
+        }, { once: true });
+      }));
+      const result = new CloudinaryInspection().inspect(binding);
+      expect(timeout).toHaveBeenCalledWith(15_000);
+      timer.abort(new DOMException('Timeout', 'TimeoutError'));
+      await expect(result).resolves.toEqual({ kind: 'UNAVAILABLE', retryable: true });
+      expect(aborted).toHaveBeenCalledTimes(2);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
   it.each([401, 403, 429, 500, 503])(
     'maps HTTP %s to controlled uncertainty',
     async (status) => {

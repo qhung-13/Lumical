@@ -8,6 +8,17 @@ const ready = { data: { id, category: 'IMAGE', status: 'READY', verifiedBytes: 1
 
 describe('typed private Media API', () => {
   afterEach(() => vi.unstubAllGlobals());
+  it('gives finalize a longer response budget than the media gateway', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    try {
+      const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { assetId: id, status: 'PENDING' } }), { status: 202 }));
+      const api = mediaApi({ csrf: () => 'csrf', epoch: () => 1, unauthorized: vi.fn(), fetcher });
+      await expect(api.finalize(id, 'finalize-key-000000')).resolves.toMatchObject({ status: 202 });
+      expect(timeout).toHaveBeenCalledWith(35_000);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
   it('settles an already-cancelled transfer without relying on an XHR abort event', async () => {
     const xhr = { open: vi.fn(), upload: {}, abort: vi.fn(), send: vi.fn() };
     vi.stubGlobal('XMLHttpRequest', class { constructor() { return xhr; } });
@@ -15,11 +26,18 @@ describe('typed private Media API', () => {
     await expect(uploadToProvider(intent, new File(['x'], 'x.jpg'), 'IMAGE', vi.fn(), abort.signal)).rejects.toMatchObject({ name: 'AbortError' });
     expect(xhr.send).not.toHaveBeenCalled();
   });
-  it.each(['conflict', 'timeout'])('treats provider %s as uncertain so the backend can inspect existing bytes', async outcome => {
-    const xhr: Record<string, unknown> = { open: vi.fn(), upload: {}, abort: vi.fn(), status: 409 };
-    xhr.send = () => (xhr[outcome === 'conflict' ? 'onload' : 'ontimeout'] as () => void)();
+  it.each([409, 503, 'timeout'])('treats provider %s as uncertain so the backend can inspect existing bytes', async outcome => {
+    const xhr: Record<string, unknown> = { open: vi.fn(), upload: {}, abort: vi.fn(), status: outcome };
+    xhr.send = () => (xhr[outcome === 'timeout' ? 'ontimeout' : 'onload'] as () => void)();
     vi.stubGlobal('XMLHttpRequest', class { constructor() { return xhr; } });
     await expect(uploadToProvider(intent, new File(['x'], 'x.jpg'), 'IMAGE', vi.fn(), new AbortController().signal)).rejects.toMatchObject({ uncertain: true });
+  });
+  it('keeps a definitive provider validation error separate from a lost response', async () => {
+    const xhr: Record<string, unknown> = { open: vi.fn(), upload: {}, status: 400 };
+    xhr.send = () => (xhr.onload as () => void)();
+    vi.stubGlobal('XMLHttpRequest', class { constructor() { return xhr; } });
+    await expect(uploadToProvider(intent, new File(['x'], 'x.jpg'), 'IMAGE', vi.fn(), new AbortController().signal))
+      .rejects.toMatchObject({ status: 400, uncertain: false });
   });
   it('accepts the backend-supported underscore in a Cloudinary cloud name', async () => {
     const uploader = vi.fn().mockResolvedValue(undefined);
@@ -52,6 +70,28 @@ describe('typed private Media API', () => {
     const api = mediaApi({ csrf: () => 'c'.repeat(64), epoch: () => 1, unauthorized: vi.fn(), fetcher });
     await expect(api.initiate({ category: 'IMAGE', fileName: 'family.jpg', declaredBytes: 1250 }, 'init-key-000000000000'))
       .rejects.toMatchObject({ code: 'CONFLICT', status: 409, messageKey: 'errors.uploadIntentExpired' });
+  });
+
+  const now = Date.UTC(2026, 10, 14, 10, 0);
+  it.each([
+    ['600', now + 600_000],
+    ['0', now],
+    [new Date(now + 60_000).toUTCString(), now + 60_000],
+    [new Date(now - 60_000).toUTCString(), now],
+    [undefined, undefined], ['-1', undefined], ['1.5', undefined],
+    ['2, 3', undefined], ['99999999999999', undefined], ['tomorrow', undefined], ['Invalid Date', undefined],
+  ])('reads and validates Retry-After %s on 429', async (header, retryAt) => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const fetcher = vi.fn().mockResolvedValue(new Response('{}', {
+        status: 429, headers: header === undefined ? undefined : { 'Retry-After': header },
+      }));
+      const api = mediaApi({ csrf: () => 'csrf', epoch: () => 1, unauthorized: vi.fn(), fetcher });
+      await expect(api.initiate({ category: 'IMAGE', fileName: 'family.jpg', declaredBytes: 1250 }, 'init-key-000000000000'))
+        .rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429, retryAt });
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('refuses a provider endpoint outside the backend-approved Cloudinary upload origin and shape', async () => {

@@ -52,7 +52,7 @@ export function identityApi(options: { csrf: () => string | undefined; epoch: ()
     catch { throw new ApiError('PROVIDER_UNAVAILABLE', 503); }
     if (scoped && epoch !== options.epoch()) throw new ApiError('STALE_RESPONSE', 0);
     if (!response.ok) {
-      if (response.status === 401) await options.unauthorized();
+      if (response.status === 401 && !(path === '/auth/session' && method === 'GET')) await options.unauthorized();
       let code = response.status === 401 ? 'UNAUTHENTICATED' : 'PROVIDER_UNAVAILABLE';
       let fields: { path: string; messageKey: string }[] = [];
       try {

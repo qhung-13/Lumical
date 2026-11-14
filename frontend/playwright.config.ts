@@ -11,7 +11,7 @@ const runKind = liveBackend ? (i05Live ? 'i05-live' : 'i04-live') : 'mocked';
 export default defineConfig({
   testDir: './e2e',
   outputDir: `test-results/${runKind}`,
-  testMatch: ['**/foundation.spec.ts', '**/admin-templates.spec.ts', '**/project-creation.spec.ts', '**/project-lifecycle.spec.ts'],
+  testMatch: ['**/foundation.spec.ts', '**/admin-templates.spec.ts', '**/project-creation.spec.ts', '**/project-lifecycle.spec.ts', '**/media-upload.spec.ts'],
   snapshotPathTemplate: '{testDir}/__screenshots__/{platform}/{arg}{ext}',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

@@ -264,6 +264,7 @@ model MediaAsset {
   durationMs                Int?                  @map("duration_ms")
   contentType               String?               @map("content_type")
   verifiedAt                DateTime?             @map("verified_at") @db.Timestamptz(3)
+  deletedAt                 DateTime?             @map("deleted_at") @db.Timestamptz(3)
   createdAt                 DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
   owner                     User                  @relation("MediaAsset_owner", fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   projectMonthMedia_asset   ProjectMonthMedia[]   @relation("ProjectMonthMedia_asset")
@@ -731,6 +732,7 @@ model JobRecord {
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([condition, dueAt, id])
+  @@index([objectId, kind], map: "job_records_object_kind_idx")
   @@map("job_records")
   @@schema("lumical")
 }

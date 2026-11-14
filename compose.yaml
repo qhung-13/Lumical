@@ -1,4 +1,8 @@
 name: lumical
+x-media-environment: &media-environment
+  CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+  CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+  CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
 services:
   postgres:
     image: postgres:17.11-bookworm
@@ -44,6 +48,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
+      <<: *media-environment
       NODE_ENV: production
       PORT: 3001
       CALENDAR_TIME_ZONE: ${CALENDAR_TIME_ZONE:-Asia/Ho_Chi_Minh}
@@ -55,11 +60,30 @@ services:
       IDENTITY_AUTH_ATTEMPTS: ${IDENTITY_AUTH_ATTEMPTS:-10}
       IDENTITY_AUTH_WINDOW_SECONDS: ${IDENTITY_AUTH_WINDOW_SECONDS:-600}
       IDENTITY_AUTH_BUCKETS: ${IDENTITY_AUTH_BUCKETS:-10000}
+      CLOUDINARY_UPLOAD_PRESET_IMAGE: ${CLOUDINARY_UPLOAD_PRESET_IMAGE:-}
+      CLOUDINARY_UPLOAD_PRESET_VIDEO: ${CLOUDINARY_UPLOAD_PRESET_VIDEO:-}
+      CLOUDINARY_UPLOAD_PRESET_AUDIO: ${CLOUDINARY_UPLOAD_PRESET_AUDIO:-}
+      MEDIA_UPLOAD_INTENTS_PER_10_MINUTES: ${MEDIA_UPLOAD_INTENTS_PER_10_MINUTES:-5}
     depends_on:
       migrate:
         condition: service_completed_successfully
     ports:
       - "127.0.0.1:${BACKEND_PORT:-3001}:3001"
+
+  media-worker:
+    profiles: [media-worker]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: [node, backend/dist/worker.js]
+    restart: unless-stopped
+    environment:
+      <<: *media-environment
+      NODE_ENV: production
+      DATABASE_URL: postgresql://lumical_runtime:${RUNTIME_DB_PASSWORD:?Set runtime password}@postgres:5432/${POSTGRES_DB:-lumical_dev}?schema=lumical
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   frontend:
     build:

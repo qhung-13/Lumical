@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { ApiError, identityApi, type Credentials, type Principal, type SessionData } from '../../api/identity';
 
 export interface SafeBootstrap { phase: 'authenticated' | 'unauthenticated' | 'unavailable'; principal?: Principal }
-export interface SessionState { phase: SafeBootstrap['phase'] | 'loading'; principal?: Principal; mutationReady: boolean }
+export interface SessionState { phase: SafeBootstrap['phase'] | 'loading'; principal?: Principal; unverifiedPrincipal?: Principal; mutationReady: boolean }
 export const privateKey = (actorId: string, resource: string) => ['private', actorId, resource] as const;
 
 export class SessionManager {
@@ -14,10 +14,11 @@ export class SessionManager {
   readonly api: ReturnType<typeof identityApi>;
   constructor(readonly queries: QueryClient, initial: SafeBootstrap, fetcher?: typeof fetch) {
     this.state = { ...initial, mutationReady: false };
-    const api = identityApi({ csrf: () => this.token, epoch: () => this.epoch, unauthorized: () => this.transition({ authenticated: false }), fetcher });
+    const api = identityApi({ csrf: this.csrfToken, epoch: () => this.epoch, unauthorized: this.invalidate, fetcher });
     this.api = { ...api, ownAccount: async () => {
       const account = await api.ownAccount();
-      if (this.state.principal && this.state.principal.id !== account.id) {
+      const actor = this.state.principal ?? this.state.unverifiedPrincipal;
+      if (actor && actor.id !== account.id) {
         await this.bootstrap();
         throw new ApiError('STALE_RESPONSE', 0);
       }
@@ -26,7 +27,11 @@ export class SessionManager {
   }
   getSnapshot = () => this.state;
   /** CSRF token for authenticated mutations (I04-P04 Admin commands). Read-only; never serialized. */
-  csrfToken = () => this.token;
+  csrfToken = () => this.state.mutationReady ? this.token : undefined;
+  invalidate = () => {
+    ++this.operation;
+    return this.transition({ authenticated: false });
+  };
   /** Current identity epoch, used to discard private feature responses after actor changes. */
   requestEpoch = () => this.epoch;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -34,6 +39,7 @@ export class SessionManager {
   private async transition(data: SessionData) {
     const epoch = ++this.epoch;
     this.token = undefined;
+    this.publish({ phase: 'loading', mutationReady: false });
     // Cancel first; late responses also fail the transport's actor-epoch guard.
     await this.queries.cancelQueries({ predicate: (query) => query.queryKey[0] === 'private' });
     if (epoch !== this.epoch) return;
@@ -46,13 +52,24 @@ export class SessionManager {
   }
   async bootstrap() {
     const operation = ++this.operation;
-    this.publish({ phase: 'loading', mutationReady: false });
-    try { const data = await this.api.bootstrap(); if (operation === this.operation) await this.transition(data); }
+    const current = this.state.principal ?? this.state.unverifiedPrincipal;
+    if (!current) this.publish({ phase: 'loading', mutationReady: false });
+    try {
+      const data = await this.api.bootstrap();
+      if (operation !== this.operation) return;
+      if (data.authenticated && current &&
+          current.id === data.principal?.id && current.role === data.principal.role &&
+          current.accountStatus === data.principal.accountStatus && data.csrfToken &&
+          (!this.token || data.csrfToken === this.token)) {
+        this.token = data.csrfToken;
+        this.queries.setQueryData(privateKey(current.id, 'principal'), data.principal);
+        this.publish({ phase: 'authenticated', principal: data.principal, mutationReady: true });
+      } else await this.transition(data);
+    }
     catch (error) {
       if (operation !== this.operation || error instanceof ApiError && error.code === 'STALE_RESPONSE') return;
-      this.token = undefined;
       if (error instanceof ApiError && error.status === 401) await this.transition({ authenticated: false });
-      else this.publish({ phase: 'unavailable', mutationReady: false });
+      else this.publish({ phase: 'unavailable', unverifiedPrincipal: current, mutationReady: false });
     }
   }
   async authenticate(mode: 'register' | 'login', body: Credentials, key: string) {

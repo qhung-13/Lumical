@@ -122,7 +122,7 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
   const templateNotFound = selectedTemplate.error instanceof TemplateApiError && selectedTemplate.error.status === 404;
   return <PublicShell><div className={styles.page}>
     <div className={styles.workspaceHeading}><div><p className={styles.eyebrow}>LumiCal</p><h1>{copy.title}</h1><p className={styles.intro}>{copy.intro}</p></div>
-      <Button variant="outline" loading={logoutPending} loadingLabel={copy.logout} disabled={!state.mutationReady} onClick={() => void logout()}>{copy.logout}</Button></div>
+      <div className={styles.projectActions}><Link href="/media/upload">{copy.mediaLink}</Link><Button variant="outline" loading={logoutPending} loadingLabel={copy.logout} disabled={!state.mutationReady} onClick={() => void logout()}>{copy.logout}</Button></div></div>
     {draft.submitError === 'ERROR' && !template && <p role="alert">{copy.error}</p>}
     {draft.intent && <section className={styles.panel} aria-label={copy.retryPrevious}>
       <p role="status" className={styles.summary}>{copy.unresolvedIntent}</p>

@@ -306,6 +306,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/media/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reserve one owned Pending asset and authorize a non-overwriting private upload. */
+        post: operations["initiateMediaUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media/{id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Independently verify an owned upload and pin immutable Ready media. */
+        post: operations["finalizeMediaUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read current readiness for an owned media asset. */
+        get: operations["getOwnedMedia"];
+        put?: never;
+        post?: never;
+        /** Revoke unused media immediately and durably schedule safe provider cleanup. */
+        delete: operations["deleteOwnedMedia"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream pinned private content after checking current owner access. */
+        get: operations["getOwnedMediaContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Read verified private content headers with the same current-access checks as GET. */
+        head: operations["headOwnedMediaContent"];
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -568,6 +638,85 @@ export interface components {
         };
         ProjectDeleteDto: {
             confirmed: boolean;
+        };
+        UploadCreateDto: {
+            /** @enum {string} */
+            category: "IMAGE" | "VIDEO" | "AUDIO";
+            fileName: string;
+            /** @description Declared bytes: image <=10 MB, video <=100 MB, audio <=20 MB. Trusted verification follows at finalization. */
+            declaredBytes: number;
+            declaredDurationSeconds?: number;
+        };
+        UploadFieldsDto: {
+            /**
+             * Format: uri
+             * @description Exact private Cloudinary upload endpoint; never a delivery URL.
+             */
+            url: string;
+            fields: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        UploadIntentDto: {
+            /** Format: uuid */
+            assetId: string;
+            upload: components["schemas"]["UploadFieldsDto"];
+        };
+        UploadResponseDto: {
+            data: components["schemas"]["UploadIntentDto"];
+        };
+        MediaFinalizeDto: {
+            /**
+             * @description Upload completion hint only; all facts are verified independently.
+             * @enum {boolean}
+             */
+            uploadCompleted: true;
+        };
+        FinalizedMediaDto: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            category: "IMAGE" | "VIDEO" | "AUDIO";
+            /** @enum {string} */
+            status: "READY";
+            verifiedBytes: number;
+            durationSeconds?: number;
+        };
+        FinalizedMediaResponseDto: {
+            data: components["schemas"]["FinalizedMediaDto"];
+        };
+        PendingMediaDto: {
+            /** Format: uuid */
+            assetId: string;
+            /** @enum {string} */
+            status: "PENDING";
+        };
+        PendingMediaResponseDto: {
+            data: components["schemas"]["PendingMediaDto"];
+        };
+        OwnedMediaDto: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            category: "IMAGE" | "VIDEO" | "AUDIO";
+            /** @enum {string} */
+            status: "PENDING" | "READY" | "UNAVAILABLE";
+            verifiedBytes: number | null;
+            durationSeconds?: number;
+            /** @description Account-protected backend content path, present only for Ready assets. */
+            contentPath?: string;
+        };
+        OwnedMediaResponseDto: {
+            data: components["schemas"]["OwnedMediaDto"];
+        };
+        RetainedMediaDto: {
+            /** @enum {boolean} */
+            retainedForHistory: true;
+        };
+        RetainedMediaResponseDto: {
+            data: components["schemas"]["RetainedMediaDto"];
         };
     };
     responses: never;
@@ -2766,6 +2915,445 @@ export interface operations {
                 };
             };
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    initiateMediaUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResponseDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            429: {
+                headers: {
+                    /** @description Seconds until a new intent can be attempted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    finalizeMediaUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                Origin: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaFinalizeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinalizedMediaResponseDto"];
+                };
+            };
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingMediaResponseDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    getOwnedMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnedMediaResponseDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    deleteOwnedMedia: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+                Origin: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetainedMediaResponseDto"];
+                };
+            };
+            /** @description Access revoked; provider cleanup runs durably after upload signatures expire. Safe repeat. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    getOwnedMediaContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Single closed, open or suffix byte range. */
+                Range?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    "X-Content-Type-Options"?: string;
+                    "Content-Type"?: string;
+                    "Content-Length"?: number;
+                    "Accept-Ranges"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                    "video/mp4": string;
+                    "video/webm": string;
+                    "audio/mpeg": string;
+                    "audio/mp4": string;
+                    "audio/ogg": string;
+                    "audio/wav": string;
+                    "audio/webm": string;
+                };
+            };
+            206: {
+                headers: {
+                    "Cache-Control"?: string;
+                    "X-Content-Type-Options"?: string;
+                    "Content-Type"?: string;
+                    "Content-Length"?: number;
+                    "Accept-Ranges"?: string;
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                    "video/mp4": string;
+                    "video/webm": string;
+                    "audio/mpeg": string;
+                    "audio/mp4": string;
+                    "audio/ogg": string;
+                    "audio/wav": string;
+                    "audio/webm": string;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            416: {
+                headers: {
+                    "Cache-Control"?: string;
+                    "X-Content-Type-Options"?: string;
+                    "Content-Type"?: string;
+                    "Content-Length"?: number;
+                    "Accept-Ranges"?: string;
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    headOwnedMediaContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    "X-Content-Type-Options"?: string;
+                    "Content-Type"?: string;
+                    "Content-Length"?: number;
+                    "Accept-Ranges"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

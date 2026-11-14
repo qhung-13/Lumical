@@ -85,6 +85,56 @@ These are production-style containers; use `pnpm dev` for normal coding.
 Run Compose from this repository and manage only its project; never prune or
 stop unrelated Docker projects.
 
+For a media-enabled stack, set the six `CLOUDINARY_*` variables in the root
+Compose `.env` using a verified test account and its signed presets. Start the
+same stack with `docker compose --profile media-worker up --build -d` to run
+durable media cleanup. The worker uses the backend image and runtime database
+role, waits for migrations, and exposes no port. Enable this profile only when
+its Cloudinary credentials and the target database are configured together.
+The worker CLI validates the credentials and runtime database URL before Nest
+startup in both service mode and `--once` mode.
+
+For the isolated demo, `MEDIA_UPLOAD_INTENTS_PER_10_MINUTES` defaults to five
+new upload intents per account in a rolling ten-minute window. Same-key replay
+uses its existing intent. A `429` response includes `Retry-After` in seconds.
+This limit does not reserve the shared Cloudinary Admin API quota. Direct
+upload retains the accepted demo risk that Cloudinary signatures do not bind
+the multipart file source or resource type.
+
+**Deferred demo media cleanup**
+
+The Media/Platform operator reviews non-completed `MEDIA_DELETE` jobs daily
+using the authorized read-only database connection. This query exposes the
+internal queue identifiers and outcome codes without provider credentials:
+
+```sql
+SELECT id, object_id, condition, safe_error_code, created_at, due_at, attempts
+FROM lumical.job_records
+WHERE kind = 'MEDIA_DELETE' AND condition <> 'COMPLETED'
+ORDER BY created_at;
+```
+
+`FAILED / MEDIA_MISSING_UNCONFIRMED` means the provider reported absence while
+late upload completion remains possible. `FAILED / MEDIA_DELETE_UNCONFIRMED`
+means the provider acknowledged deletion of one verified object and the job
+still needs review of every namespace and any in-flight uploads. Signature
+expiry and a clean recheck cannot establish when an already accepted upload
+finishes. `FAILED / MEDIA_IDENTITY_MISMATCH` requires reviewing the binding,
+namespace and immutable pin. These jobs leave the asset tombstoned and stop
+automatic retries. Include older completed records in an authorized inventory
+review when their provider outcome is uncertain.
+
+Triage failed or unattached uploads promptly. Recheck current references,
+historical Order references and consuming jobs, then establish that upload and
+provider writers for the exact binding are quiescent. If identity is clear,
+remove only the verified object by asset ID, or record confirmed absence.
+Keep the tombstone, record the reviewed outcome and escalate unresolved jobs
+to LEAD before the retention deadline. Preserve Order media through assessment
+and close the documented end-of-demo cleanup within 30 days after assessment
+unless the institution sets another deadline (BR-PRV-004/005). Exact-identity
+checks leave a provider GET-to-DELETE race wherever another writer can mutate
+the asset. Use this demo worker only with an isolated demo account.
+
 For host development, start only PostgreSQL and copy the matching runtime and
 migration URLs into `backend/.env` (including the chosen PostgreSQL host port):
 

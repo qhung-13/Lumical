@@ -1,6 +1,6 @@
 export const projectCopy = {
   en: {
-    title: 'Create your calendar', intro: 'Choose a published design, then give your calendar a name and recipient.',
+    title: 'Create your calendar', intro: 'Choose a published design, then give your calendar a name and recipient.', mediaLink: 'Upload personal media',
     template: 'Selected design', change: 'Choose another design', missing: 'This design is unavailable for new calendars.',
     loadingTemplate: 'Loading the published design…', retry: 'Try again', catalog: 'Browse designs',
     calendarTitle: 'Calendar name', recipient: 'Made for', year: 'Calendar year', preset: 'Style', required: 'required',
@@ -26,7 +26,7 @@ export const projectCopy = {
     lifecycleConflict: 'The requested action conflicts with the current calendar state. The latest state has been loaded.', monthNames: ['January','February','March','April','May','June','July','August','September','October','November','December'],
   },
   vi: {
-    title: 'Tạo lịch của bạn', intro: 'Chọn một mẫu đã phát hành, rồi đặt tên lịch và người nhận.',
+    title: 'Tạo lịch của bạn', intro: 'Chọn một mẫu đã phát hành, rồi đặt tên lịch và người nhận.', mediaLink: 'Tải nội dung cá nhân lên',
     template: 'Mẫu đã chọn', change: 'Chọn mẫu khác', missing: 'Mẫu này hiện không thể dùng để tạo lịch mới.',
     loadingTemplate: 'Đang tải mẫu đã phát hành…', retry: 'Thử lại', catalog: 'Xem các mẫu',
     calendarTitle: 'Tên lịch', recipient: 'Dành tặng', year: 'Năm của lịch', preset: 'Phong cách', required: 'bắt buộc',

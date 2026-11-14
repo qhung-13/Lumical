@@ -31,6 +31,12 @@ const env = {
   IDENTITY_AUTH_ATTEMPTS: '10',
   IDENTITY_AUTH_WINDOW_SECONDS: '600',
   IDENTITY_AUTH_BUCKETS: '10000',
+  CLOUDINARY_CLOUD_NAME: '',
+  CLOUDINARY_API_KEY: '',
+  CLOUDINARY_API_SECRET: '',
+  CLOUDINARY_UPLOAD_PRESET_IMAGE: '',
+  CLOUDINARY_UPLOAD_PRESET_VIDEO: '',
+  CLOUDINARY_UPLOAD_PRESET_AUDIO: '',
   POSTGRES_DB: 'lumical_i01_smoke',
   FRONTEND_PORT: await unusedPort(),
   BACKEND_PORT: await unusedPort(),
@@ -38,6 +44,10 @@ const env = {
 };
 const compose = (args) =>
   docker(['compose', '-p', project, '-f', composeFile, ...args], { env });
+const workerConfig = {
+  CLOUDINARY_CLOUD_NAME: 'test-only', CLOUDINARY_API_KEY: '123', CLOUDINARY_API_SECRET: 'test-only',
+};
+const workerEnvArgs = (config) => Object.entries(config).flatMap(([key, value]) => ['-e', `${key}=${value}`]);
 async function response(port, route, status, body) {
   const result = await fetch(`http://127.0.0.1:${port}${route}`, {
     signal: AbortSignal.timeout(5000),
@@ -59,7 +69,9 @@ async function cleanup() {
     assert.equal(labels['com.docker.compose.project'], project);
   }
   assert.ok(project.startsWith('lumical-i01-smoke-'));
-  await compose(['down', '--volumes', '--remove-orphans']);
+  // The worker started with this profile is still a defined service after stop.
+  // Enable its profile for teardown so Compose includes the stopped container.
+  await compose(['--profile', 'media-worker', 'down', '--volumes', '--remove-orphans']);
   assert.equal(
     await docker([
       'ps',
@@ -68,6 +80,7 @@ async function cleanup() {
       `label=com.docker.compose.project=${project}`,
     ]),
     '',
+    'Compose teardown must remove all smoke containers, including the stopped media worker',
   );
   assert.equal(
     await docker([
@@ -78,6 +91,18 @@ async function cleanup() {
       `label=com.docker.compose.project=${project}`,
     ]),
     '',
+    'Compose teardown must remove the smoke database volume',
+  );
+  assert.equal(
+    await docker([
+      'network',
+      'ls',
+      '-q',
+      '--filter',
+      `label=com.docker.compose.project=${project}`,
+    ]),
+    '',
+    'Compose teardown must remove the smoke network',
   );
   console.log(
     'PASS: cleaned only this smoke project’s containers, network and database volume.',
@@ -316,6 +341,27 @@ _main postgres`;
     assert.equal(loggedOut.status, 204); assert.match(loggedOut.headers.getSetCookie()[0], /Max-Age=0/);
     assert.equal((await fetch(`${gateway}/api/v1/account/me`, { headers: { Cookie: accountCookie } })).status, 401);
     console.log('PASS: real gateway registration/session/logout, deployed cookies, Origin rejection, safe private SSR and no cross-actor cache.');
+    const runWorker = ['run', '--rm', '--no-deps'];
+    const badConfig = /Media worker requires valid Cloudinary credentials/;
+    await assert.rejects(compose([...runWorker, '--build', 'media-worker']), badConfig);
+    await assert.rejects(compose([...runWorker, ...workerEnvArgs({ ...workerConfig, CLOUDINARY_API_KEY: 'invalid' }), 'media-worker']), badConfig);
+    console.log('PASS: the normal Compose worker command rejects missing and malformed configuration.');
+
+    // This disposable DB has no media or cleanup jobs. The worker can poll with synthetic credentials.
+    const validConfig = workerEnvArgs(workerConfig);
+    await compose([...runWorker, ...validConfig, 'media-worker', 'node', 'backend/dist/worker.js', '--once']);
+    console.log('PASS: the --once override completes a bounded pass on the migrated smoke database.');
+    Object.assign(env, workerConfig);
+    await compose(['--profile', 'media-worker', 'up', '-d', '--no-deps', 'media-worker']);
+    const worker = await compose(['ps', '-q', 'media-worker']);
+    assert.ok(worker);
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    assert.equal(await docker(['inspect', '--format', '{{.State.Running}}', worker]), 'true');
+    assert.equal(await docker(['inspect', '--format', '{{.RestartCount}}', worker]), '0');
+    await compose(['stop', '--timeout', '5', 'media-worker']);
+    assert.equal(await docker(['inspect', '--format', '{{.State.Status}}', worker]), 'exited');
+    assert.equal(await docker(['inspect', '--format', '{{.State.ExitCode}}', worker]), '0');
+    console.log('PASS: the normal Compose worker command stays running and exits cleanly on SIGTERM.');
     await compose(['stop', 'postgres']);
     await response(env.BACKEND_PORT, '/api/v1/health/ready', 503, {
       ready: false,

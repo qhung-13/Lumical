@@ -10,6 +10,7 @@ import { IdentityError } from '../../identity/domain/identity';
 import {
   MediaCleanupRepository,
   type CleanupClaim,
+  type CleanupOutcome,
 } from '../application/media-cleanup';
 import { retryableMediaTransaction } from './prisma-upload-intents';
 
@@ -197,8 +198,10 @@ export class PrismaMediaCleanup extends MediaCleanupRepository {
           id: job.id,
           token,
           target: {
+            // Signature expiry governs when a purge may start, but gives no
+            // evidence that every direct upload accepted earlier has settled.
             binding,
-            pinned: asset.storageReference
+            pinned: asset.storageReference !== null
               ? {
                   binding,
                   storageKey: asset.storageReference,
@@ -213,7 +216,7 @@ export class PrismaMediaCleanup extends MediaCleanupRepository {
   }
   async finish(
     claim: CleanupClaim,
-    result: 'DELETED' | 'RETRY' | 'REJECTED',
+    result: CleanupOutcome,
     now: Date,
   ) {
     await this.atomic(async (client) => {
@@ -223,24 +226,29 @@ export class PrismaMediaCleanup extends MediaCleanupRepository {
       });
       if (!job || job.claimedBy !== claim.token || job.condition !== 'RUNNING')
         return;
-      const failed = result === 'REJECTED' || job.attempts >= 5;
+      const retry = result === 'RETRY' && job.attempts < 5;
+      const condition = result === 'DELETED' ? 'COMPLETED' : retry ? 'PENDING' : 'FAILED';
       await client.jobRecord.update({
         where: { id: job.id },
         data: {
-          condition:
-            result === 'DELETED' ? 'COMPLETED' : failed ? 'FAILED' : 'PENDING',
+          condition,
           claimedBy: null,
           leaseUntil: null,
-          dueAt: new Date(
-            now.getTime() +
-              Math.min(3_600_000, 30_000 * 2 ** Math.min(job.attempts, 7)),
-          ),
+          ...(retry && {
+            dueAt: new Date(
+              now.getTime() + Math.min(3_600_000, 30_000 * 2 ** Math.min(job.attempts, 7)),
+            ),
+          }),
           safeErrorCode:
             result === 'DELETED'
               ? null
               : result === 'REJECTED'
                 ? 'MEDIA_IDENTITY_MISMATCH'
-                : 'PROVIDER_UNAVAILABLE',
+                : result === 'DEFER_MISSING'
+                  ? 'MEDIA_MISSING_UNCONFIRMED'
+                  : result === 'DEFER_UNCONFIRMED'
+                    ? 'MEDIA_DELETE_UNCONFIRMED'
+                    : 'PROVIDER_UNAVAILABLE',
         },
       });
     });

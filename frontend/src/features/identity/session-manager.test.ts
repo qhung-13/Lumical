@@ -31,6 +31,42 @@ describe('typed identity transport and private session cache', () => {
     expect(JSON.stringify(client.getQueryCache().getAll().map(query => query.state.data))).not.toContain(token);
     expect(JSON.stringify(manager.getSnapshot())).not.toContain(token);
   });
+  it('keeps the same session and private state mounted during a successful background bootstrap', async () => {
+    const client = queryClient();
+    const authenticated = { authenticated: true, principal: a, csrfToken: token };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(body(authenticated));
+    let respond!: (response: Response) => void;
+    fetcher.mockImplementationOnce(() => new Promise(resolve => { respond = resolve; }));
+    const manager = new SessionManager(client, { phase: 'unauthenticated' }, fetcher);
+    await manager.bootstrap();
+    const epoch = manager.requestEpoch();
+    client.setQueryData(privateKey(a.id, 'draft'), 'private A');
+    const refresh = manager.bootstrap();
+    expect(manager.getSnapshot()).toMatchObject({ phase: 'authenticated', mutationReady: true });
+    respond(body(authenticated));
+    await refresh;
+    expect(manager.requestEpoch()).toBe(epoch);
+    expect(client.getQueryData(privateKey(a.id, 'draft'))).toBe('private A');
+  });
+  it.each([token, 'b'.repeat(64)])('withholds the CSRF token after 503 and checks the recovered session', async recoveredToken => {
+    const client = queryClient();
+    const authenticated = { authenticated: true, principal: a, csrfToken: token };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(body(authenticated))
+      .mockResolvedValueOnce(body({}, 503))
+      .mockResolvedValueOnce(body({ ...authenticated, csrfToken: recoveredToken }));
+    const manager = new SessionManager(client, { phase: 'unauthenticated' }, fetcher);
+    await manager.bootstrap();
+    const epoch = manager.requestEpoch();
+    client.setQueryData(privateKey(a.id, 'draft'), 'private A');
+    await manager.bootstrap();
+    expect(manager.getSnapshot()).toMatchObject({ phase: 'unavailable', mutationReady: false });
+    expect(manager.getSnapshot().principal).toBeUndefined();
+    expect(manager.csrfToken()).toBeUndefined();
+    await manager.bootstrap();
+    expect(manager.csrfToken()).toBe(recoveredToken);
+    expect(manager.requestEpoch()).toBe(recoveredToken === token ? epoch : epoch + 1);
+    expect(client.getQueryData(privateKey(a.id, 'draft'))).toBe(recoveredToken === token ? 'private A' : undefined);
+  });
   it('logout waits for durable success; an unavailable backend keeps an honest session and cache', async () => {
     const client = queryClient(); const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(body({ authenticated: true, principal: a, csrfToken: token }))
@@ -69,6 +105,25 @@ describe('typed identity transport and private session cache', () => {
     client.setQueryData(privateKey(a.id, 'private-document'), 'private A');
     await expect(manager.api.ownAccount()).rejects.toMatchObject({ code: 'STALE_RESPONSE' });
     expect(manager.getSnapshot().principal).toEqual(b); expect(client.getQueryData(privateKey(a.id, 'private-document'))).toBeUndefined();
+  });
+  it('rejects a cross-actor account response that arrives during a bootstrap outage', async () => {
+    const client = queryClient();
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(body({ authenticated: true, principal: a, csrfToken: token }));
+    let respond!: (response: Response) => void;
+    fetcher.mockImplementationOnce(() => new Promise(resolve => { respond = resolve; }))
+      .mockResolvedValueOnce(body({}, 503))
+      .mockResolvedValueOnce(body({ authenticated: true, principal: b, csrfToken: 'b'.repeat(64) }));
+    const manager = new SessionManager(client, { phase: 'unauthenticated' }, fetcher);
+    await manager.bootstrap();
+    const query = client.fetchQuery({ queryKey: privateKey(a.id, 'account'), queryFn: manager.api.ownAccount });
+    const outcome = query.catch(error => error);
+    await manager.bootstrap();
+    expect(manager.getSnapshot().phase).toBe('unavailable');
+    respond(body(b));
+    await expect(outcome).resolves.toBeInstanceOf(Error);
+    expect(manager.getSnapshot().principal).toEqual(b);
+    expect(client.getQueryData(privateKey(a.id, 'account'))).toBeUndefined();
   });
   it('SSR forwards just the relevant account cookie, uses no-store/trusted origin and returns only safe props', async () => {
     const raw = 'x'.repeat(43); const fetcher = vi.fn<typeof fetch>().mockResolvedValue(body({ authenticated: true, principal: a, csrfToken: token }));

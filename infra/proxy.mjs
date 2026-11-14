@@ -11,6 +11,8 @@ function origin(value) {
 }
 const hopHeaders = new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade']);
 const clientHeaders = new Set(['forwarded', 'x-real-ip', 'x-client-ip', 'client-ip', 'true-client-ip', 'cf-connecting-ip', 'fastly-client-ip']);
+// Nest's provider-backed media handlers have a 25 s response deadline.
+const mediaTimeout = 30_000;
 function headers(source) {
   const extra = String(source.connection ?? '').split(',').map(value => value.trim().toLowerCase());
   return Object.fromEntries(Object.entries(source).filter(([name]) => !hopHeaders.has(name.toLowerCase()) && !extra.includes(name.toLowerCase())));
@@ -30,17 +32,27 @@ export function createGateway(backend, frontend) {
     const clientAddress = req.socket.remoteAddress;
     if (!clientAddress || !isIP(clientAddress)) { res.writeHead(400).end(); return; }
     forwarded['x-forwarded-for'] = clientAddress;
+    const providerBackedMedia = /^\/api\/v1\/media\/[^/]+\/(?:content|finalize)\/?$/i.test(destination.pathname);
+    const timeout = providerBackedMedia ? mediaTimeout : 15_000;
     const upstream = (target.protocol === 'https:' ? httpsRequest : httpRequest)(destination,
-      { method: req.method, headers: forwarded, timeout: 15000 }, (response) => {
+      { method: req.method, headers: forwarded, timeout }, (response) => {
+        clearTimeout(responseDeadline);
+        response.on('error', () => res.destroy());
+        if (res.destroyed) { response.destroy(); return; }
         res.writeHead(response.statusCode ?? 502, headers(response.headers)); response.pipe(res);
       });
-    upstream.on('timeout', () => upstream.destroy(new Error('Upstream timeout')));
+    const timeOut = () => upstream.destroy(new Error('Upstream timeout'));
+    const responseDeadline = providerBackedMedia ? setTimeout(timeOut, timeout) : undefined;
+    upstream.once('close', () => clearTimeout(responseDeadline));
+    upstream.on('timeout', timeOut);
     upstream.on('error', () => {
+      if (res.destroyed) return;
       if (res.headersSent) { res.destroy(); return; }
       res.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-Id': requestId });
       res.end(JSON.stringify({ error: { code: 'PROVIDER_UNAVAILABLE', messageKey: 'errors.unavailable', requestId, retryable: true, fieldErrors: [] } }));
     });
     req.on('aborted', () => upstream.destroy());
+    res.once('close', () => { if (!res.writableFinished) upstream.destroy(); });
     req.pipe(upstream);
   });
 }

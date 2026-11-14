@@ -8,17 +8,21 @@ import type { StorageFailure } from './media-storage';
 export interface CleanupTarget {
   binding: MediaBinding;
   pinned: ImmutableMedia | null;
+  /** Only set when the caller controls the upload writers and has observed their completion. */
+  uploadsQuiescent?: true;
 }
 export interface CleanupClaim {
   id: string;
   token: string;
   target: CleanupTarget;
 }
+export type PurgeResult = { kind: 'DELETED' } | { kind: 'MISSING' } | { kind: 'DELETE_UNCONFIRMED' } | StorageFailure;
+export type CleanupOutcome = 'DELETED' | 'RETRY' | 'REJECTED' | 'DEFER_MISSING' | 'DEFER_UNCONFIRMED';
 export abstract class MediaPurge {
   abstract purge(
     target: CleanupTarget,
     signal: AbortSignal,
-  ): Promise<{ kind: 'DELETED' } | StorageFailure>;
+  ): Promise<PurgeResult>;
 }
 export abstract class MediaCleanupRepository {
   abstract request(
@@ -31,7 +35,7 @@ export abstract class MediaCleanupRepository {
   abstract claim(now: Date): Promise<CleanupClaim | null>;
   abstract finish(
     claim: CleanupClaim,
-    result: 'DELETED' | 'RETRY' | 'REJECTED',
+    result: CleanupOutcome,
     now: Date,
   ): Promise<void>;
   abstract isRetryable(error: unknown): boolean;
@@ -91,15 +95,17 @@ export class MediaCleanup {
       }
       // Crash/abort leaves a bounded lease that another worker can recover.
       if (signal.aborted) break;
-      await this.repository.finish(
-        claim,
+      const outcome: CleanupOutcome =
         result.kind === 'DELETED'
           ? 'DELETED'
-          : result.kind === 'UNAVAILABLE' && result.retryable
-            ? 'RETRY'
-            : 'REJECTED',
-        this.clock.now(),
-      );
+          : result.kind === 'MISSING'
+            ? 'DEFER_MISSING'
+            : result.kind === 'DELETE_UNCONFIRMED'
+              ? 'DEFER_UNCONFIRMED'
+              : result.kind === 'UNAVAILABLE' && result.retryable
+                ? 'RETRY'
+                : 'REJECTED';
+      await this.repository.finish(claim, outcome, this.clock.now());
       processed++;
     }
     return processed;

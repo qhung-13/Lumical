@@ -169,6 +169,8 @@ try {
   const cleanupTarget = {
     binding: result.intent.binding,
     pinned: inspected.facts.object,
+    // This harness owns the synthetic binding and awaited both upload attempts.
+    uploadsQuiescent: second.ok || [400, 409].includes(second.status) ? true : undefined,
   };
   const purge = new CloudinaryPurge();
   const abortPurge = new AbortController().signal;
@@ -187,8 +189,8 @@ try {
   assert.equal((await purge.purge(cleanupTarget, abortPurge)).kind, 'DELETED');
   assert.equal(
     (await purge.purge(cleanupTarget, abortPurge)).kind,
-    'DELETED',
-    'Missing bytes are an idempotent cleanup success',
+    'MISSING',
+    'A replay reports observed absence separately from explicit deletion',
   );
   console.log(
     'PASS: configured Cloudinary intake/readiness, private delivery, original denial, overwrite protection and exact-identity P06 cleanup; P07 prepared derivative acceptance remains separate.',

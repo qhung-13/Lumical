@@ -34,6 +34,7 @@ export class IdentityError extends Error {
     readonly messageKey: string,
     readonly field?: 'email' | 'password' | 'reason' | 'status',
     readonly currentVersion?: number,
+    readonly retryAfterSeconds?: number,
   ) { super(code); }
 }
 export const unauthenticated = () => new IdentityError('UNAUTHENTICATED', 401, 'errors.unauthenticated');

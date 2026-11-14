@@ -20,9 +20,10 @@ import {
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { IdentityPolicy } from '../../identity/application/ports';
-import { accountCookie } from '../../identity/domain/identity';
+import { accountCookie, IdentityError } from '../../identity/domain/identity';
 import { ErrorResponseDto } from '../../calendar-projects/interface/dto';
 import { FinalizeMedia } from '../application/finalize-media';
+import { beforeMediaDeadline } from './media-request-deadline';
 
 class MediaFinalizeDto {
   @ApiProperty({
@@ -89,16 +90,32 @@ export class FinalizeController {
     @Param('id') id: string,
     @Body() input: unknown,
   ) {
-    const result = await this.service.execute(
-      {
-        secret: accountCookie(req.headers.cookie, this.policy.cookieName),
-        origin: req.get('Origin'),
-        csrf: req.get('X-CSRF-Token'),
-      },
-      id,
-      input,
-      req.get('Idempotency-Key'),
-    );
-    res.status(result.status).json({ data: result.data });
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    res.once('close', abort);
+    try {
+      if (res.destroyed) return;
+      const result = await beforeMediaDeadline(
+        controller.signal,
+        () => new IdentityError('PROVIDER_UNAVAILABLE', 503, 'errors.providerUnavailable'),
+        (signal) => this.service.execute(
+          {
+            secret: accountCookie(req.headers.cookie, this.policy.cookieName),
+            origin: req.get('Origin'),
+            csrf: req.get('X-CSRF-Token'),
+          },
+          id,
+          input,
+          req.get('Idempotency-Key'),
+          signal,
+        ),
+      );
+      if (!controller.signal.aborted)
+        res.status(result.status).json({ data: result.data });
+    } catch (error) {
+      if (!controller.signal.aborted) throw error;
+    } finally {
+      res.off('close', abort);
+    }
   }
 }

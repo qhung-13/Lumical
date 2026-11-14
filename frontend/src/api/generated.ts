@@ -2989,6 +2989,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
+            429: {
+                headers: {
+                    /** @description Seconds until a new intent can be attempted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -3308,10 +3318,7 @@ export interface operations {
     headOwnedMediaContent: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Single byte range; returns matching headers without a body. */
-                Range?: string;
-            };
+            header?: never;
             path: {
                 id: string;
             };
@@ -3326,18 +3333,6 @@ export interface operations {
                     "Content-Type"?: string;
                     "Content-Length"?: number;
                     "Accept-Ranges"?: string;
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            206: {
-                headers: {
-                    "Cache-Control"?: string;
-                    "X-Content-Type-Options"?: string;
-                    "Content-Type"?: string;
-                    "Content-Length"?: number;
-                    "Accept-Ranges"?: string;
-                    "Content-Range"?: string;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -3365,13 +3360,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
-            };
-            416: {
-                headers: {
-                    "Content-Range"?: string;
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             503: {
                 headers: {

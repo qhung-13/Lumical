@@ -13,6 +13,8 @@ export const mediaCopy = {
     expired: 'This upload request has expired and cannot continue. Start a new upload to try again.', restart: 'Start a new upload', chooseAnother: 'Choose another file',
     retryFinalize: 'Retry server check', retryTransfer: 'Retry file transfer', error: 'The upload could not be completed. Your selected file is still held in this page session; retry the same upload.',
     statusError: 'The server status could not be checked. The file is not confirmed as ready; try again.',
+    rateLimit: 'The upload limit was reached. Your file is still selected. Try the same upload again.',
+    rateLimitWait: (duration: string) => `The upload limit was reached. Your file is still selected. Try again in ${duration}.`,
     providerError: 'The file could not be transferred. Your selected file and upload request are kept in this page session; try again.',
     validationError: 'The server did not accept this file. Check the format and limits, then choose a file to start a new upload.',
     session: 'Sign in to upload personal media.', back: 'Back to your calendars', another: 'Upload another file',
@@ -20,6 +22,8 @@ export const mediaCopy = {
     working: 'Your file is being checked by LumiCal. It is not ready until the server confirms it.',
   },
   vi: {
+    rateLimit: 'Đã đạt giới hạn tải lên. Tệp vẫn được giữ. Bạn có thể thử lại cùng lượt tải.',
+    rateLimitWait: (duration: string) => `Đã đạt giới hạn tải lên. Tệp vẫn được giữ. Hãy thử lại sau ${duration}.`,
     title: 'Tải nội dung cá nhân', intro: 'Chọn một ảnh, video hoặc bản ghi âm riêng tư. LumiCal sẽ kiểm tra trước khi tệp có thể được sử dụng.',
     category: 'Loại nội dung', image: 'Ảnh cho trang lịch', video: 'Video cho phần kỷ niệm', audio: 'Âm thanh cho phần kỷ niệm',
     file: 'Chọn tệp', imageGuidance: 'JPEG, PNG hoặc WebP · tối đa 10 MB.', videoGuidance: 'MP4 hoặc WebM · tối đa 100 MB · tối đa 60 giây.',

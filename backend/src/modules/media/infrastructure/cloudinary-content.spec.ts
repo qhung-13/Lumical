@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { CloudinaryContent } from './cloudinary-content';
 import type { PrivateFetchRequest } from '../application/media-storage';
+import { parseMediaRange } from '../application/media-range';
 import type { VerifiedMediaFacts } from '../domain/media';
 
 describe('Cloudinary private immutable delivery', () => {
@@ -76,7 +77,9 @@ describe('Cloudinary private immutable delivery', () => {
     global.fetch = originalFetch;
   });
   it('keeps signatures internal, verifies pinned facts and applies redirect/encoding constraints', async () => {
-    const result = await storage.fetch(request, new AbortController().signal);
+    const signal = new AbortController().signal;
+    const result = await storage.fetch(request, signal);
+    expect(inspection).toHaveBeenCalledWith(binding, signal);
     expect(result.kind).toBe('CONTENT');
     expect(provider.mock.calls[0][0]).toMatch(
       /^https:\/\/res.cloudinary.com\/test-cloud\/image\/authenticated\/s--[\w-]{8}--\/v1794200000\/lumical\//,
@@ -128,7 +131,7 @@ describe('Cloudinary private immutable delivery', () => {
   );
   it('returns HEAD headers without exposing a body and cancels any upstream body', async () => {
     const result = await storage.fetch(
-      { ...request, method: 'HEAD' },
+      { ...request, method: 'HEAD', range: { kind: 'OPEN', start: 1 } },
       new AbortController().signal,
     );
     expect(result).toMatchObject({
@@ -137,7 +140,23 @@ describe('Cloudinary private immutable delivery', () => {
       contentLength: 6,
     });
     if (result.kind === 'CONTENT') expect(result.body).toBeUndefined();
+    expect(provider.mock.calls[0][1].method).toBe('HEAD');
+    expect(provider.mock.calls[0][1].headers.Range).toBeUndefined();
     expect(cancelled).toHaveBeenCalled();
+  });
+  it.each([
+    ['bytes=2-9007199254740992', 2],
+    ['bytes=-9007199254740992', 0],
+  ])('normalizes %s before sending a provider request', async (header, start) => {
+    provider.mockResolvedValue(response({
+      'content-length': String(6 - start),
+      'content-range': `bytes ${start}-5/6`,
+    }, 206));
+    expect(await storage.fetch(
+      { ...request, range: parseMediaRange(header) },
+      new AbortController().signal,
+    )).toMatchObject({ kind: 'CONTENT', status: 206, contentRange: { start, end: 5 } });
+    expect(provider.mock.calls[0][1].headers.Range).toBe(`bytes=${start}-5`);
   });
   it.each<Record<string, string>>([
     { 'content-type': 'text/html' },

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MediaApiError, ProviderUploadError } from '../../api/media';
 import { MediaUploadScreen } from './media-upload';
 
 const { api, manager, state } = vi.hoisted(() => ({
   api: { initiate: vi.fn(), upload: vi.fn(), finalize: vi.fn(), status: vi.fn() },
-  manager: { csrfToken: vi.fn(() => 'c'.repeat(64)), requestEpoch: vi.fn(() => 1), bootstrap: vi.fn() },
+  manager: { csrfToken: vi.fn(() => 'c'.repeat(64)), requestEpoch: vi.fn(() => 1), bootstrap: vi.fn(), invalidate: vi.fn(), getSnapshot: () => state },
   state: { phase: 'authenticated', mutationReady: true, principal: { id: '22222222-2222-4222-8222-222222222222', role: 'USER', accountStatus: 'ACTIVE', email: 'owner@example.test' } },
 }));
 
@@ -120,6 +120,38 @@ describe('private media upload experience', () => {
     expect(api.initiate).toHaveBeenCalledTimes(2);
     expect(api.initiate.mock.calls[0][0]).toEqual(api.initiate.mock.calls[1][0]);
     expect(api.initiate.mock.calls[1][1]).not.toBe(oldKey);
+  });
+
+  it('blocks rate-limited retries until the countdown elapses and reuses the same file and key', async () => {
+    const user = userEvent.setup();
+    render(<MediaUploadScreen />);
+    await user.selectOptions(screen.getByLabelText('Media type'), 'IMAGE');
+    await selectImage(user);
+    vi.useFakeTimers();
+    try {
+      api.initiate.mockRejectedValueOnce(new MediaApiError('RATE_LIMITED', 429, 'errors.rateLimited', true, Date.now() + 2000));
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Upload file' })); });
+      const retry = screen.getByRole('button', { name: 'Retry upload' });
+      expect(screen.getByRole('status')).toHaveTextContent('Try again in 2 seconds.');
+      expect(screen.getByText(/family\.jpg/u)).toBeVisible();
+      expect(retry).toBeDisabled();
+      fireEvent.click(retry);
+      expect(api.initiate).toHaveBeenCalledTimes(1);
+      expect(api.upload).not.toHaveBeenCalled();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(screen.getByRole('status')).toHaveTextContent('Try again in 1 second.');
+      expect(retry).toBeDisabled();
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(retry).toBeEnabled();
+      expect(api.initiate).toHaveBeenCalledTimes(1);
+      await act(async () => { fireEvent.click(retry); });
+      expect(api.initiate.mock.calls[1].slice(0, 2)).toEqual(api.initiate.mock.calls[0].slice(0, 2));
+      expect(api.upload.mock.calls[0][1]).toMatchObject({ name: 'family.jpg', size: 11 });
+      expect(screen.getByText('The file is verified and ready.')).toBeVisible();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('inspects the same intent after cancellation without re-uploading accepted bytes', async () => {

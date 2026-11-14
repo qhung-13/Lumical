@@ -10,6 +10,7 @@ import { UploadIntents } from '../application/upload-intake';
 import type { MediaCategory } from '../domain/media';
 
 const operation = 'INITIATE_MEDIA_UPLOAD';
+const windowMs = 10 * 60_000;
 
 export function retryableMediaTransaction(error: unknown): boolean {
   const e = error as {
@@ -29,10 +30,19 @@ export function retryableMediaTransaction(error: unknown): boolean {
 
 @Injectable()
 export class PrismaUploadIntents extends UploadIntents {
+  private readonly limit: number;
+
   constructor(
     @Inject(Transactions) private readonly transactions: PrismaTransactions,
   ) {
     super();
+    const configured = process.env.MEDIA_UPLOAD_INTENTS_PER_10_MINUTES ?? '5';
+    const limit = Number(configured);
+    if (!/^\d+$/.test(configured) || !Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
+      throw new Error(
+        'MEDIA_UPLOAD_INTENTS_PER_10_MINUTES must be an integer from 1 to 1000',
+      );
+    this.limit = limit;
   }
   async reserve(
     ownerId: string,
@@ -52,6 +62,27 @@ export class PrismaUploadIntents extends UploadIntents {
         409,
         'errors.idempotencyConflict',
       );
+    if (!replay) {
+      // Use the durable intent itself as the debit. The predicate read and the
+      // insert share the caller's Serializable transaction and retry boundary.
+      const recent = await client.idempotencyRecord.findMany({
+        where: {
+          actorId: ownerId,
+          operation,
+          createdAt: { gt: new Date(now.getTime() - windowMs) },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: this.limit,
+        select: { createdAt: true },
+      });
+      if (recent.length === this.limit) {
+        const expiresAt = recent[this.limit - 1].createdAt.getTime() + windowMs;
+        throw new IdentityError(
+          'RATE_LIMITED', 429, 'errors.rateLimited', undefined, undefined,
+          Math.ceil((expiresAt - now.getTime()) / 1000),
+        );
+      }
+    }
     const asset = replay
       ? await client.mediaAsset.findFirst({
           where: { id: replay.resourceId ?? '', ownerId },
@@ -77,6 +108,7 @@ export class PrismaUploadIntents extends UploadIntents {
           resourceType: 'MEDIA_ASSET',
           resourceId: asset.id,
           safeResult: { id: asset.id },
+          createdAt: now,
         },
       });
     return {

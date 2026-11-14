@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import request from 'supertest';
 import { withDisposablePostgres } from './disposable-postgres.mjs';
+import { Clock } from '../dist/modules/identity/application/ports.js';
 
 const require = createRequire(import.meta.url);
 const { Test } = require('@nestjs/testing');
@@ -37,6 +38,7 @@ try {
       IDENTITY_ALLOWED_ORIGINS: origin,
       IDENTITY_AUTH_ATTEMPTS: '1000',
       IDENTITY_TRUSTED_PROXY_IPS: '',
+      MEDIA_UPLOAD_INTENTS_PER_10_MINUTES: '5',
       DATABASE_URL: url('runtime', 'lumical_i01_blank'),
     });
     await promisify(execFile)(
@@ -60,6 +62,7 @@ try {
     let fetches = 0;
     let fetchResult;
     let lastFetch;
+    let now = new Date();
     const privateBytes = Buffer.alloc(67, 42);
     const verified = (binding, category = 'IMAGE') => ({
       kind: 'VERIFIED',
@@ -83,6 +86,8 @@ try {
     });
     let inspectResult = async (binding) => verified(binding);
     const module = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(Clock)
+      .useValue({ now: () => now })
       .overrideProvider(UploadAuthorization)
       .useValue({
         authorizeUpload: async (input) => {
@@ -166,6 +171,32 @@ try {
         .set('Idempotency-Key', key)
         .send(input);
     try {
+      const limited = await account('quota-owner@example.invalid');
+      const firstKey = randomUUID();
+      const firstIntent = await upload(limited, firstKey).expect(201);
+      for (let count = 0; count < 3; count++) await upload(limited, randomUUID()).expect(201);
+      const atQuotaBoundary = await Promise.all([upload(limited, randomUUID()), upload(limited, randomUUID())]);
+      assert.deepEqual(atQuotaBoundary.map(result => result.status).sort(), [201, 429]);
+      const blocked = atQuotaBoundary.find(result => result.status === 429);
+      assert.equal(blocked.headers['retry-after'], '600');
+      assert.equal(blocked.body.error.code, 'RATE_LIMITED');
+      assert.equal(blocked.body.error.retryable, true);
+      assert.equal((await db.query(
+        'SELECT count(*) FROM lumical.media_assets WHERE owner_id=$1', [limited.id],
+      )).rows[0].count, '5');
+      assert.equal((await db.query(
+        "SELECT count(*) FROM lumical.idempotency_records WHERE actor_id=$1 AND operation='INITIATE_MEDIA_UPLOAD'", [limited.id],
+      )).rows[0].count, '5');
+      const replayed = await upload(limited, firstKey).expect(201);
+      assert.deepEqual(replayed.body, firstIntent.body);
+      await upload(limited, firstKey, { ...body, declaredBytes: 68 }).expect(409);
+      const callsAtLimit = calls;
+      await upload(limited, randomUUID()).expect(429);
+      assert.equal(calls, callsAtLimit, 'Quota denial must not authorize an upload at the provider');
+      now = new Date(now.getTime() + 600_000);
+      await upload(limited, randomUUID()).expect(201);
+      calls = 0;
+
       const owner = await account('upload-owner@example.invalid');
       const other = await account('upload-other@example.invalid');
       await api()
@@ -259,9 +290,11 @@ try {
           .set('X-CSRF-Token', actor.csrf)
           .set('Idempotency-Key', key)
           .send(input);
-      const fresh = async (category = 'IMAGE') =>
-        (await upload(owner, randomUUID(), { ...body, category }).expect(201))
-          .body.data.assetId;
+      const fresh = async (category = 'IMAGE') => {
+        // This fixture tests independent finalization cases across successive windows.
+        now = new Date(now.getTime() + 600_000);
+        return (await upload(owner, randomUUID(), { ...body, category }).expect(201)).body.data.assetId;
+      };
       const finalId = await fresh();
       const finalKey = randomUUID();
       await finalize(other, finalId).expect(404);
@@ -381,10 +414,12 @@ try {
         ownerId: owner.id,
       });
       for (const [range, start, end] of [
-        ['bytes=0-3', 0, 3],
+        ['Bytes=0-3', 0, 3],
         ['bytes=63-', 63, 66],
         ['bytes=-4', 63, 66],
         ['bytes=65-100', 65, 66],
+        ['bytes=2-9007199254740992', 2, 66],
+        ['bytes=-9007199254740992', 0, 66],
       ]) {
         const partial = await contentOf(owner, finalId, 'get', range)
           .expect(206)
@@ -396,11 +431,14 @@ try {
         .expect(200)
         .expect('Content-Length', '67');
       assert.equal(head.text, undefined);
-      const partialHead = await contentOf(owner, finalId, 'head', 'bytes=0-3')
-        .expect(206)
-        .expect('Content-Length', '4')
-        .expect('Content-Range', 'bytes 0-3/67');
-      assert.equal(partialHead.text, undefined);
+      const rangedHead = await contentOf(owner, finalId, 'head', 'bytes=0-3')
+        .expect(200)
+        .expect('Content-Length', '67');
+      assert.equal(rangedHead.headers['content-range'], undefined);
+      assert.equal(rangedHead.text, undefined);
+      const unknownRange = await contentOf(owner, finalId, 'get', 'items=0-3')
+        .expect(200);
+      assert.deepEqual(unknownRange.body, privateBytes);
       const beforeInvalidRange = fetches;
       await contentOf(owner, finalId, 'get', 'bytes=0-3')
         .set('If-Range', '"unknown-validator"')
@@ -412,6 +450,7 @@ try {
         'bytes=0-1,3-4',
         'bytes=-0',
         'bytes=9007199254740992-',
+        `bytes=0-${'9'.repeat(256)}`,
       ])
         await contentOf(owner, finalId, 'get', range)
           .expect(416)
@@ -469,6 +508,33 @@ try {
       for (const method of ['get', 'head'])
         await contentOf(revoked, revokedId, method, 'bytes=0-1').expect(401);
       assert.equal(fetches, beforeRevoked);
+      await app.listen(0, '127.0.0.1');
+      const address = app.getHttpServer().address();
+      const contentUrl = `http://127.0.0.1:${address.port}/api/v1/media/${finalId}/content`;
+      const clientOptions = { headers: { Cookie: owner.cookie } };
+
+      // Disconnect during the provider call, before Nest sends headers.
+      let beforeHeaders;
+      const providerCancelled = new Promise((resolve) => { beforeHeaders = resolve; });
+      fetchResult = (_input, signal) => new Promise((resolve) => {
+        signal.addEventListener('abort', () => {
+          resolve({ kind: 'UNAVAILABLE', retryable: true });
+          beforeHeaders();
+        }, { once: true });
+        waitingClient.destroy();
+      });
+      const waitingClient = getHttp(contentUrl, clientOptions, () => assert.fail('Unexpected response before disconnect'));
+      waitingClient.on('error', () => {});
+      let beforeHeadersTimeout;
+      try {
+        await Promise.race([providerCancelled, new Promise((_, reject) => {
+          beforeHeadersTimeout = setTimeout(() => reject(new Error('Provider did not cancel before headers')), 5000);
+        })]);
+      } finally {
+        clearTimeout(beforeHeadersTimeout);
+        waitingClient.destroy();
+      }
+
       // A client disconnect must abort upstream work and return its iterator.
       let abortSeen = false;
       let stopped;
@@ -502,11 +568,9 @@ try {
           })(),
         };
       };
-      await app.listen(0, '127.0.0.1');
-      const address = app.getHttpServer().address();
       const client = getHttp(
-        `http://127.0.0.1:${address.port}/api/v1/media/${finalId}/content`,
-        { headers: { Cookie: owner.cookie } },
+        contentUrl,
+        clientOptions,
         (response) => {
           response.once('data', () => response.destroy());
           response.on('error', () => {});
@@ -588,6 +652,40 @@ try {
       );
       for (const result of differentKeys)
         assert.deepEqual(result.body, differentKeys[0].body);
+
+      // One Pending inspection returns stale facts after another key pins Ready.
+      const competingId = await fresh();
+      const competingKey = randomUUID();
+      let enterCompeting;
+      let releaseCompeting;
+      const enteredCompeting = new Promise(resolve => { enterCompeting = resolve; });
+      const competingBarrier = new Promise(resolve => { releaseCompeting = resolve; });
+      inspectResult = async (binding) => {
+        enterCompeting();
+        await competingBarrier;
+        const result = verified(binding);
+        return { ...result, facts: { ...result.facts, object: { ...result.facts.object, contentVersion: '1794200001' } } };
+      };
+      const competing = finalize(owner, competingId, competingKey).then(result => result);
+      try {
+        await Promise.race([
+          enteredCompeting,
+          competing.then(result => { throw new Error(`Competing request stopped before inspection (${result.status})`); }),
+        ]);
+        inspectResult = async (binding) => verified(binding);
+        await finalize(owner, competingId).expect(200);
+      } finally {
+        releaseCompeting();
+      }
+      assert.equal((await competing).status, 409);
+      await finalize(owner, competingId, competingKey).expect(409);
+      const conflictRecord = await db.query(
+        "SELECT condition, safe_result FROM lumical.idempotency_records WHERE operation='FINALIZE_MEDIA_UPLOAD' AND resource_id=$1 AND key=$2",
+        [competingId, competingKey],
+      );
+      assert.deepEqual(conflictRecord.rows, [{ condition: 'COMPLETED', safe_result: { error: 'CONFLICT' } }]);
+      await finalize(owner, competingId).expect(200);
+
       for (const category of ['VIDEO', 'AUDIO']) {
         inspectResult = async (binding) => verified(binding, category);
         const timed = await finalize(owner, await fresh(category)).expect(200);

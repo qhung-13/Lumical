@@ -63,7 +63,7 @@ export abstract class MediaStorage {
   abstract authorizeUpload(request: PrivateUploadRequest): Promise<
     { readonly kind: 'AUTHORIZED'; readonly intent: PrivateUploadIntent } | StorageFailure>;
   /** Provider-authenticated inspection; finalize never trusts client upload response facts. */
-  abstract inspect(binding: MediaBinding): Promise<Inspection | StorageFailure>;
+  abstract inspect(binding: MediaBinding, signal?: AbortSignal): Promise<Inspection | StorageFailure>;
   abstract fetch(request: PrivateFetchRequest, signal: AbortSignal): Promise<
     PrivateContent | StorageFailure | { readonly kind: 'NOT_FOUND' } |
     { readonly kind: 'RANGE_NOT_SATISFIABLE'; readonly totalBytes: number }>;

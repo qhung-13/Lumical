@@ -48,7 +48,7 @@ export class CloudinaryContent extends MediaContent {
     try {
       // Cloudinary v... URLs can fall back to latest. Compare the pinned format,
       // checksum and version to authenticated facts, then require that ETag on bytes.
-      const inspected = await this.inspection.inspect(binding);
+      const inspected = await this.inspection.inspect(binding, signal);
       if (inspected.kind === 'UNAVAILABLE') return unavailable;
       if (inspected.kind === 'PENDING') return { kind: 'NOT_FOUND' };
       if (
@@ -61,7 +61,7 @@ export class CloudinaryContent extends MediaContent {
       const facts = inspected.facts;
       let range;
       try {
-        range = request.range
+        range = request.method === 'GET' && request.range
           ? resolveMediaRange(request.range, facts.bytes)
           : undefined;
       } catch {
@@ -78,7 +78,7 @@ export class CloudinaryContent extends MediaContent {
       };
       if (range) headers.Range = `bytes=${range.start}-${range.end}`;
       const response = await fetch(url, {
-        method: request.method === 'HEAD' && !range ? 'HEAD' : 'GET',
+        method: request.method,
         headers,
         redirect: 'error',
         signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
@@ -114,11 +114,10 @@ export class CloudinaryContent extends MediaContent {
         await cancel();
         return {
           kind: 'CONTENT',
-          status: range ? 206 : 200,
+          status: 200,
           contentType: facts.contentType,
           contentLength: expectedLength,
           totalBytes: facts.bytes,
-          ...(range ? { contentRange: range } : {}),
         };
       }
       if (!response.body) return unavailable;

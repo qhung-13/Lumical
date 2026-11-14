@@ -9,7 +9,6 @@ import {
   MediaFinalizations,
   type FinalizationAsset,
   type FinalizationIntent,
-  type MediaView,
 } from '../application/finalize-media';
 import type { VerifiedMediaFacts } from '../domain/media';
 import { retryableMediaTransaction } from './prisma-upload-intents';
@@ -83,7 +82,8 @@ export class PrismaMediaFinalizations extends MediaFinalizations {
       contentVersion: asset.contentVersion,
       verifiedBytes: asset.verifiedBytes,
       durationMs: asset.durationMs,
-      ...(replay?.safeResult &&
+      completed: replay?.condition === 'COMPLETED',
+      ...(replay?.condition === 'COMPLETED' && replay.safeResult &&
       typeof replay.safeResult === 'object' &&
       !Array.isArray(replay.safeResult) &&
       (replay.safeResult.error === 'CONFLICT' ||
@@ -134,20 +134,11 @@ export class PrismaMediaFinalizations extends MediaFinalizations {
       where: { id: asset.binding.assetId },
       data: { status: 'UNAVAILABLE' },
     });
-    await this.transactions.clientFor(context).idempotencyRecord.update({
-      where: {
-        actorId_operation_key: {
-          actorId: intent.ownerId,
-          operation,
-          key: intent.key,
-        },
-      },
-      data: { condition: 'COMPLETED', safeResult: { error: reason } },
-    });
+    await this.complete(intent, { error: reason }, context);
   }
   async complete(
     intent: FinalizationIntent,
-    result: MediaView,
+    result: Parameters<MediaFinalizations['complete']>[1],
     context: TransactionContext,
   ) {
     const where = {

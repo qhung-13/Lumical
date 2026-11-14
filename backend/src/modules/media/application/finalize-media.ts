@@ -16,7 +16,7 @@ import {
 import type { MediaStorage } from './media-storage';
 
 export abstract class MediaInspection {
-  abstract inspect(binding: MediaBinding): ReturnType<MediaStorage['inspect']>;
+  abstract inspect(binding: MediaBinding, signal?: AbortSignal): ReturnType<MediaStorage['inspect']>;
 }
 export interface FinalizationAsset {
   binding: MediaBinding;
@@ -26,6 +26,7 @@ export interface FinalizationAsset {
   contentVersion: number;
   verifiedBytes: number | null;
   durationMs: number | null;
+  completed?: boolean;
   rejection?: 'INVALID_CONTENT' | 'CONFLICT';
 }
 export interface FinalizationIntent {
@@ -54,7 +55,7 @@ export abstract class MediaFinalizations {
   ): Promise<void>;
   abstract complete(
     intent: FinalizationIntent,
-    result: MediaView,
+    result: MediaView | { error: 'INVALID_CONTENT' | 'CONFLICT' },
     context: TransactionContext,
   ): Promise<void>;
   abstract isRetryable(error: unknown): boolean;
@@ -103,10 +104,16 @@ export class FinalizeMedia {
       actor: ActiveAccountPrincipal,
       context: TransactionContext,
     ) => Promise<T>,
+    signal?: AbortSignal,
   ): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.accounts.withActiveAccount(auth, true, work);
+        signal?.throwIfAborted();
+        return await this.accounts.withActiveAccount(auth, true, async (actor, context) => {
+          const result = await work(actor, context);
+          signal?.throwIfAborted();
+          return result;
+        });
       } catch (error) {
         if (attempt >= 2 || !this.repository.isRetryable(error)) throw error;
       }
@@ -118,11 +125,13 @@ export class FinalizeMedia {
     id: string,
     input: unknown,
     key?: string,
+    signal?: AbortSignal,
   ): Promise<FinalizationResult> {
     let intent!: FinalizationIntent;
     const original = await this.authorized<FinalizationAsset>(
       auth,
       async (actor, context) => {
+        signal?.throwIfAborted();
         if (
           !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
             id,
@@ -150,31 +159,42 @@ export class FinalizeMedia {
         };
         return this.repository.begin(id, intent, context);
       },
+      signal,
     );
+    signal?.throwIfAborted();
     // Provider I/O is outside all DB transactions. The browser hint is never evidence.
     const inspection =
-      original.status === 'PENDING'
-        ? await this.storage.inspect(original.binding)
+      original.status === 'PENDING' && !original.completed
+        ? await this.storage.inspect(original.binding, signal)
         : undefined;
+    signal?.throwIfAborted();
     const outcome = await this.authorized<Outcome>(
       auth,
       async (actor, context) => {
+        signal?.throwIfAborted();
         if (actor.id !== intent.ownerId) throw notFound();
         const current = await this.repository.begin(id, intent, context);
+        signal?.throwIfAborted();
+        if (current.rejection) return { error: current.rejection };
         if (current.status === 'READY') {
           if (
+            !current.completed &&
             inspection?.kind === 'VERIFIED' &&
             (inspection.facts.object.storageKey !== current.storageKey ||
               inspection.facts.object.contentVersion !==
                 String(current.contentVersion))
-          )
+          ) {
+            await this.repository.complete(intent, { error: 'CONFLICT' }, context);
             return { error: 'CONFLICT' };
+          }
           const data = view(current);
           await this.repository.complete(intent, data, context);
           return { status: 200, data };
         }
-        if (current.status === 'UNAVAILABLE')
-          return { error: current.rejection ?? 'INVALID_CONTENT' };
+        if (current.status === 'UNAVAILABLE') {
+          await this.repository.complete(intent, { error: 'INVALID_CONTENT' }, context);
+          return { error: 'INVALID_CONTENT' };
+        }
         if (!inspection) return { error: 'UNAVAILABLE' };
         if (inspection.kind === 'REJECTED') {
           const error =
@@ -225,6 +245,7 @@ export class FinalizeMedia {
         await this.repository.complete(intent, data, context);
         return { status: 200, data };
       },
+      signal,
     );
     if ('error' in outcome) {
       if (outcome.error === 'UNAVAILABLE')

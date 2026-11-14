@@ -212,6 +212,28 @@ try {
       assert.equal((await jobFor(unused)).condition, 'COMPLETED');
       await remove(owner, unused).expect(204);
 
+      for (const [kind, safeErrorCode] of [
+        ['MISSING', 'MEDIA_MISSING_UNCONFIRMED'],
+        ['DELETE_UNCONFIRMED', 'MEDIA_DELETE_UNCONFIRMED'],
+      ]) {
+        const unconfirmed = await fresh();
+        await remove(owner, unconfirmed).expect(204);
+        await due(unconfirmed);
+        purgeResult = { kind };
+        await cleanup.runBatch(20, signal);
+        const deferred = await jobFor(unconfirmed);
+        assert.equal(deferred.condition, 'FAILED');
+        assert.equal(deferred.safe_error_code, safeErrorCode);
+        assert.equal(deferred.claimed_by, null);
+        assert.equal(deferred.lease_until, null);
+        const callsAfterDeferral = purgeCalls;
+        await due(unconfirmed);
+        await cleanup.runBatch(20, signal);
+        assert.equal(purgeCalls, callsAfterDeferral);
+        await remove(owner, unconfirmed).expect(204);
+        await api().get(`/api/v1/media/${unconfirmed}`).set('Cookie', owner.cookie).expect(404);
+      }
+
       const current = await fresh();
       await attach(runtime, current);
       await remove(owner, current).expect(409);
@@ -349,8 +371,10 @@ try {
       );
       await promisify(execFile)(
         process.execPath,
-        ['dist/worker.js', '--once'],
-        { cwd: backend, env: { ...process.env }, timeout: 10000 },
+        ['--import', 'data:text/javascript,globalThis.fetch=()=>{process.exitCode=1;throw Error()}', 'dist/worker.js', '--once'],
+        { cwd: backend, env: { ...process.env,
+          CLOUDINARY_CLOUD_NAME: 'test-only', CLOUDINARY_API_KEY: '123', CLOUDINARY_API_SECRET: 'test-only',
+        }, timeout: 10000 },
       );
       console.log(
         'PASS: same-build worker CLI runs one bounded pass and exits.',

@@ -74,6 +74,7 @@ export function ProjectDetail({ id }: { id: string }) {
     {state.phase === 'authenticated' && detail.data && <article className={styles.panel}>
       <div className={styles.workspaceHeading}><div><p className={styles.eyebrow}>{copy.status[detail.data.status]}</p><h2>{detail.data.title}</h2></div>
         <div ref={actions} className={styles.projectActions}>
+          <Link className={styles.studioLink} href={`/projects/${encodeURIComponent(id)}/studio`}>{copy.openStudio}</Link>
           {detail.data.status === 'WORKING' && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.archive} title={copy.archiveTitle} description={copy.archiveDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('archive')} />}
           {detail.data.status === 'ARCHIVED' && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.restore} title={copy.restoreTitle} description={copy.restoreDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('restore')} />}
           {detail.data.deletionEligible && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.delete} title={copy.deleteTitle} description={copy.deleteDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.delete} destructive onConfirm={() => void lifecycle('remove')} />}

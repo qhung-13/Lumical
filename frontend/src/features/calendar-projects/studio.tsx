@@ -38,7 +38,14 @@ export function Studio({ id }: { id: string }) {
   const loading = state.phase === 'loading' || (enabled && (project.isPending || (Boolean(project.data) && months.isPending)));
   const notFound = project.error && 'status' in project.error && project.error.status === 404;
   const failed = state.phase === 'unavailable' || (project.isError && !notFound) || months.isError;
-  const versionsMatch = Boolean(project.data && months.data && project.data.version === months.data.projectVersion);
+  const projectVersion = project.isSuccess ? project.data.version : undefined;
+  const monthsVersion = months.isSuccess ? months.data.projectVersion : undefined;
+  const versionsLoaded = projectVersion !== undefined && monthsVersion !== undefined;
+  const versionsMatch = versionsLoaded && projectVersion === monthsVersion;
+  const versionMismatch = versionsLoaded && !versionsMatch;
+  const versionStatus = versionMismatch ? copy.versionMismatch
+    : versionsMatch && projectVersion !== undefined ? copy.savedVersion(projectVersion)
+      : project.data && months.isPending ? copy.checkingVersion : copy.versionUnavailable;
 
   return <div className={styles.shell}>
     <a className={styles.skip} href="#studio-main">{locale === 'vi' ? 'Bỏ qua đến nội dung Studio' : 'Skip to Studio workspace'}</a>
@@ -47,7 +54,7 @@ export function Studio({ id }: { id: string }) {
         <Link className={styles.back} href={returnTo}>← {copy.back}</Link>
         {project.data && <div className={styles.projectHeading}>
           <div><p className={styles.eyebrow}>{copy.status[project.data.status]}</p><h1>{project.data.title}</h1></div>
-          <p className={styles.saveStatus} role="status">{versionsMatch ? copy.savedVersion(project.data.version) : copy.versionMismatch}</p>
+          <p className={styles.saveStatus} role="status">{versionStatus}</p>
         </div>}
       </div>
       <PreferenceControls />
@@ -60,7 +67,7 @@ export function Studio({ id }: { id: string }) {
       </section>}
       {enabled && project.data && months.data && !failed && <>
         {project.data.status === 'ARCHIVED' && <p className={styles.archived} role="status">{copy.archived}</p>}
-        {!versionsMatch && <p className={styles.versionWarning} role="alert">{copy.versionMismatch}</p>}
+        {versionMismatch && <p className={styles.versionWarning} role="alert">{copy.versionMismatch}</p>}
         <section className={styles.monthNavigation} aria-label={copy.monthNavigation}>
           <h2>{copy.monthNavigation}</h2>
           <div className={styles.monthGrid} role="tablist" aria-label={copy.monthNavigation}>

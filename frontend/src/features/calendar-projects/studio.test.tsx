@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '../../design-system/foundations/preferences-provider';
@@ -66,6 +66,32 @@ describe('guided Studio shell', () => {
     renderStudio({ monthVersion: 4 });
     expect(await screen.findByRole('alert')).toHaveTextContent('The Project and Month data are from different saved versions.');
     expect(screen.getByRole('status')).toHaveTextContent('different saved versions');
+  });
+
+  it('shows a version loading status without a mismatch warning until Months have loaded', async () => {
+    const pendingMonths = Promise.withResolvers<Response>();
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async input => {
+      const url = String(input);
+      if (url.endsWith('/auth/session')) return json({ data: { authenticated: true,
+        principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
+      if (url.endsWith(`/projects/${projectId}/months`)) return pendingMonths.promise;
+      if (url.endsWith(`/projects/${projectId}`)) return json({ data: savedProject });
+      return json({ error: { code: 'NOT_FOUND' } }, 404);
+    }));
+    render(<PreferencesProvider initial={{ locale: 'en', theme: 'light' }}>
+      <IdentityProvider initial={{ phase: 'authenticated', principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' } }}>
+        <Studio id={projectId} />
+      </IdentityProvider>
+    </PreferencesProvider>);
+
+    expect(await screen.findByRole('heading', { name: 'Family calendar' })).toBeVisible();
+    expect(screen.getByText('Checking saved Month versions…')).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Loading your Studio…')).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await act(async () => { pendingMonths.resolve(json({ data: monthData })); });
+    await waitFor(() => expect(screen.getByText('Loaded saved version 3')).toBeVisible());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('renders Vietnamese month names and archived state copy', async () => {

@@ -1,14 +1,19 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { projectApi, projectDetailOptions, projectMonthsOptions } from '../../api/projects';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MediaApiError, mediaApi, type OwnedMedia } from '../../api/media';
+import { ProjectApiError, projectApi, projectDetailOptions, projectKeys, projectMonthsOptions, type MonthPatch } from '../../api/projects';
 import { PreferenceControls } from '../../design-system/foundations/preference-controls';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { Button } from '../../design-system/primitives/button';
+import { Input } from '../../design-system/primitives/input';
 import { useIdentity } from '../identity/provider';
+import { StudioImageUpload } from '../media/media-upload';
 import { studioCopy } from '../../i18n/studio';
 import styles from './studio.module.css';
+import { countVisibleCharacters, monthContentDraft, sameMonthContent, type MonthContentDraft } from './month-editor';
 
 function calendarWeeks(year: number, monthNumber: number): (number | null)[][] {
   const first = new Date(0); first.setFullYear(year, monthNumber - 1, 1); first.setHours(0, 0, 0, 0);
@@ -21,19 +26,46 @@ function calendarWeeks(year: number, monthNumber: number): (number | null)[][] {
 }
 
 export function Studio({ id }: { id: string }) {
+  const { state } = useIdentity();
+  const actorId = state.principal?.id ?? 'anonymous';
+  return <StudioWorkspace key={`${actorId}:${id}`} id={id} />;
+}
+
+function StudioWorkspace({ id }: { id: string }) {
   const { manager, state } = useIdentity();
   const { locale } = usePreferences();
   const copy = studioCopy[locale];
   const actorId = state.principal?.id ?? 'anonymous';
+  const scope = `${actorId}:${id}`;
+  const queryClient = useQueryClient();
   const [selection, setSelection] = useState({ actorId, projectId: id, month: 1 });
   const selectedMonth = selection.actorId === actorId && selection.projectId === id ? selection.month : 1;
   const api = useMemo(() => projectApi({ csrf: manager.csrfToken, epoch: manager.requestEpoch, unauthorized: () => manager.bootstrap() }), [manager]);
+  const media = useMemo(() => mediaApi({ csrf: manager.csrfToken, epoch: manager.requestEpoch, unauthorized: () => manager.bootstrap() }), [manager]);
   const enabled = state.phase === 'authenticated';
   const project = useQuery({ ...projectDetailOptions(actorId, id, api), enabled });
   const months = useQuery({ ...projectMonthsOptions(actorId, id, api), enabled: enabled && Boolean(project.data) });
+  const [draftState, setDraftState] = useState<{ scope: string; months: Record<number, MonthContentDraft> }>({ scope, months: {} });
+  const [sessionMediaState, setSessionMediaState] = useState<{ scope: string; items: OwnedMedia[] }>({ scope, items: [] });
+  const [saveState, setSaveState] = useState<{ scope: string; months: Record<number, 'dirty' | 'saving' | 'saved' | 'error' | 'media' | 'conflict' | 'versionConflict' | 'validation'> }>({ scope, months: {} });
 
   const returnTo = `/projects/${encodeURIComponent(id)}`;
   const month = months.data?.months.find(item => item.monthNumber === selectedMonth);
+  const persistedAssetIds = Array.from(new Set(months.data?.months.flatMap(item => item.images.map(image => image.assetId)) ?? []));
+  const mediaStatusQueries = useQueries({ queries: persistedAssetIds.map(assetId => ({
+    queryKey: ['private', actorId, 'media', assetId] as const,
+    queryFn: ({ signal }: { signal: AbortSignal }) => media.status(assetId, signal),
+    enabled,
+    staleTime: 30_000,
+    retry: 1,
+  })) });
+  const projectMedia = mediaStatusQueries.flatMap(query => query.data?.status === 'READY' ? [query.data] : []);
+  const sessionMedia = sessionMediaState.scope === scope ? sessionMediaState.items : [];
+  const availableMedia = Array.from(new Map([...projectMedia, ...sessionMedia].map(item => [item.id, item])).values());
+  const drafts = draftState.scope === scope ? draftState.months : {};
+  const draft = month ? drafts[selectedMonth] ?? monthContentDraft(month) : undefined;
+  const saveStatuses = saveState.scope === scope ? saveState.months : {};
+  const monthSaveStatus = saveStatuses[selectedMonth];
   const weeks = calendarWeeks(project.data?.year ?? new Date().getFullYear(), selectedMonth);
   const loading = state.phase === 'loading' || (enabled && (project.isPending || (Boolean(project.data) && months.isPending)));
   const notFound = project.error && 'status' in project.error && project.error.status === 404;
@@ -46,6 +78,85 @@ export function Studio({ id }: { id: string }) {
   const versionStatus = versionMismatch ? copy.versionMismatch
     : versionsMatch && projectVersion !== undefined ? copy.savedVersion(projectVersion)
       : project.data && months.isPending ? copy.checkingVersion : copy.versionUnavailable;
+
+  function updateDraft(update: (current: MonthContentDraft) => MonthContentDraft) {
+    if (!month || !draft) return;
+    setDraftState(current => {
+      const saved = current.scope === scope ? current.months : {};
+      const currentDraft = saved[selectedMonth] ?? monthContentDraft(month);
+      return { scope, months: { ...saved, [selectedMonth]: update(currentDraft) } };
+    });
+    setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'dirty' } }));
+  }
+
+  function addReadyMedia(item: OwnedMedia) {
+    if (item.status !== 'READY' || item.category !== 'IMAGE') return;
+    setSessionMediaState(current => {
+      const items = current.scope === scope ? current.items : [];
+      return { scope, items: [...items.filter(existing => existing.id !== item.id), item] };
+    });
+    updateDraft(current => current.images.some(image => image.assetId === item.id) || current.images.length >= 4 ? current : {
+      ...current, images: [...current.images, { assetId: item.id, altText: '', crop: null }],
+    });
+  }
+
+  async function saveMonth() {
+    if (!enabled || !project.data || !month || !draft || project.data.status !== 'WORKING' || versionMismatch || monthSaveStatus === 'saving') return;
+    if (countVisibleCharacters(draft.caption) > 300) { setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'validation' } })); return; }
+    const saved = monthContentDraft(month);
+    if (sameMonthContent(draft, saved)) { setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saved' } })); return; }
+    setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saving' } }));
+    try {
+      const verified = await Promise.all(draft.images.map(image => media.status(image.assetId)));
+      if (verified.some(item => item.status !== 'READY' || item.category !== 'IMAGE')) {
+        setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'media' } }));
+        return;
+      }
+      const body: MonthPatch = { caption: draft.caption.trim().normalize('NFC') || null,
+        images: draft.images.map(image => ({ assetId: image.assetId, altText: image.altText.trim().normalize('NFC'), crop: null })) };
+      const result = await api.updateMonth(id, selectedMonth, body, project.data.version);
+      const updatedMonths = { ...months.data!, projectVersion: result.projectVersion,
+        months: months.data!.months.map(item => item.monthNumber === selectedMonth ? {
+          monthNumber: result.monthNumber, caption: result.caption, images: result.images,
+        } : item) };
+      queryClient.setQueryData(projectKeys.months(actorId, id), updatedMonths);
+      queryClient.setQueryData(projectKeys.detail(actorId, id), { ...project.data, version: result.projectVersion });
+      setDraftState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}),
+        [selectedMonth]: monthContentDraft({ monthNumber: result.monthNumber, caption: result.caption, images: result.images }) } }));
+      setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saved' } }));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id), refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id), refetchType: 'active' }),
+      ]);
+    } catch (error) {
+      const status = error instanceof MediaApiError || error instanceof ProjectApiError ? error.status : 0;
+      const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code: unknown }).code) : '';
+      const nextStatus = status === 412 || code === 'VERSION_CONFLICT' ? 'versionConflict'
+        : code === 'MEDIA_UNAVAILABLE' ? 'media' : status === 409 || code === 'CONFLICT' ? 'conflict'
+          : status === 422 ? 'validation' : 'error';
+      setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: nextStatus } }));
+      if (nextStatus === 'conflict') await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id) }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id) }),
+      ]);
+    }
+  }
+
+  const mediaById = new Map(availableMedia.map(item => [item.id, item]));
+  const mediaStatusById = new Map(persistedAssetIds.map((assetId, index) => [assetId, mediaStatusQueries[index]]));
+  const draftChanged = Boolean(month && draft && !sameMonthContent(draft, monthContentDraft(month)));
+  const effectiveSaveStatus = monthSaveStatus === 'saving' || ['error', 'media', 'conflict', 'versionConflict', 'validation'].includes(monthSaveStatus ?? '')
+    ? monthSaveStatus : draftChanged ? 'dirty' : monthSaveStatus === 'saved' ? 'saved' : undefined;
+  const effectiveSaveMessage = effectiveSaveStatus === 'saving' ? copy.editor.saving : effectiveSaveStatus === 'saved' ? copy.editor.saved
+    : effectiveSaveStatus === 'dirty' ? copy.editor.draft : effectiveSaveStatus === 'media' ? copy.editor.mediaError
+      : effectiveSaveStatus === 'versionConflict' ? copy.editor.versionConflict : effectiveSaveStatus === 'conflict' ? copy.editor.writeConflict
+        : effectiveSaveStatus === 'validation' ? copy.editor.validation
+        : effectiveSaveStatus === 'error' ? copy.editor.saveError : copy.editor.unchanged;
+  const captionCount = draft ? countVisibleCharacters(draft.caption) : 0;
+  const archived = project.data?.status === 'ARCHIVED';
+  const editorReadOnly = archived || !versionsMatch;
+  const saveDisabled = editorReadOnly || !draftChanged || captionCount > 300 || monthSaveStatus === 'saving' ||
+    Boolean(draft?.images.some(image => !mediaById.has(image.assetId) || mediaById.get(image.assetId)?.status !== 'READY'));
 
   return <div className={styles.shell}>
     <a className={styles.skip} href="#studio-main">{locale === 'vi' ? 'Bỏ qua đến nội dung Studio' : 'Skip to Studio workspace'}</a>
@@ -90,26 +201,104 @@ export function Studio({ id }: { id: string }) {
             <div className={styles.previewFrame} data-layout={project.data.baseline.layout.type}>
               <article className={styles.paper} aria-label={`${copy.previewLabel}: ${copy.monthNames[selectedMonth - 1]} ${project.data.year}`}>
                 <header><span>{project.data.recipientName}</span><strong>{copy.monthNames[selectedMonth - 1]}</strong><small>{project.data.year}</small></header>
+                {draft?.images.length ? <div className={styles.previewImages} data-layout={project.data.baseline.layout.type}>
+                  {draft.images.map((image, index) => {
+                    const source = mediaById.get(image.assetId);
+                    return source?.status === 'READY' && source.contentPath
+                      ? <Image key={`${image.assetId}-${index}`} src={source.contentPath} alt={image.altText} width={640} height={420} unoptimized />
+                      : <div key={`${image.assetId}-${index}`} className={styles.imagePlaceholder} role="status">
+                        {mediaStatusById.get(image.assetId)?.isPending ? copy.editor.loading : copy.editor.unavailable}
+                      </div>;
+                  })}
+                </div> : <p className={styles.previewEmpty}>{copy.editor.empty}</p>}
                 <table className={styles.calendar}>
                   <caption>{copy.monthNames[selectedMonth - 1]} {project.data.year}</caption>
                   <thead><tr>{copy.weekdays.map(day => <th key={day} scope="col" aria-label={day}>{day.slice(0, 2)}</th>)}</tr></thead>
                   <tbody>{weeks.map((week, weekIndex) => <tr key={weekIndex}>{week.map((day, dayIndex) => <td key={dayIndex}>{day}</td>)}</tr>)}</tbody>
                 </table>
-                <footer>{month?.caption?.trim() || copy.emptyMonth}</footer>
+                <footer>{draft?.caption.trim() || copy.emptyMonth}</footer>
               </article>
             </div>
           </section>
           <aside className={styles.inspector} aria-labelledby="studio-details-heading">
-            <h2 id="studio-details-heading">{copy.savedContent}</h2>
-            <dl>
-              <div><dt>{copy.caption}</dt><dd>{month?.caption?.trim() || copy.noCaption}</dd></div>
-              <div><dt>{copy.monthNavigation}</dt><dd>{copy.monthNames[selectedMonth - 1]}</dd></div>
-              <div><dt>{copy.images(month?.images.length ?? 0)}</dt><dd>{month?.images.length ?? 0}</dd></div>
-              <div><dt>{copy.layout}</dt><dd>{project.data.baseline.layout.type === 'COLLAGE' ? (locale === 'vi' ? 'Ảnh ghép' : 'Collage') : (locale === 'vi' ? 'Tập trung ảnh' : 'Photo focus')}</dd></div>
-              <div><dt>{copy.preset}</dt><dd>{project.data.stylePresetId}</dd></div>
-              <div><dt>{copy.year}</dt><dd>{project.data.year}</dd></div>
-              <div><dt>{copy.recipient}</dt><dd>{project.data.recipientName}</dd></div>
-            </dl>
+            <h2 id="studio-details-heading">{copy.editor.heading}</h2>
+            {draft && month && <>
+              {archived && <p className={styles.editorNotice} role="status">{copy.editor.archived}</p>}
+              <div className={styles.editorField}>
+                <label htmlFor="studio-month-caption">{copy.editor.caption} <span>({copy.editor.captionOptional})</span></label>
+                <textarea id="studio-month-caption" className={styles.captionInput} value={draft.caption} disabled={editorReadOnly || monthSaveStatus === 'saving'}
+                  aria-invalid={captionCount > 300} aria-describedby="studio-month-caption-help studio-month-caption-count"
+                  onChange={event => updateDraft(current => ({ ...current, caption: event.target.value }))} />
+                <p id="studio-month-caption-help" className={styles.fieldHelp}>{copy.editor.captionHelp}</p>
+                <p id="studio-month-caption-count" className={captionCount > 300 ? styles.fieldError : styles.fieldHelp} aria-live="polite">
+                  {copy.editor.captionCount(captionCount)}{captionCount > 300 ? ` · ${copy.editor.captionTooLong}` : ''}
+                </p>
+              </div>
+              <section className={styles.editorImages} aria-labelledby="studio-month-images-heading">
+                <h3 id="studio-month-images-heading">{copy.images(draft.images.length)} / 4</h3>
+                <p className={styles.fieldHelp}>{copy.editor.imageAvailability}</p>
+                {draft.images.length === 0 && <p>{copy.editor.empty}</p>}
+                <ol className={styles.imageList}>
+                  {draft.images.map((image, index) => {
+                    const asset = mediaById.get(image.assetId);
+                    const query = mediaStatusById.get(image.assetId);
+                    const statusLabel = asset?.status === 'READY' ? copy.editor.ready : query?.data?.status === 'PENDING'
+                      ? copy.editor.pending : query?.isPending ? copy.editor.loading : copy.editor.unavailable;
+                    return <li key={`${image.assetId}-${index}`} className={styles.imageItem}>
+                      {asset?.status === 'READY' && asset.contentPath && <Image src={asset.contentPath} alt="" width={480} height={360} unoptimized />}
+                      <span className={styles.imageStatus} role="status">{statusLabel}</span>
+                      <label htmlFor={`studio-image-alt-${selectedMonth}-${index}`}>{copy.editor.altText(index + 1)}</label>
+                      <Input id={`studio-image-alt-${selectedMonth}-${index}`} className={styles.textInput} value={image.altText}
+                        disabled={editorReadOnly || monthSaveStatus === 'saving'}
+                        onChange={event => updateDraft(current => ({ ...current, images: current.images.map((item, itemIndex) => itemIndex === index ? { ...item, altText: event.target.value } : item) }))} />
+                      <p className={styles.fieldHelp}>{copy.editor.defaultCrop}</p>
+                      <div className={styles.imageActions}>
+                        <Button variant="secondary" disabled={editorReadOnly || monthSaveStatus === 'saving' || index === 0}
+                          aria-label={`${locale === 'vi' ? 'Lên' : 'Move up'} — ${copy.editor.moveEarlier(index + 1)}`} onClick={() => updateDraft(current => {
+                            const images = [...current.images]; [images[index - 1], images[index]] = [images[index], images[index - 1]]; return { ...current, images };
+                          })}>{locale === 'vi' ? 'Lên' : 'Move up'}</Button>
+                        <Button variant="secondary" disabled={editorReadOnly || monthSaveStatus === 'saving' || index === draft.images.length - 1}
+                          aria-label={`${locale === 'vi' ? 'Xuống' : 'Move down'} — ${copy.editor.moveLater(index + 1)}`} onClick={() => updateDraft(current => {
+                            const images = [...current.images]; [images[index], images[index + 1]] = [images[index + 1], images[index]]; return { ...current, images };
+                          })}>{locale === 'vi' ? 'Xuống' : 'Move down'}</Button>
+                        <Button variant="destructive" disabled={editorReadOnly || monthSaveStatus === 'saving'}
+                          aria-label={`${locale === 'vi' ? 'Bỏ ảnh' : 'Remove'} — ${copy.editor.removeImage(index + 1)}`} onClick={() => updateDraft(current => ({ ...current, images: current.images.filter((_, itemIndex) => itemIndex !== index) }))}>
+                          {locale === 'vi' ? 'Bỏ ảnh' : 'Remove'}
+                        </Button>
+                      </div>
+                    </li>;
+                  })}
+                </ol>
+                {availableMedia.filter(item => item.category === 'IMAGE' && !draft.images.some(image => image.assetId === item.id)).map((item, index) => (
+                  <div className={styles.availableImage} key={item.id}>
+                    {item.contentPath && <Image src={item.contentPath} alt="" width={240} height={180} unoptimized />}
+                    <span>{copy.editor.ready} · {index + 1}</span>
+                    <Button variant="secondary" disabled={editorReadOnly || draft.images.length >= 4 || monthSaveStatus === 'saving'}
+                      onClick={() => updateDraft(current => current.images.length >= 4 ? current : { ...current,
+                        images: [...current.images, { assetId: item.id, altText: '', crop: null }] })}>{copy.editor.chooseImage(index + 1)}</Button>
+                  </div>
+                ))}
+                {draft.images.length >= 4 && <p className={styles.fieldHelp}>{copy.editor.imageLimit}</p>}
+                {availableMedia.length === 0 && <p className={styles.fieldHelp}>{copy.editor.imageAvailability}</p>}
+                {!editorReadOnly && <StudioImageUpload onReady={addReadyMedia} />}
+              </section>
+              {effectiveSaveMessage && <p className={monthSaveStatus === 'error' || monthSaveStatus === 'media' || monthSaveStatus === 'conflict' || monthSaveStatus === 'versionConflict' || monthSaveStatus === 'validation' ? styles.editorError : styles.editorNotice}
+                role={monthSaveStatus === 'error' || monthSaveStatus === 'media' || monthSaveStatus === 'conflict' || monthSaveStatus === 'versionConflict' || monthSaveStatus === 'validation' ? 'alert' : 'status'}>
+                {effectiveSaveMessage}
+              </p>}
+              <Button variant="primary" disabled={saveDisabled} loading={monthSaveStatus === 'saving'} loadingLabel={copy.editor.saving}
+                onClick={() => void saveMonth()}>{copy.editor.save}</Button>
+            </>}
+            <details className={styles.projectDetails}>
+              <summary>{copy.savedContent}</summary>
+              <dl>
+                <div><dt>{copy.monthNavigation}</dt><dd>{copy.monthNames[selectedMonth - 1]}</dd></div>
+                <div><dt>{copy.layout}</dt><dd>{project.data.baseline.layout.type === 'COLLAGE' ? (locale === 'vi' ? 'Ảnh ghép' : 'Collage') : (locale === 'vi' ? 'Tập trung ảnh' : 'Photo focus')}</dd></div>
+                <div><dt>{copy.preset}</dt><dd>{project.data.stylePresetId}</dd></div>
+                <div><dt>{copy.year}</dt><dd>{project.data.year}</dd></div>
+                <div><dt>{copy.recipient}</dt><dd>{project.data.recipientName}</dd></div>
+              </dl>
+            </details>
           </aside>
         </div>
       </>}

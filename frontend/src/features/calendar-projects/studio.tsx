@@ -235,7 +235,7 @@ function StudioWorkspace({ id }: { id: string }) {
                 </p>
               </div>
               <section className={styles.editorImages} aria-labelledby="studio-month-images-heading">
-                <h3 id="studio-month-images-heading">{copy.images(draft.images.length)} / 4</h3>
+                <h3 id="studio-month-images-heading">{copy.editor.selectedImages(draft.images.length)} / 4</h3>
                 <p className={styles.fieldHelp}>{copy.editor.imageAvailability}</p>
                 {draft.images.length === 0 && <p>{copy.editor.empty}</p>}
                 <ol className={styles.imageList}>

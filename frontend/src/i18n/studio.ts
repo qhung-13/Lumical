@@ -14,9 +14,9 @@ export const studioCopy = {
     savedContent: 'Saved month details',
     caption: 'Saved caption',
     noCaption: 'No caption has been saved for this month.',
-    images: (count: number) => `${count} saved ${count === 1 ? 'image' : 'images'}`,
     editor: {
       heading: 'Edit this month', caption: 'Month message', captionOptional: 'Optional', captionHelp: 'Up to 300 visible characters.',
+      selectedImages: (count: number) => `${count} selected ${count === 1 ? 'image' : 'images'}`,
       captionCount: (count: number) => `${count}/300 characters`, captionTooLong: 'Shorten the message to 300 visible characters or fewer.',
       chooseImage: (number: number) => `Use a Ready image ${number}`, imageAvailability: 'Ready images uploaded during this Studio session and Ready images already used in this Project.',
       ready: 'Ready', pending: 'Checking', unavailable: 'Unavailable', loading: 'Checking image status…', imageLimit: 'A Month can contain up to four images.',
@@ -56,9 +56,9 @@ export const studioCopy = {
     savedContent: 'Thông tin tháng đã lưu',
     caption: 'Chú thích đã lưu',
     noCaption: 'Tháng này chưa có chú thích được lưu.',
-    images: (count: number) => `${count} ảnh đã lưu`,
     editor: {
       heading: 'Chỉnh sửa tháng này', caption: 'Lời nhắn cho tháng', captionOptional: 'Không bắt buộc', captionHelp: 'Tối đa 300 ký tự hiển thị.',
+      selectedImages: (count: number) => `${count} ảnh đã chọn`,
       captionCount: (count: number) => `${count}/300 ký tự`, captionTooLong: 'Hãy rút ngắn lời nhắn còn tối đa 300 ký tự hiển thị.',
       chooseImage: (number: number) => `Dùng ảnh Ready ${number}`, imageAvailability: 'Ảnh Ready vừa tải trong phiên Studio này và ảnh Ready đang được dùng trong Project.',
       ready: 'Sẵn sàng', pending: 'Đang kiểm tra', unavailable: 'Không khả dụng', loading: 'Đang kiểm tra trạng thái ảnh…', imageLimit: 'Mỗi tháng có thể dùng tối đa bốn ảnh.',

@@ -80,7 +80,7 @@ describe('guided Studio shell', () => {
     await user.click(within(tabs).getByRole('tab', { name: 'March' }));
     expect(screen.getByRole('heading', { name: 'March 2027' })).toBeVisible();
     expect(screen.getAllByText('Birthday memories')).toHaveLength(2);
-    expect(screen.getByRole('heading', { name: '1 saved image / 4' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '1 selected image / 4' })).toBeVisible();
     expect(screen.getByText('Loaded saved version 3')).toHaveAttribute('role', 'status');
   });
 
@@ -145,7 +145,7 @@ describe('guided Studio shell', () => {
     expect(put?.[1]).toMatchObject({ headers: expect.objectContaining({ 'If-Match': '"3"' }) });
     expect(JSON.parse(String(put?.[1]?.body))).toEqual({ caption: null, images: [{ assetId: mediaId, altText: 'Grandma at the garden', crop: null }] });
     await user.click(screen.getByRole('tab', { name: 'March' }));
-    expect(await screen.findByRole('heading', { name: '1 saved image / 4' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 selected image / 4' })).toBeVisible();
   });
 
   it('saves an emptied Month with null caption and zero images', async () => {
@@ -176,7 +176,8 @@ describe('guided Studio shell', () => {
     await screen.findByRole('heading', { name: 'Edit this month' });
     const firstCandidate = async () => (await screen.findAllByRole('button', { name: /Use a Ready image/ }))[0];
     for (let index = 0; index < 4; index++) await user.click(await firstCandidate());
-    expect(screen.getByRole('heading', { name: '4 saved images / 4' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '4 selected images / 4' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: /saved images/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Use a Ready image/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Move image 1 later/ }));
     await user.click(screen.getByRole('button', { name: 'Save month' }));

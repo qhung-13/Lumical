@@ -18,7 +18,7 @@ export const mediaCopy = {
     providerError: 'The file could not be transferred. Your selected file and upload request are kept in this page session; try again.',
     validationError: 'The server did not accept this file. Check the format and limits, then choose a file to start a new upload.',
     session: 'Sign in to upload personal media.', back: 'Back to your calendars', another: 'Upload another file',
-    fileName: 'Selected file', progress: 'Upload progress', status: 'Upload status', statusPending: 'Pending', statusReady: 'Ready', statusUnavailable: 'Unavailable',
+    fileName: 'Selected file', progress: 'Upload progress', status: 'Upload status', statusPending: 'Pending', statusReady: 'Ready', statusUnavailable: 'Unavailable', addToMonth: 'Use this Ready image',
     working: 'Your file is being checked by LumiCal. It is not ready until the server confirms it.',
   },
   vi: {
@@ -40,7 +40,7 @@ export const mediaCopy = {
     providerError: 'Chưa thể truyền tệp. Tệp và yêu cầu tải được giữ tạm trong phiên trang này; hãy thử lại.',
     validationError: 'Máy chủ không chấp nhận tệp này. Kiểm tra định dạng và giới hạn, rồi chọn tệp để bắt đầu lượt tải mới.',
     session: 'Đăng nhập để tải nội dung cá nhân.', back: 'Quay lại lịch của bạn', another: 'Tải tệp khác',
-    fileName: 'Tệp đã chọn', progress: 'Tiến độ tải lên', status: 'Trạng thái tải lên', statusPending: 'Đang chờ', statusReady: 'Sẵn sàng', statusUnavailable: 'Không khả dụng',
+    fileName: 'Tệp đã chọn', progress: 'Tiến độ tải lên', status: 'Trạng thái tải lên', statusPending: 'Đang chờ', statusReady: 'Sẵn sàng', statusUnavailable: 'Không khả dụng', addToMonth: 'Dùng ảnh đã sẵn sàng này',
     working: 'LumiCal đang kiểm tra tệp. Tệp chưa sẵn sàng cho tới khi máy chủ xác nhận.',
   },
 } as const;

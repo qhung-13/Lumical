@@ -41,14 +41,21 @@ export function MediaUploadScreen() {
   return <MediaUploadExperience key={`${actor.id}:${manager.requestEpoch()}`} />;
 }
 
-function MediaUploadExperience() {
+export function StudioImageUpload({ onReady }: { onReady: (media: OwnedMedia) => void }) {
+  const { manager, state } = useIdentity();
+  const actor = state.principal ?? state.unverifiedPrincipal;
+  if (!actor) return null;
+  return <MediaUploadExperience key={`${actor.id}:${manager.requestEpoch()}`} inline onReady={onReady} />;
+}
+
+function MediaUploadExperience({ inline = false, onReady }: { inline?: boolean; onReady?: (media: OwnedMedia) => void }) {
   const { manager, state } = useIdentity();
   const { locale } = usePreferences();
   const copy = mediaCopy[locale];
   const sessionCopy = identityCopy[locale];
   const api = useMemo(() => mediaApi({ csrf: manager.csrfToken, epoch: manager.requestEpoch,
     unauthorized: manager.invalidate }), [manager]);
-  const [category, setCategory] = useState<MediaCategory | ''>('');
+  const [category, setCategory] = useState<MediaCategory | ''>(inline ? 'IMAGE' : '');
   const [file, setFile] = useState<File | null>(null);
   const [duration, setDuration] = useState<number>();
   const [fileError, setFileError] = useState<string>();
@@ -271,20 +278,17 @@ function MediaUploadExperience() {
   }).format(waitSeconds >= 60 ? Math.ceil(waitSeconds / 60) : waitSeconds) : undefined;
   const statusText = job?.status?.status === 'READY' ? copy.statusReady : job?.status?.status === 'UNAVAILABLE' ? copy.statusUnavailable : copy.statusPending;
 
-  return <PublicShell><div className={styles.page}>
-    <div className={styles.back}><Link href="/account">{copy.back}</Link></div>
-    <header className={styles.heading}><p className={styles.eyebrow}>LumiCal · private media</p><h1>{copy.title}</h1><p>{copy.intro}</p></header>
-    <section className={styles.panel} aria-labelledby="media-upload-heading">
+  const panel = <section className={styles.panel} aria-labelledby="media-upload-heading">
       <h2 id="media-upload-heading">{copy.fileName}</h2>
       {state.phase === 'unavailable' && <p className={styles.status} role="status">{sessionCopy.unavailable}
         <Button variant="secondary" onClick={() => void manager.bootstrap()}>{sessionCopy.retry}</Button></p>}
-      <div className={styles.field}>
+      {!inline && <div className={styles.field}>
         <label htmlFor="media-category">{copy.category}</label>
         <select id="media-category" value={category} disabled={Boolean(job)} onChange={event => selectCategory(event.target.value)}>
           <option value="">{copy.chooseCategory}</option>
           <option value="IMAGE">{copy.image}</option><option value="VIDEO">{copy.video}</option><option value="AUDIO">{copy.audio}</option>
         </select>
-      </div>
+      </div>}
       {guidance && <FileField key={inputVersion} label={copy.file} description={fileGuidance} accept={guidance.accept} file={file}
         disabled={Boolean(job)} onChange={selectFile} error={fileError} progress={job?.phase === 'UPLOADING' ? job.progress : undefined} progressLabel={copy.progress} />}
       {fileError && !guidance && <p role="alert" className={styles.error}>{fileError}</p>}
@@ -297,7 +301,10 @@ function MediaUploadExperience() {
       {job?.phase === 'ERROR' && job.errorKind !== 'RATE_LIMITED' && <p className={styles.error} role="alert">{job.errorKind === 'PROVIDER' ? copy.providerError : job.errorKind === 'STATUS' ? copy.statusError : job.errorKind === 'VALIDATION' ? copy.validationError : copy.error}</p>}
       {busyPhase && <p className={styles.status} role="status">{job.phase === 'INITIATING' ? copy.initiating : job.phase === 'UPLOADING' ? copy.transfer : copy.finalizing}</p>}
       {job && job.phase !== 'READY' && job.phase !== 'UNAVAILABLE' && <p className={styles.note}>{copy.working}</p>}
-      {job?.phase === 'READY' ? <Button variant="primary" onClick={chooseAnother}>{copy.another}</Button> : job?.phase === 'EXPIRED' ? <div className={styles.actions}>
+      {job?.phase === 'READY' ? inline && onReady && job.status ? <div className={styles.actions}>
+        <Button variant="primary" onClick={() => { onReady(job.status!); chooseAnother(); }}>{copy.addToMonth}</Button>
+        <Button variant="secondary" onClick={chooseAnother}>{copy.another}</Button>
+      </div> : <Button variant="primary" onClick={chooseAnother}>{copy.another}</Button> : job?.phase === 'EXPIRED' ? <div className={styles.actions}>
         <Button variant="primary" disabled={!state.mutationReady || coolingDown} onClick={restartExpiredIntent}>{copy.restart}</Button><Button variant="secondary" onClick={chooseAnother}>{copy.chooseAnother}</Button>
       </div> : job?.phase === 'UNAVAILABLE' ? <div className={styles.actions}>
         <Button variant="primary" disabled={!state.mutationReady || coolingDown} onClick={restartExpiredIntent}>{copy.restart}</Button><Button variant="secondary" onClick={chooseAnother}>{copy.chooseAnother}</Button>
@@ -306,6 +313,11 @@ function MediaUploadExperience() {
         {job.phase === 'PENDING' && job.verifyAfterUpload && !job.uploaded && <Button variant="secondary" disabled={!state.mutationReady || coolingDown} onClick={retryTransfer}>{copy.retryTransfer}</Button>}
         <Button variant="secondary" onClick={chooseAnother}>{copy.chooseAnother}</Button>
       </div> : <Button variant="primary" disabled={!state.mutationReady || coolingDown || !category || !file || Boolean(fileError)} onClick={start}>{copy.upload}</Button>}
-    </section>
+    </section>;
+  if (inline) return <div className={styles.inline}>{panel}</div>;
+  return <PublicShell><div className={styles.page}>
+    <div className={styles.back}><Link href="/account">{copy.back}</Link></div>
+    <header className={styles.heading}><p className={styles.eyebrow}>LumiCal · private media</p><h1>{copy.title}</h1><p>{copy.intro}</p></header>
+    {panel}
   </div></PublicShell>;
 }

@@ -1,4 +1,5 @@
 .page { width: min(100%, 56rem); margin-inline: auto; padding-block: var(--space-6) var(--space-16); }
+.inline { min-width: 0; margin-block-start: var(--space-4); }
 .back { margin-block-end: var(--space-6); }
 .back a { font-weight: 600; }
 .heading { margin-block-end: var(--space-6); }

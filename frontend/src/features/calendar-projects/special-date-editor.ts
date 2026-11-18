@@ -8,9 +8,9 @@ export interface SpecialDateDraft {
 }
 
 export interface SpecialDateFieldErrors {
-  date?: 'INVALID_DATE' | 'WRONG_YEAR';
-  title?: 'REQUIRED' | 'TOO_LONG';
-  note?: 'TOO_LONG';
+  date?: 'INVALID_DATE' | 'WRONG_YEAR' | 'SERVER_REJECTED';
+  title?: 'REQUIRED' | 'TOO_LONG' | 'SERVER_REJECTED';
+  note?: 'TOO_LONG' | 'SERVER_REJECTED';
 }
 
 export const emptySpecialDateDraft = (): SpecialDateDraft => ({ date: '', title: '', note: '' });

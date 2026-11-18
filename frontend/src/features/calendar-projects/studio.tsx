@@ -312,7 +312,7 @@ function StudioWorkspace({ id }: { id: string }) {
             {project.data && <SpecialDatesEditor actorId={actorId} projectId={id} projectYear={project.data.year}
               projectVersion={project.data.version} projectStatus={project.data.status} mutationReady={state.mutationReady}
               api={api} events={specialDates.data} loading={specialDates.isPending} fetching={specialDates.isFetching}
-              failed={specialDates.isError} onRetry={() => { void specialDates.refetch(); }} />}
+              failed={specialDates.isError} onRetry={() => { void Promise.all([project.refetch(), specialDates.refetch()]); }} />}
           </aside>
         </div>
       </>}

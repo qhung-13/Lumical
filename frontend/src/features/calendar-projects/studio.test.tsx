@@ -22,12 +22,14 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?: number; locale?: 'en' | 'vi';
   putStatus?: number; mediaStatus?: 'READY' | 'PENDING' | 'UNAVAILABLE'; availableImages?: number;
   specialEvents?: { id: string; date: string; title: string; note: string | null }[];
-  specialDateWriteStatus?: number; loseFirstSpecialDateResponse?: boolean } = {}) {
+  specialDateWriteStatus?: number; specialDateWriteFields?: { path: string; code: string; messageKey: string }[];
+  mismatchSpecialDatesAfterProjectWrite?: boolean; loseFirstSpecialDateResponse?: boolean } = {}) {
   const project = { ...savedProject, status: options.status ?? 'WORKING' };
   let currentVersion = 3;
   let currentMonths = { ...monthData, months: monthData.months.map(item => ({ ...item, images: [...item.images] })) };
   let currentSpecialEvents = (options.specialEvents ?? []).map(event => ({ ...event }));
   let lostCreateResponse = false;
+  let servedStaleSpecialDates = false;
   if ((options.availableImages ?? 1) > 1) currentMonths.months[1] = { ...currentMonths.months[1], images: imageIds.slice(1, options.availableImages)
     .map((assetId, index) => ({ assetId, altText: `Photo ${index + 2}`, crop: null })) };
   const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
@@ -52,11 +54,18 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
       return json({ data: { monthNumber: number, caption: body.caption, images: body.images, projectVersion: currentVersion } });
     }
     if (url.endsWith(`/projects/${projectId}/special-dates`) && method === 'GET') {
+      if (options.mismatchSpecialDatesAfterProjectWrite && currentVersion > 3 && !servedStaleSpecialDates) {
+        servedStaleSpecialDates = true;
+        return json({ data: { events: currentSpecialEvents, projectVersion: currentVersion - 1 } });
+      }
       return json({ data: { events: currentSpecialEvents, projectVersion: currentVersion } });
     }
     if (url.endsWith(`/projects/${projectId}/special-dates`) && method === 'POST') {
       const body = JSON.parse(String(init?.body)) as { date: string; title: string; note: string | null };
-      if (options.specialDateWriteStatus) return json({ error: { code: options.specialDateWriteStatus === 412 ? 'VERSION_CONFLICT' : options.specialDateWriteStatus === 409 ? 'IDEMPOTENCY_CONFLICT' : 'VALIDATION_FAILED' } }, options.specialDateWriteStatus);
+      if (options.specialDateWriteStatus) return json({ error: {
+        code: options.specialDateWriteStatus === 412 ? 'VERSION_CONFLICT' : options.specialDateWriteStatus === 409 ? 'IDEMPOTENCY_CONFLICT' : 'VALIDATION_FAILED',
+        fieldErrors: options.specialDateWriteFields ?? [],
+      } }, options.specialDateWriteStatus);
       const key = new Headers(init?.headers).get('Idempotency-Key')!;
       const cached = (fetcher as typeof fetch & { createdByKey?: Map<string, { event: typeof currentSpecialEvents[number]; version: number }> }).createdByKey ??= new Map();
       let outcome = cached.get(key);
@@ -74,14 +83,20 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
     if (url.match(new RegExp(`/projects/${projectId}/special-dates/[a-f0-9-]+$`)) && method === 'PUT') {
       const eventId = url.split('/').at(-1)!;
       const body = JSON.parse(String(init?.body)) as { date: string; title: string; note: string | null };
-      if (options.specialDateWriteStatus) return json({ error: { code: options.specialDateWriteStatus === 412 ? 'VERSION_CONFLICT' : options.specialDateWriteStatus === 409 ? 'IDEMPOTENCY_CONFLICT' : 'VALIDATION_FAILED' } }, options.specialDateWriteStatus);
+      if (options.specialDateWriteStatus) return json({ error: {
+        code: options.specialDateWriteStatus === 412 ? 'VERSION_CONFLICT' : options.specialDateWriteStatus === 409 ? 'IDEMPOTENCY_CONFLICT' : 'VALIDATION_FAILED',
+        fieldErrors: options.specialDateWriteFields ?? [],
+      } }, options.specialDateWriteStatus);
       currentVersion += 1;
       project.version = currentVersion;
       currentSpecialEvents = currentSpecialEvents.map(event => event.id === eventId ? { ...event, ...body } : event);
       return json({ data: { ...currentSpecialEvents.find(event => event.id === eventId)!, projectVersion: currentVersion } });
     }
     if (url.match(new RegExp(`/projects/${projectId}/special-dates/[a-f0-9-]+$`)) && method === 'DELETE') {
-      if (options.specialDateWriteStatus) return json({ error: { code: options.specialDateWriteStatus === 412 ? 'VERSION_CONFLICT' : options.specialDateWriteStatus === 409 ? 'IDEMPOTENCY_CONFLICT' : 'VALIDATION_FAILED' } }, options.specialDateWriteStatus);
+      if (options.specialDateWriteStatus) return json({ error: {
+        code: options.specialDateWriteStatus === 412 ? 'VERSION_CONFLICT' : options.specialDateWriteStatus === 409 ? 'IDEMPOTENCY_CONFLICT' : 'VALIDATION_FAILED',
+        fieldErrors: options.specialDateWriteFields ?? [],
+      } }, options.specialDateWriteStatus);
       currentVersion += 1;
       project.version = currentVersion;
       currentSpecialEvents = currentSpecialEvents.filter(event => event.id !== url.split('/').at(-1));
@@ -355,5 +370,52 @@ describe('guided Studio shell', () => {
     expect(await screen.findByText(/The server rejected this change because the saved calendar state changed/)).toBeVisible();
     expect(screen.getByLabelText('Title')).toHaveValue('Conflict check');
     expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('refreshes Project and Special Dates together after a 3-to-4 mismatch without losing the form draft', async () => {
+    const user = userEvent.setup();
+    const { fetcher } = renderStudio({ mismatchSpecialDatesAfterProjectWrite: true });
+    const specialDates = await screen.findByRole('region', { name: 'Special Dates' });
+    await user.type(within(specialDates).getByLabelText('Date'), '2027-09-18');
+    await user.type(within(specialDates).getByLabelText('Title'), 'Keep this draft during refresh');
+
+    await user.type(screen.getByLabelText(/Month message/), 'Advance the Project version');
+    await user.click(screen.getByRole('button', { name: 'Save month' }));
+    expect(await screen.findByText('Month saved.')).toBeVisible();
+    expect(await within(specialDates).findByText(/Saved Project and Special Date data have different versions/)).toBeVisible();
+    expect(screen.getByText('Loaded saved version 4')).toBeVisible();
+
+    await user.click(within(specialDates).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(within(specialDates).getByLabelText('Date')).toBeEnabled());
+    expect(within(specialDates).getByLabelText('Date')).toHaveValue('2027-09-18');
+    expect(within(specialDates).getByLabelText('Title')).toHaveValue('Keep this draft during refresh');
+    await user.click(within(specialDates).getByRole('button', { name: 'Save Special Date' }));
+    expect(await within(specialDates).findByText('Special Date added.')).toBeVisible();
+    const create = fetcher.mock.calls.find(([url, init]) => String(url).endsWith('/special-dates') && init?.method === 'POST');
+    expect(new Headers(create?.[1]?.headers).get('If-Match')).toBe('"4"');
+  });
+
+  it('maps recognized backend 422 field errors and uses a generic message when no field can be identified', async () => {
+    const user = userEvent.setup();
+    const recognized = renderStudio({ specialDateWriteStatus: 422,
+      specialDateWriteFields: [{ path: 'event.title', code: 'OUT_OF_RANGE', messageKey: 'validation.specialDateTitle' }] });
+    const firstEditor = await screen.findByRole('region', { name: 'Special Dates' });
+    await user.type(within(firstEditor).getByLabelText('Date'), '2027-05-14');
+    await user.type(within(firstEditor).getByLabelText('Title'), 'Backend rejects this value');
+    await user.click(within(firstEditor).getByRole('button', { name: 'Save Special Date' }));
+    expect(await within(firstEditor).findByText('The server rejected this value. Review it and try again.')).toBeVisible();
+    expect(within(firstEditor).getByLabelText('Title')).toHaveAttribute('aria-invalid', 'true');
+    expect(within(firstEditor).getByLabelText('Date')).toHaveAttribute('aria-invalid', 'false');
+    expect(within(firstEditor).getByLabelText('Title')).toHaveValue('Backend rejects this value');
+
+    recognized.unmount();
+    renderStudio({ specialDateWriteStatus: 422 });
+    const secondEditor = await screen.findByRole('region', { name: 'Special Dates' });
+    await user.type(within(secondEditor).getByLabelText('Date'), '2027-05-14');
+    await user.type(within(secondEditor).getByLabelText('Title'), 'No field detail');
+    await user.click(within(secondEditor).getByRole('button', { name: 'Save Special Date' }));
+    expect(await within(secondEditor).findByText('The server could not accept this date request. Review the form and try again.')).toBeVisible();
+    expect(within(secondEditor).getByLabelText('Title')).toHaveAttribute('aria-invalid', 'false');
+    expect(within(secondEditor).getByLabelText('Date')).toHaveAttribute('aria-invalid', 'false');
   });
 });

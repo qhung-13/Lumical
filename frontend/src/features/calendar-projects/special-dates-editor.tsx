@@ -101,6 +101,13 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
       return 'known';
     }
     if (details.status === 422) {
+      const fieldErrors: SpecialDateFieldErrors = {};
+      for (const field of details.fields) {
+        const path = field.path.split(/[.\[\]]/).filter(Boolean).at(-1);
+        if (path === 'date' || path === 'title' || path === 'note') fieldErrors[path] = 'SERVER_REJECTED';
+      }
+      setErrors(fieldErrors);
+      setSubmitted(false);
       setErrorMessage(copy.validationError);
       return 'validation';
     }
@@ -187,7 +194,13 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
 
   function changeDraft(field: keyof SpecialDateDraft, value: string) {
     setDraft(current => ({ ...current, [field]: value }));
-    if (submitted) setErrors(validateSpecialDate({ ...draft, [field]: value }, projectYear));
+    setErrors(current => {
+      if (submitted) return validateSpecialDate({ ...draft, [field]: value }, projectYear);
+      if (current[field] !== 'SERVER_REJECTED') return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
     setErrorMessage('');
     setMessage('');
   }
@@ -232,7 +245,7 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
             aria-invalid={Boolean(visibleErrors.date)} aria-describedby={`${formId}-date-help${visibleErrors.date ? ` ${formId}-date-error` : ''}`}
             onChange={event => changeDraft('date', event.target.value)} />
           <p id={`${formId}-date-help`} className={styles.help}>{copy.dateHelp}</p>
-          {visibleErrors.date && <p id={`${formId}-date-error`} className={styles.fieldError} role="alert">{visibleErrors.date === 'WRONG_YEAR' ? copy.wrongYear : copy.invalidDate}</p>}
+          {visibleErrors.date && <p id={`${formId}-date-error`} className={styles.fieldError} role="alert">{visibleErrors.date === 'SERVER_REJECTED' ? copy.serverFieldError : visibleErrors.date === 'WRONG_YEAR' ? copy.wrongYear : copy.invalidDate}</p>}
         </div>
         <div className={styles.field}>
           <label htmlFor={`${formId}-title`}>{copy.title}</label>
@@ -241,7 +254,7 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
             onChange={event => changeDraft('title', event.target.value)} />
           <p id={`${formId}-title-help`} className={styles.help}>{copy.titleHelp}</p>
           <p id={`${formId}-title-count`} className={styles.help} aria-live="polite">{copy.titleCount(titleCount)}</p>
-          {visibleErrors.title && <p id={`${formId}-title-error`} className={styles.fieldError} role="alert">{visibleErrors.title === 'REQUIRED' ? copy.titleRequired : copy.titleTooLong}</p>}
+          {visibleErrors.title && <p id={`${formId}-title-error`} className={styles.fieldError} role="alert">{visibleErrors.title === 'SERVER_REJECTED' ? copy.serverFieldError : visibleErrors.title === 'REQUIRED' ? copy.titleRequired : copy.titleTooLong}</p>}
         </div>
         <div className={styles.field}>
           <label htmlFor={`${formId}-note`}>{copy.note} <span>({copy.optional})</span></label>
@@ -250,7 +263,7 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
             onChange={event => changeDraft('note', event.target.value)} />
           <p id={`${formId}-note-help`} className={styles.help}>{copy.noteHelp}</p>
           <p id={`${formId}-note-count`} className={styles.help} aria-live="polite">{copy.noteCount(noteCount)}</p>
-          {visibleErrors.note && <p id={`${formId}-note-error`} className={styles.fieldError} role="alert">{copy.noteTooLong}</p>}
+          {visibleErrors.note && <p id={`${formId}-note-error`} className={styles.fieldError} role="alert">{visibleErrors.note === 'SERVER_REJECTED' ? copy.serverFieldError : copy.noteTooLong}</p>}
         </div>
         {errorMessage && <p role="alert" className={styles.fieldError}>{errorMessage}</p>}
         {message && <p role="status" className={styles.notice}>{message}</p>}

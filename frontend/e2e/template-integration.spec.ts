@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { productCopy } from '../src/i18n/product';
 import { templateCopy } from '../src/i18n/templates';
 
 async function writeRevision(page: Page, englishName: string, price: string) {
@@ -19,6 +20,27 @@ async function changeAvailability(page: Page, target: 'active' | 'inactive') {
   await expect(page.getByTestId('command-notice')).toContainText(target === 'active' ? 'Availability set to Active.' : 'Availability set to Inactive.');
   await page.keyboard.press('Escape');
 }
+
+test('Home shows published designs from the real catalog and reaches template detail', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  const homeResponse = page.waitForResponse(response => new URL(response.url()).search === '?limit=3' &&
+    new URL(response.url()).pathname === '/api/v1/templates' && response.ok());
+  await page.goto('/');
+  const preview = await (await homeResponse).json();
+  expect(preview.data.length).toBeGreaterThan(0);
+  expect(preview.data.length).toBeLessThanOrEqual(3);
+  const first = preview.data[0];
+  const name = first.publishedRevision.name.en;
+  const design = page.getByRole('link', { name: `${templateCopy.en.open}: ${name}`, exact: true })
+    .and(page.locator(`a[href="/templates/${first.id}"]`));
+  await expect(design).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: testInfo.outputPath('home-live-1440.png'), fullPage: true, animations: 'disabled' });
+  await page.getByRole('link', { name: productCopy.en.browse }).click();
+  await expect(page).toHaveURL('/templates', { timeout: 15_000 });
+  await design.click();
+  await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible({ timeout: 15_000 });
+});
 
 test('real Admin writes publish one revision across response loss and drive public discovery', async ({ page, browser, baseURL }) => {
   test.setTimeout(120_000);

@@ -6,7 +6,7 @@ for (const locale of ['en', 'vi'] as const) for (const theme of ['light', 'dark'
     await context.addCookies([{ name: 'lumical_locale', value: locale, url: 'http://127.0.0.1:3210' }, { name: 'lumical_theme', value: theme, url: 'http://127.0.0.1:3210' }]);
     await page.route('**/api/v1/auth/session', route => route.fulfill({ json: { data: { authenticated: false } } }));
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    for (const [view, path] of [['public', '/'], ['form', '/foundation/form'], ['admin', '/foundation/admin']]) {
+    for (const [view, path] of [['public', '/foundation/public'], ['form', '/foundation/form'], ['admin', '/foundation/admin']]) {
       await page.goto(path); await page.evaluate(() => document.fonts.ready);
       for (const width of [320, 1280]) {
         await page.setViewportSize({ width, height: 900 });

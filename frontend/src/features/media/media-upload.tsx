@@ -316,8 +316,9 @@ function MediaUploadExperience({ inline = false, onReady }: { inline?: boolean; 
     </section>;
   if (inline) return <div className={styles.inline}>{panel}</div>;
   return <PublicShell><div className={styles.page}>
-    <div className={styles.back}><Link href="/account">{copy.back}</Link></div>
-    <header className={styles.heading}><p className={styles.eyebrow}>LumiCal · private media</p><h1>{copy.title}</h1><p>{copy.intro}</p></header>
+    <div className={styles.back}><Link href="/account"><span aria-hidden="true">← </span>{copy.back}</Link></div>
+    <div className={styles.uploadLayout}>
+    <header className={styles.heading}><h1>{copy.title}</h1><p>{copy.intro}</p></header>
     {panel}
-  </div></PublicShell>;
+  </div></div></PublicShell>;
 }

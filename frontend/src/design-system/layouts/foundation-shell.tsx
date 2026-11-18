@@ -15,7 +15,7 @@ export function FoundationShell({ area, children }: { area: FoundationArea; chil
     <header className={styles.header}>
       <Link className={styles.brand} href="/" aria-label="LumiCal" tabIndex={0}>LumiCal</Link>
       <nav className={styles.navigation} aria-label={copy.navigation}>
-        {(['public', 'form', 'admin'] as const).map(item => <Link key={item} tabIndex={0} href={item === 'public' ? '/' : `/foundation/${item}`} aria-current={area === item ? 'page' : undefined}>{copy[item]}</Link>)}
+        {(['public', 'form', 'admin'] as const).map(item => <Link key={item} tabIndex={0} href={`/foundation/${item}`} aria-current={area === item ? 'page' : undefined}>{copy[item]}</Link>)}
       </nav>
       <PreferenceControls />
     </header>

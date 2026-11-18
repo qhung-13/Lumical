@@ -7,6 +7,8 @@
 // review). Layout is frozen to the approved version 1 values.
 import { useMemo, useState, type ReactNode } from 'react';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
+import { templateCopy } from '../../i18n/templates';
+import { CalendarMockup } from '../templates/calendar-mockup';
 import type { Localised, TemplateCategory, TemplateLayoutType, TemplatePresetId } from '../../api/admin-templates';
 import type { components } from '../../api/generated';
 import { fieldErrorMessage, formatTemplateAdmin, templateAdminCopy, type TemplateAdminKey, type TemplateAdminLocale } from '../../i18n/admin-templates';
@@ -256,8 +258,14 @@ export function RevisionForm({ mode, fieldErrors = [], notice, pending = false, 
         noValidate
         onSubmit={(event) => { event.preventDefault(); requestReview(); }}
       >
-        <section className={styles.panel} aria-labelledby="revision-content-heading">
+        <section className={`${styles.panel} ${styles.editContent}`} aria-labelledby="revision-content-heading">
           <h2 className={styles.panelTitle} id="revision-content-heading">{t('sectionContent')}</h2>
+          <div className={styles.revisionComposition}>
+          <figure className={styles.revisionPreview}>
+            <div><CalendarMockup locale={locale} layout={state.layout} /></div>
+            <figcaption>{templateCopy[locale].illustrationLabel}</figcaption>
+          </figure>
+          <div>
 
           {mode === 'create' && (
             <fieldset className={styles.field} style={{ border: 0, padding: 0, margin: 0 }}>
@@ -323,6 +331,7 @@ export function RevisionForm({ mode, fieldErrors = [], notice, pending = false, 
                 maxLength={500} onChange={(event) => update('descEn', event.target.value)}{...aria} />
             ))}
           </div>
+          </div></div>
         </section>
 
         <section className={styles.panel} aria-labelledby="revision-presets-heading">

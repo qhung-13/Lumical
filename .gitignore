@@ -2,6 +2,9 @@
 node_modules/
 .pnpm-store/
 
+# Local legacy reference, excluded from source control
+/Lumical_Old/
+
 # Environment / secrets
 .env
 .env.*

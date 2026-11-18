@@ -227,7 +227,7 @@ and deployment remain outside this foundation slice.
 
 ## Shared presentation foundation (I00)
 
-Open `/`, `/foundation/form` and `/foundation/admin` to inspect the public,
+Open `/foundation/public`, `/foundation/form` and `/foundation/admin` to inspect the public,
 form/Dialog and neutral Admin compositions. The latter is an interface example,
 not an Admin permission or business route. Existing identity pages consume the
 same tokens, controls and presentation preferences.

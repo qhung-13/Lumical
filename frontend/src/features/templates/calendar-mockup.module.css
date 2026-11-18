@@ -1,0 +1,23 @@
+.stand { container-type: inline-size; position: relative; width: min(70%, 16rem); isolation: isolate; }
+.stand::before { content: ''; position: absolute; inset: 4% -4% 2%; z-index: -1; border-radius: 4px; background: linear-gradient(110deg, #c6a37c, #8d6947 62%, #b58b62); box-shadow: 0 1rem 1.4rem -.8rem #251a13a0; }
+.stand::after { content: ''; position: absolute; inset: auto -8% -.45rem; height: .65rem; border-radius: 3px; background: linear-gradient(180deg, #b0885f, #7d6142); box-shadow: 0 4px 5px #2a231c44; }
+.sheet { overflow: hidden; border: 1px solid #dacbbc; border-radius: 5px; background: #fffbf5; color: #2a231c; box-shadow: 0 8px 16px #251a1345; }
+.photo, .art { aspect-ratio: 1.28; overflow: hidden; background: #b47c54; }
+.photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.art { display: grid; grid-template-columns: 1fr; }
+.art span, .art i { display: block; background:
+  radial-gradient(ellipse at 76% 23%, #f4d3a1 0 9%, transparent 9.5%),
+  radial-gradient(ellipse at 42% 124%, #293f37 0 54%, transparent 54.5%),
+  radial-gradient(ellipse at 12% 140%, #7b5140 0 68%, transparent 68.5%),
+  radial-gradient(ellipse at 92% 110%, #ad7958 0 57%, transparent 58%),
+  linear-gradient(162deg, #d8b398, #bd7758); }
+.art i { display: none; }
+.stand[data-layout='COLLAGE'] .art { grid-template-columns: 1.25fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: #fffbf5; }
+.stand[data-layout='COLLAGE'] .art span { grid-row: span 2; }
+.stand[data-layout='COLLAGE'] .art i { display: block; background: radial-gradient(ellipse at 120% 120%, #587267 0 62%, transparent 63%), linear-gradient(150deg, #f2ddc0, #b19a80); }
+.stand[data-layout='COLLAGE'] .art i:last-child { background: radial-gradient(ellipse at -10% 120%, #a95040 0 63%, transparent 64%), linear-gradient(20deg, #cf8856, #ebc998); }
+.print { padding: 4% 7% 7%; font: 600 4.4cqi/1.5 var(--font-body); }
+.month { display: block; margin-bottom: 2.5%; color: #a63225; font: 700 8cqi/1.08 var(--font-heading); }
+.weekdays, .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); justify-items: center; gap: .2em; }
+.weekdays { border-block-end: 1px solid #e8ddca; color: #6d5f50; margin-bottom: .25em; }
+.days span::before { content: attr(data-day); }

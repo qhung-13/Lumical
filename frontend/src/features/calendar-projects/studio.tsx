@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MediaApiError, mediaApi, type OwnedMedia } from '../../api/media';
-import { ProjectApiError, projectApi, projectDetailOptions, projectKeys, projectMonthsOptions, type MonthPatch } from '../../api/projects';
+import { ProjectApiError, projectApi, projectDetailOptions, projectKeys, projectMonthsOptions, projectSpecialDatesOptions, type MonthPatch } from '../../api/projects';
 import { PreferenceControls } from '../../design-system/foundations/preference-controls';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { Button } from '../../design-system/primitives/button';
@@ -14,6 +14,7 @@ import { StudioImageUpload } from '../media/media-upload';
 import { studioCopy } from '../../i18n/studio';
 import styles from './studio.module.css';
 import { countVisibleCharacters, monthContentDraft, sameMonthContent, type MonthContentDraft } from './month-editor';
+import { SpecialDatesEditor } from './special-dates-editor';
 
 function calendarWeeks(year: number, monthNumber: number): (number | null)[][] {
   const first = new Date(0); first.setFullYear(year, monthNumber - 1, 1); first.setHours(0, 0, 0, 0);
@@ -45,6 +46,7 @@ function StudioWorkspace({ id }: { id: string }) {
   const enabled = state.phase === 'authenticated';
   const project = useQuery({ ...projectDetailOptions(actorId, id, api), enabled });
   const months = useQuery({ ...projectMonthsOptions(actorId, id, api), enabled: enabled && Boolean(project.data) });
+  const specialDates = useQuery({ ...projectSpecialDatesOptions(actorId, id, api), enabled: enabled && Boolean(project.data) });
   const [draftState, setDraftState] = useState<{ scope: string; months: Record<number, MonthContentDraft> }>({ scope, months: {} });
   const [sessionMediaState, setSessionMediaState] = useState<{ scope: string; items: OwnedMedia[] }>({ scope, items: [] });
   const [saveState, setSaveState] = useState<{ scope: string; months: Record<number, 'dirty' | 'saving' | 'saved' | 'error' | 'media' | 'conflict' | 'versionConflict' | 'validation'> }>({ scope, months: {} });
@@ -127,6 +129,7 @@ function StudioWorkspace({ id }: { id: string }) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id), refetchType: 'active' }),
         queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id), refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, id), refetchType: 'active' }),
       ]);
     } catch (error) {
       const status = error instanceof MediaApiError || error instanceof ProjectApiError ? error.status : 0;
@@ -138,6 +141,7 @@ function StudioWorkspace({ id }: { id: string }) {
       if (nextStatus === 'conflict') await Promise.all([
         queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id) }),
         queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id) }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, id) }),
       ]);
     }
   }
@@ -214,7 +218,13 @@ function StudioWorkspace({ id }: { id: string }) {
                 <table className={styles.calendar}>
                   <caption>{copy.monthNames[selectedMonth - 1]} {project.data.year}</caption>
                   <thead><tr>{copy.weekdays.map(day => <th key={day} scope="col" aria-label={day}>{day.slice(0, 2)}</th>)}</tr></thead>
-                  <tbody>{weeks.map((week, weekIndex) => <tr key={weekIndex}>{week.map((day, dayIndex) => <td key={dayIndex}>{day}</td>)}</tr>)}</tbody>
+                  <tbody>{weeks.map((week, weekIndex) => <tr key={weekIndex}>{week.map((day, dayIndex) => {
+                    if (day === null) return <td key={dayIndex}></td>;
+                    const date = `${String(project.data.year).padStart(4, '0')}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dayEvents = specialDates.data?.projectVersion === project.data.version
+                      ? specialDates.data.events.filter(event => event.date === date) : [];
+                    return <td key={dayIndex}><span>{day}</span>{dayEvents.map(event => <span key={event.id} className={styles.calendarEvent}>{event.title}</span>)}</td>;
+                  })}</tr>)}</tbody>
                 </table>
                 <footer>{draft?.caption.trim() || copy.emptyMonth}</footer>
               </article>
@@ -299,6 +309,10 @@ function StudioWorkspace({ id }: { id: string }) {
                 <div><dt>{copy.recipient}</dt><dd>{project.data.recipientName}</dd></div>
               </dl>
             </details>
+            {project.data && <SpecialDatesEditor actorId={actorId} projectId={id} projectYear={project.data.year}
+              projectVersion={project.data.version} projectStatus={project.data.status} mutationReady={state.mutationReady}
+              api={api} events={specialDates.data} loading={specialDates.isPending} fetching={specialDates.isFetching}
+              failed={specialDates.isError} onRetry={() => { void specialDates.refetch(); }} />}
           </aside>
         </div>
       </>}

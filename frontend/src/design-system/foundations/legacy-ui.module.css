@@ -1,0 +1,36 @@
+/* Legacy visual proposal. Scope semantic overrides to the surfaces under review. */
+.theme {
+  --color-canvas: light-dark(#fbf6ec, #1b1815);
+  --color-surface: light-dark(#fff, #211c18);
+  --color-surface-raised: light-dark(#fff, #2c261e);
+  --color-surface-subtle: light-dark(#f5eddd, #28221d);
+  --color-text-primary: light-dark(#2a231c, #f7efe3);
+  --color-text-secondary: light-dark(#514738, #e4d9ca);
+  --color-text-muted: light-dark(#6d5f50, #b9aa98);
+  --color-border: light-dark(#e8ddca, #4b4034);
+  --color-border-strong: light-dark(#978268, #907d68);
+  --color-brand: light-dark(#b93729, #ef9489);
+  --color-brand-text: light-dark(#a63225, #ffb0a7);
+  --color-brand-hover: light-dark(#9c2c20, #ffb0a7);
+  --color-brand-active: light-dark(#862619, #e28174);
+  --color-text-inverse: light-dark(#fff, #2a231c);
+  --color-focus: light-dark(#a63225, #ef9489);
+  --color-selected-bg: light-dark(#f7e3dc, #482a27);
+  --color-selected-text: light-dark(#862619, #ffded7);
+  --color-selected-border: light-dark(#a63225, #ef9489);
+  --legacy-inverse: #fbf6ec;
+  --legacy-dark: #221d17;
+  --legacy-pink: #e2a0b4;
+  --legacy-card-shadow: 0 1px 3px rgb(74 58 36 / .05), 0 12px 32px -16px rgb(74 58 36 / .2);
+  --legacy-hard-shadow: 5px 6px 0 light-dark(rgb(42 35 28 / .16), rgb(0 0 0 / .4));
+  --legacy-radius: .875rem;
+  --radius-control: .625rem;
+  --layout-gutter: 1rem;
+  color: var(--color-text-primary);
+  background-color: var(--color-canvas);
+}
+
+.theme :is(button, a)[data-variant='primary'] { box-shadow: 0 5px 14px light-dark(rgb(156 44 32 / .24), rgb(0 0 0 / .3)); }
+.theme a:focus-visible, .theme button:focus-visible { outline-color: var(--color-focus); }
+
+@media (min-width: 768px) { .theme { --layout-gutter: 1.5rem; } }

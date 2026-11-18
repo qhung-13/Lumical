@@ -272,8 +272,9 @@ function MediaUploadExperience() {
   const statusText = job?.status?.status === 'READY' ? copy.statusReady : job?.status?.status === 'UNAVAILABLE' ? copy.statusUnavailable : copy.statusPending;
 
   return <PublicShell><div className={styles.page}>
-    <div className={styles.back}><Link href="/account">{copy.back}</Link></div>
-    <header className={styles.heading}><p className={styles.eyebrow}>LumiCal · private media</p><h1>{copy.title}</h1><p>{copy.intro}</p></header>
+    <div className={styles.back}><Link href="/account"><span aria-hidden="true">← </span>{copy.back}</Link></div>
+    <div className={styles.uploadLayout}>
+    <header className={styles.heading}><h1>{copy.title}</h1><p>{copy.intro}</p></header>
     <section className={styles.panel} aria-labelledby="media-upload-heading">
       <h2 id="media-upload-heading">{copy.fileName}</h2>
       {state.phase === 'unavailable' && <p className={styles.status} role="status">{sessionCopy.unavailable}
@@ -307,5 +308,5 @@ function MediaUploadExperience() {
         <Button variant="secondary" onClick={chooseAnother}>{copy.chooseAnother}</Button>
       </div> : <Button variant="primary" disabled={!state.mutationReady || coolingDown || !category || !file || Boolean(fileError)} onClick={start}>{copy.upload}</Button>}
     </section>
-  </div></PublicShell>;
+  </div></div></PublicShell>;
 }

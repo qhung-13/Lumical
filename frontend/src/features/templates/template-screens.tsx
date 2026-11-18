@@ -2,56 +2,28 @@
 import Link from 'next/link';
 import { useMemo, useState, type FormEvent } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { useTemplateDetail, templateListOptions, type PublicTemplate, type TemplateCategory, type TemplateListQuery } from '../../api/templates';
+import { useTemplateDetail, templateListOptions, type TemplateCategory, type TemplateListQuery } from '../../api/templates';
 import { Button } from '../../design-system/primitives/button';
 import { FormField } from '../../design-system/composites/form-field';
 import { PublicShell } from '../../design-system/layouts/public-shell';
 import { templateCopy } from '../../i18n/templates';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { useIdentity } from '../identity/provider';
+import { CategoryLabel, TemplateCard, TemplateIllustration } from './template-card';
 import styles from './templates.module.css';
 
 const categories: TemplateCategory[] = ['GENERAL', 'BIRTHDAY', 'ANNIVERSARY', 'HOLIDAY'];
 
-function CategoryLabel({ category }: { category: TemplateCategory }) {
-  const { locale } = usePreferences();
-  return <span className={styles.category}>{templateCopy[locale].categories[category]}</span>;
-}
-
-function TemplateIllustration({ template, label, labelText }: { template: PublicTemplate; label: string; labelText: string }) {
-  const preset = template.publishedRevision.presets[0]?.id ?? 'classic';
-  return <div className={styles.illustration} data-layout={template.publishedRevision.layout.type} data-preset={preset} role="img" aria-label={label}>
-    <div className={styles.paper}>
-      <div className={styles.previewTop}><span /><span /><span /></div>
-      <div className={styles.previewBody}>
-        <div className={styles.previewHero}><span /><i /><i /></div>
-        <div className={styles.previewMonths} aria-hidden="true">{Array.from({ length: 12 }, (_, index) => <span key={index} />)}</div>
-      </div>
-    </div>
-    <span className={styles.illustrationBadge}>{labelText}</span>
-  </div>;
-}
-
-function TemplateCard({ template }: { template: PublicTemplate }) {
+function CatalogBreadcrumb({ name }: { name?: string }) {
   const { locale } = usePreferences();
   const copy = templateCopy[locale];
-  const revision = template.publishedRevision;
-  return <article className={styles.card}>
-    <Link className={styles.cardLink} href={`/templates/${encodeURIComponent(template.id)}`} aria-label={`${copy.open}: ${revision.name[locale]}`}>
-      <TemplateIllustration template={template} label={copy.illustration} labelText={copy.illustrationLabel} />
-      <div className={styles.cardContent}>
-        <CategoryLabel category={template.category} />
-        <h2>{revision.name[locale]}</h2>
-        <p>{revision.description[locale]}</p>
-        <dl className={styles.specs}>
-          <div><dt>{copy.layout}</dt><dd>{copy.layouts[revision.layout.type]}</dd></div>
-          <div><dt>{copy.presets}</dt><dd>{revision.presets.map(preset => preset.name[locale]).join(' · ')}</dd></div>
-        </dl>
-        <span className={styles.price}>{copy.price(revision.price.unitPriceMinor)}</span>
-        <span className={styles.cardAction}>{copy.open}<span aria-hidden="true"> ↗</span></span>
-      </div>
-    </Link>
-  </article>;
+  return <nav className={styles.crumbBand} aria-label={copy.breadcrumb}>
+    <div className={styles.container}>
+      <Link href="/">{copy.home}</Link><span aria-hidden="true">›</span>
+      {name ? <><Link href="/templates">{copy.catalog}</Link><span aria-hidden="true">›</span><span aria-current="page">{name}</span></> :
+        <span aria-current="page">{copy.catalog}</span>}
+    </div>
+  </nav>;
 }
 
 export function TemplateCatalogScreen() {
@@ -91,11 +63,16 @@ export function TemplateCatalogScreen() {
     setDraftQuery(''); setFilters({}); setCursors([null]);
   }
 
-  return <PublicShell><div className={styles.page}>
+  return <PublicShell fullWidth><div className={styles.surface}>
+    <CatalogBreadcrumb />
+    <div className={styles.container}>
+    <header className={styles.catalogHeading}>
     <p className={styles.eyebrow}>{copy.eyebrow}</p>
     <h1>{copy.title}</h1>
     <p className={styles.lead}>{copy.intro}</p>
-    <form className={styles.filters} onSubmit={submitSearch}>
+    </header>
+    <div className={styles.catalogLayout}>
+    <form className={styles.filters} onSubmit={submitSearch} aria-label={copy.filters}>
       <FormField label={copy.search} requirementLabel={locale === 'vi' ? 'không bắt buộc' : 'optional'} description={copy.searchHint}
         name="query" type="search" placeholder={copy.searchPlaceholder} value={draftQuery} onChange={event => setDraftQuery(event.target.value)} />
       <div className={styles.categoryFilter}>
@@ -107,7 +84,7 @@ export function TemplateCatalogScreen() {
       </div>
       <Button type="submit" variant="secondary">{copy.searchAction}</Button>
     </form>
-
+    <div>
     {initialLoading ? <div className={styles.state} role="status" aria-live="polite">{copy.loading}</div> : null}
     {initialError ? <section className={styles.state} role="alert"><h2>{copy.errorTitle}</h2><p>{copy.errorBody}</p><Button onClick={() => void first?.refetch()}>{copy.retry}</Button></section> : null}
     {!initialLoading && !initialError && data.length === 0 ? <section className={styles.state} aria-labelledby="empty-title">
@@ -124,6 +101,7 @@ export function TemplateCatalogScreen() {
         if (cursor && !last?.isFetching) setCursors(current => current.includes(cursor) ? current : [...current, cursor]);
       }}>{last?.isFetching ? copy.loadingMore : copy.loadMore}</Button></div>}
     </section>}
+    </div></div></div>
   </div></PublicShell>;
 }
 
@@ -146,8 +124,9 @@ export function TemplateDetailScreen({ id }: { id: string }) {
   }
   if (!template) return null;
   const revision = template.publishedRevision;
-  return <PublicShell><article className={styles.detail}>
-    <Link className={styles.back} href="/templates">← {copy.back}</Link>
+  return <PublicShell fullWidth><article className={styles.surface}>
+    <CatalogBreadcrumb name={revision.name[locale]} />
+    <div className={styles.container}>
     <div className={styles.detailGrid}>
       <TemplateIllustration template={template} label={copy.illustration} labelText={copy.illustrationLabel} />
       <div className={styles.detailContent}>
@@ -155,16 +134,8 @@ export function TemplateDetailScreen({ id }: { id: string }) {
         <CategoryLabel category={template.category} />
         <h1>{revision.name[locale]}</h1>
         <p className={styles.detailDescription}>{revision.description[locale]}</p>
-        <h2>{copy.detailTitle}</h2>
-        <dl className={styles.detailSpecs}>
-          <div><dt>{copy.layout}</dt><dd>{copy.layouts[revision.layout.type]}</dd></div>
-          <div><dt>{copy.months}</dt><dd>12</dd></div>
-          <div><dt>{copy.maxPhotos}</dt><dd>4</dd></div>
-          <div><dt>{copy.presets}</dt><dd>{revision.presets.map(preset => preset.name[locale]).join(' · ')}</dd></div>
-          <div><dt>{copy.category}</dt><dd><CategoryLabel category={template.category} /></dd></div>
-        </dl>
-        <p className={styles.detailPrice}>{copy.price(revision.price.unitPriceMinor)}</p>
         <div className={styles.handoff}>
+          <p className={styles.detailPrice}>{copy.price(revision.price.unitPriceMinor)}</p>
           <Link className={styles.ctaLink} href={state.phase === 'authenticated'
             ? `/account?templateId=${encodeURIComponent(template.id)}`
             : `/login?next=${encodeURIComponent(`/account?templateId=${template.id}`)}`}>
@@ -172,7 +143,15 @@ export function TemplateDetailScreen({ id }: { id: string }) {
           </Link>
           <p>{copy.handoffNote}</p>
         </div>
+        <h2>{copy.detailTitle}</h2>
+        <dl className={styles.detailSpecs}>
+          <div><dt>{copy.layout}</dt><dd>{copy.layouts[revision.layout.type]}</dd></div>
+          <div><dt>{copy.months}</dt><dd>{revision.layout.monthCount}</dd></div>
+          <div><dt>{copy.maxPhotos}</dt><dd>{revision.layout.maxImagesPerMonth}</dd></div>
+          <div><dt>{copy.presets}</dt><dd>{revision.presets.map(preset => preset.name[locale]).join(' · ')}</dd></div>
+          <div><dt>{copy.category}</dt><dd><CategoryLabel category={template.category} /></dd></div>
+        </dl>
       </div>
-    </div>
+    </div></div>
   </article></PublicShell>;
 }

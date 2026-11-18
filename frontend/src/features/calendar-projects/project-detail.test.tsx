@@ -6,7 +6,7 @@ import { PreferencesProvider } from '../../design-system/foundations/preferences
 import { IdentityProvider } from '../identity/provider';
 import { ProjectDetail } from './project-detail';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }), usePathname: () => `/projects/${id}` }));
 
 const id = '33333333-3333-4333-8333-333333333333';
 const stored = { id, title: 'Persisted title', year: 2027, recipientName: 'Grandma', status: 'WORKING', version: 3, stylePresetId: 'minimal',

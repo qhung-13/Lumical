@@ -1,7 +1,7 @@
 export const templateCopy = {
   en: {
     skip: 'Skip to main content', navigation: 'Main navigation', catalog: 'Template catalog', home: 'Home', footer: 'LumiCal · A calendar made from meaningful moments',
-    eyebrow: 'A starting point for your calendar', title: 'Find a design that feels like yours',
+    breadcrumb: 'Breadcrumb', filters: 'Filter designs', eyebrow: 'Choose a design to get started', title: 'Find a design that feels like yours',
     intro: 'Browse curated calendar designs and compare their layout, style choices and base price.',
     search: 'Search designs', searchHint: 'Search names and descriptions in Vietnamese or English', searchPlaceholder: 'Try “birthday” or “memories”', searchAction: 'Search',
     category: 'Category', allCategories: 'All categories', categories: { GENERAL: 'General', BIRTHDAY: 'Birthday', ANNIVERSARY: 'Anniversary', HOLIDAY: 'Holiday' },
@@ -23,7 +23,7 @@ export const templateCopy = {
   },
   vi: {
     skip: 'Chuyển đến nội dung chính', navigation: 'Điều hướng chính', catalog: 'Mẫu lịch', home: 'Trang chủ', footer: 'LumiCal · Lịch lưu giữ những khoảnh khắc ý nghĩa',
-    eyebrow: 'Bắt đầu tạo cuốn lịch của bạn', title: 'Tìm một thiết kế mang dấu ấn riêng',
+    breadcrumb: 'Đường dẫn', filters: 'Lọc mẫu lịch', eyebrow: 'Chọn mẫu để bắt đầu tùy chỉnh', title: 'Tìm một thiết kế mang dấu ấn riêng',
     intro: 'Khám phá các thiết kế lịch được tuyển chọn, so sánh bố cục, phong cách và giá cơ bản.',
     search: 'Tìm mẫu thiết kế', searchHint: 'Tìm theo tên và mô tả bằng tiếng Việt hoặc tiếng Anh', searchPlaceholder: 'Thử “sinh nhật” hoặc “kỷ niệm”', searchAction: 'Tìm kiếm',
     category: 'Danh mục', allCategories: 'Tất cả danh mục', categories: { GENERAL: 'Tổng hợp', BIRTHDAY: 'Sinh nhật', ANNIVERSARY: 'Kỷ niệm', HOLIDAY: 'Ngày lễ' },

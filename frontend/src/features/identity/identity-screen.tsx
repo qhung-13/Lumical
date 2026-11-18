@@ -14,6 +14,8 @@ import { Button } from '../../design-system/primitives/button';
 import { FormField } from '../../design-system/composites/form-field';
 import { safeReturnTo, safeTemplateId } from './safe-return';
 import { templateCopy } from '../../i18n/templates';
+import { LegacyBrand } from '../../design-system/layouts/legacy-brand';
+import legacy from '../../design-system/foundations/legacy-ui.module.css';
 
 export function IdentityScreen({ mode, returnTo = '/account', templateId }: { mode: 'register' | 'login' | 'account'; returnTo?: string; templateId?: string }) {
   const { manager, state } = useIdentity();
@@ -60,9 +62,18 @@ export function IdentityScreen({ mode, returnTo = '/account', templateId }: { mo
     finally { setPending(false); }
   }
   const heading = mode === 'register' ? copy.register : mode === 'login' ? copy.login : copy.account;
-  return <main className={styles.identity} data-theme={theme} lang={locale}>
+  return <main className={`${legacy.theme} ${styles.identity}`} data-theme={theme} lang={locale}>
+    <aside className={styles.story}>
+      <LegacyBrand inverse />
+      <div>
+        <p className={styles.kicker}>{heading}</p>
+        <p className={styles.storyTitle}>{mode === 'register' ? copy.registerStory : copy.loginStory}</p>
+        <p>{copy.storyIntro}</p>
+      </div>
+    </aside>
+    <div className={styles.formSide}><div className={styles.formContent}>
     <nav aria-label={locale === 'vi' ? 'Điều hướng tài khoản' : 'Account navigation'} className={styles.cluster}>
-      <Link href="/">{copy.home}</Link>
+      <Link href="/"><span aria-hidden="true">← </span>{copy.home}</Link>
       <PreferenceControls />
     </nav>
     <h1>{heading}</h1>
@@ -95,5 +106,6 @@ export function IdentityScreen({ mode, returnTo = '/account', templateId }: { mo
       </fieldset>
       <p><Link href={`${mode === 'register' ? '/login' : '/register'}${authReturnParam}`}>{mode === 'register' ? copy.login : copy.register}</Link></p>
     </form>)}
+    </div></div>
   </main>;
 }

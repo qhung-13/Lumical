@@ -6,6 +6,10 @@ export type ProjectMonths = operations['getProjectMonths']['responses'][200]['co
 export type ProjectCreate = operations['createProject']['requestBody']['content']['application/json'];
 export type MonthPatch = operations['replaceProjectMonth']['requestBody']['content']['application/json'];
 export type MonthRevision = operations['replaceProjectMonth']['responses'][200]['content']['application/json']['data'];
+export type SpecialDateWrite = operations['createProjectSpecialDate']['requestBody']['content']['application/json'];
+export type SpecialDate = operations['listProjectSpecialDates']['responses'][200]['content']['application/json']['data']['events'][number];
+export type SpecialDatesRevision = operations['listProjectSpecialDates']['responses'][200]['content']['application/json']['data'];
+export type SpecialDateRevision = operations['createProjectSpecialDate']['responses'][201]['content']['application/json']['data'];
 export type ProjectPage = operations['listProjects']['responses'][200]['content']['application/json'];
 export type ProjectListQuery = NonNullable<operations['listProjects']['parameters']['query']>;
 
@@ -22,6 +26,14 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function validCivilDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  return day <= [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+}
 function validProject(value: unknown, detail = false): value is Project | ProjectDetail {
   const data = record(value);
   const baseline = record(data.baseline);
@@ -49,6 +61,30 @@ function parsePage(value: unknown): ProjectPage {
     throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
   }
   return { data: page.data, meta: { nextCursor: meta.nextCursor, hasMore: meta.hasMore } };
+}
+function parseSpecialDate(value: unknown): SpecialDate {
+  const date = record(value);
+  if (typeof date.id !== 'string' || !uuid.test(date.id) || typeof date.date !== 'string' ||
+      !validCivilDate(date.date) || typeof date.title !== 'string' ||
+      !(date.note === undefined || date.note === null || typeof date.note === 'string')) {
+    throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  }
+  return date as unknown as SpecialDate;
+}
+function parseSpecialDates(value: unknown): SpecialDatesRevision {
+  const data = record(record(value).data);
+  if (typeof data.projectVersion !== 'number' || !Number.isSafeInteger(data.projectVersion) || data.projectVersion < 1 || !Array.isArray(data.events)) {
+    throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  }
+  return { projectVersion: data.projectVersion, events: data.events.map(parseSpecialDate) };
+}
+function parseSpecialDateRevision(value: unknown): SpecialDateRevision {
+  const data = record(record(value).data);
+  const event = parseSpecialDate(data);
+  if (typeof data.projectVersion !== 'number' || !Number.isSafeInteger(data.projectVersion) || data.projectVersion < 1) {
+    throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  }
+  return { ...event, projectVersion: data.projectVersion } as SpecialDateRevision;
 }
 function parseError(value: unknown, status: number): ProjectApiError {
   let code = status === 401 ? 'UNAUTHENTICATED' : status === 403 ? 'FORBIDDEN' : status === 404 ? 'NOT_FOUND' :
@@ -131,6 +167,14 @@ export function projectApi(options: ProjectApiOptions) {
             })) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
         return data as unknown as MonthRevision;
       }, undefined, body, undefined, version),
+    specialDates: (id: string, signal?: AbortSignal) => request(
+      `/projects/${encodeURIComponent(id)}/special-dates`, 'GET', parseSpecialDates, signal),
+    createSpecialDate: (id: string, body: SpecialDateWrite, key: string, version: number) => request(
+      `/projects/${encodeURIComponent(id)}/special-dates`, 'POST', parseSpecialDateRevision, undefined, body, key, version),
+    updateSpecialDate: (id: string, eventId: string, body: SpecialDateWrite, version: number) => request(
+      `/projects/${encodeURIComponent(id)}/special-dates/${encodeURIComponent(eventId)}`, 'PUT', parseSpecialDateRevision, undefined, body, undefined, version),
+    deleteSpecialDate: (id: string, eventId: string, version: number) => request(
+      `/projects/${encodeURIComponent(id)}/special-dates/${encodeURIComponent(eventId)}`, 'DELETE', () => undefined, undefined, undefined, undefined, version),
     create: (body: ProjectCreate, key: string) => request('/projects', 'POST', value => parseProject(value) as Project, undefined, body, key),
     archive: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}/archive`, 'POST', value => parseProject(value) as Project, undefined, undefined, undefined, version),
     restore: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}/restore`, 'POST', value => parseProject(value) as Project, undefined, undefined, undefined, version),
@@ -144,6 +188,7 @@ export const projectKeys = {
   list: (actorId: string, query: ProjectListQuery = {}) => [...projectKeys.lists(actorId), query.state ?? null, query.cursor ?? null, query.limit ?? null] as const,
   detail: (actorId: string, id: string) => [...projectKeys.all(actorId), 'detail', id] as const,
   months: (actorId: string, id: string) => [...projectKeys.all(actorId), 'months', id] as const,
+  specialDates: (actorId: string, id: string) => [...projectKeys.all(actorId), 'special-dates', id] as const,
 };
 const retryTransient = (count: number, error: Error) => error instanceof ProjectApiError && error.status >= 500 && count < 2;
 export function projectListOptions(actorId: string, query: ProjectListQuery, api: ProjectApi, enabled = true) {
@@ -154,4 +199,7 @@ export function projectDetailOptions(actorId: string, id: string, api: ProjectAp
 }
 export function projectMonthsOptions(actorId: string, id: string, api: ProjectApi) {
   return { queryKey: projectKeys.months(actorId, id), queryFn: ({ signal }: { signal: AbortSignal }) => api.months(id, signal), staleTime: 15_000, retry: retryTransient } as const;
+}
+export function projectSpecialDatesOptions(actorId: string, id: string, api: ProjectApi) {
+  return { queryKey: projectKeys.specialDates(actorId, id), queryFn: ({ signal }: { signal: AbortSignal }) => api.specialDates(id, signal), staleTime: 15_000, retry: retryTransient } as const;
 }

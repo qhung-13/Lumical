@@ -287,6 +287,15 @@ export class ProjectOwnerService {
     });
   }
 
+  async arConfig(id: string, browser: ProjectBrowserContext) {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      return { config: await this.repository.arConfig(project, context), projectVersion: project.version };
+    });
+  }
+
   async createSpecialDate(
     id: string, input: unknown, etag: string | undefined, key: string | undefined, browser: ProjectBrowserContext,
   ) {

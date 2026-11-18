@@ -12,6 +12,20 @@ export type SpecialDatesRevision = operations['listProjectSpecialDates']['respon
 export type SpecialDateRevision = operations['createProjectSpecialDate']['responses'][201]['content']['application/json']['data'];
 export type ProjectPage = operations['listProjects']['responses'][200]['content']['application/json'];
 export type ProjectListQuery = NonNullable<operations['listProjects']['parameters']['query']>;
+export type ARWrite = operations['writeProjectAR']['requestBody']['content']['application/json'];
+export type ARRevision = operations['getProjectAR']['responses'][200]['content']['application/json']['data'];
+
+function parseAR(value: unknown): ARRevision {
+  const data = record(record(value).data);
+  if (!Number.isSafeInteger(data.projectVersion) || Number(data.projectVersion) < 1) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  if (data.config !== null) {
+    const config = record(data.config);
+    if (!Number.isInteger(config.monthNumber) || Number(config.monthNumber) < 1 || Number(config.monthNumber) > 12 ||
+        typeof config.revealAssetId !== 'string' || !uuid.test(config.revealAssetId) || typeof config.readableText !== 'string' ||
+        !['NOT_CONFIGURED', 'PREPARING', 'READY', 'UNAVAILABLE'].includes(String(config.status))) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  }
+  return data as unknown as ARRevision;
+}
 
 export class ProjectApiError extends Error {
   constructor(readonly code: string, readonly status: number, readonly requestId?: string,
@@ -141,6 +155,15 @@ export function projectApi(options: ProjectApiOptions) {
     catch (error) { if (error instanceof ProjectApiError) throw error; throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502); }
   }
   return {
+    ar: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/ar`, 'GET', parseAR, signal),
+    saveAR: (id: string, body: ARWrite, key: string, version: number) => request(`/projects/${encodeURIComponent(id)}/ar`, 'PUT', value => {
+      const data = record(record(value).data);
+      if (data.status !== 'PREPARING') throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+      return parseAR({ data: { projectVersion: data.projectVersion, config: {
+        monthNumber: data.monthNumber, revealAssetId: data.revealAssetId, readableText: data.readableText, status: data.status,
+      } } });
+    }, undefined, body, key, version),
+    deleteAR: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}/ar`, 'DELETE', () => undefined, undefined, undefined, undefined, version),
     list: (query: ProjectListQuery = {}, signal?: AbortSignal) => {
       const params = new URLSearchParams();
       if (query.state) params.set('state', query.state);
@@ -189,6 +212,7 @@ export const projectKeys = {
   detail: (actorId: string, id: string) => [...projectKeys.all(actorId), 'detail', id] as const,
   months: (actorId: string, id: string) => [...projectKeys.all(actorId), 'months', id] as const,
   specialDates: (actorId: string, id: string) => [...projectKeys.all(actorId), 'special-dates', id] as const,
+  ar: (actorId: string, id: string) => [...projectKeys.all(actorId), 'ar', id] as const,
 };
 const retryTransient = (count: number, error: Error) => error instanceof ProjectApiError && error.status >= 500 && count < 2;
 export function projectListOptions(actorId: string, query: ProjectListQuery, api: ProjectApi, enabled = true) {

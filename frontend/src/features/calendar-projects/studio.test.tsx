@@ -35,6 +35,7 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
   const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    if (url.endsWith(`/projects/${projectId}/ar`) && method === 'GET') return json({ data: { config: null, projectVersion: currentVersion } });
     if (url.endsWith('/auth/session')) return json({ data: { authenticated: true,
       principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
     if (/\/media\/[a-f0-9-]+$/.test(url) && imageIds.includes(url.split('/').at(-1)!)) {
@@ -162,6 +163,7 @@ describe('guided Studio shell', () => {
     const pendingMonths = Promise.withResolvers<Response>();
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async input => {
       const url = String(input);
+      if (url.endsWith(`/projects/${projectId}/ar`)) return json({ data: { config: null, projectVersion: 3 } });
       if (url.endsWith('/auth/session')) return json({ data: { authenticated: true,
         principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
       if (url.endsWith(`/projects/${projectId}/special-dates`)) return json({ data: { events: [], projectVersion: 3 } });

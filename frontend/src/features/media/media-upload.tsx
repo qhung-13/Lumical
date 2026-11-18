@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { MediaApiError, ProviderUploadError, mediaApi, type MediaApi, type MediaCategory, type OwnedMedia, type UploadCreate, type UploadIntent } from '../../api/media';
 import { Button } from '../../design-system/primitives/button';
 import { FileField } from '../../design-system/composites/file-field';
@@ -48,14 +48,22 @@ export function StudioImageUpload({ onReady }: { onReady: (media: OwnedMedia) =>
   return <MediaUploadExperience key={`${actor.id}:${manager.requestEpoch()}`} inline onReady={onReady} />;
 }
 
-function MediaUploadExperience({ inline = false, onReady }: { inline?: boolean; onReady?: (media: OwnedMedia) => void }) {
+export function StudioRevealUpload({ onReady }: { onReady: (media: OwnedMedia) => void }) {
+  const { manager, state } = useIdentity();
+  const actor = state.principal ?? state.unverifiedPrincipal;
+  if (!actor) return null;
+  return <MediaUploadExperience key={`${actor.id}:${manager.requestEpoch()}`} inline reveal onReady={onReady} />;
+}
+
+function MediaUploadExperience({ inline = false, reveal = false, onReady }: { inline?: boolean; reveal?: boolean; onReady?: (media: OwnedMedia) => void }) {
+  const formId = useId();
   const { manager, state } = useIdentity();
   const { locale } = usePreferences();
   const copy = mediaCopy[locale];
   const sessionCopy = identityCopy[locale];
   const api = useMemo(() => mediaApi({ csrf: manager.csrfToken, epoch: manager.requestEpoch,
     unauthorized: manager.invalidate }), [manager]);
-  const [category, setCategory] = useState<MediaCategory | ''>(inline ? 'IMAGE' : '');
+  const [category, setCategory] = useState<MediaCategory | ''>(inline && !reveal ? 'IMAGE' : '');
   const [file, setFile] = useState<File | null>(null);
   const [duration, setDuration] = useState<number>();
   const [fileError, setFileError] = useState<string>();
@@ -278,13 +286,13 @@ function MediaUploadExperience({ inline = false, onReady }: { inline?: boolean; 
   }).format(waitSeconds >= 60 ? Math.ceil(waitSeconds / 60) : waitSeconds) : undefined;
   const statusText = job?.status?.status === 'READY' ? copy.statusReady : job?.status?.status === 'UNAVAILABLE' ? copy.statusUnavailable : copy.statusPending;
 
-  const panel = <section className={styles.panel} aria-labelledby="media-upload-heading">
-      <h2 id="media-upload-heading">{copy.fileName}</h2>
+  const panel = <section className={styles.panel} aria-labelledby={`${formId}-heading`}>
+      <h2 id={`${formId}-heading`}>{reveal ? (locale === 'vi' ? 'Tải nội dung AR' : 'Upload AR reveal') : copy.fileName}</h2>
       {state.phase === 'unavailable' && <p className={styles.status} role="status">{sessionCopy.unavailable}
         <Button variant="secondary" onClick={() => void manager.bootstrap()}>{sessionCopy.retry}</Button></p>}
-      {!inline && <div className={styles.field}>
-        <label htmlFor="media-category">{copy.category}</label>
-        <select id="media-category" value={category} disabled={Boolean(job)} onChange={event => selectCategory(event.target.value)}>
+      {(!inline || reveal) && <div className={styles.field}>
+        <label htmlFor={`${formId}-category`}>{copy.category}</label>
+        <select id={`${formId}-category`} value={category} disabled={Boolean(job)} onChange={event => selectCategory(event.target.value)}>
           <option value="">{copy.chooseCategory}</option>
           <option value="IMAGE">{copy.image}</option><option value="VIDEO">{copy.video}</option><option value="AUDIO">{copy.audio}</option>
         </select>
@@ -302,7 +310,7 @@ function MediaUploadExperience({ inline = false, onReady }: { inline?: boolean; 
       {busyPhase && <p className={styles.status} role="status">{job.phase === 'INITIATING' ? copy.initiating : job.phase === 'UPLOADING' ? copy.transfer : copy.finalizing}</p>}
       {job && job.phase !== 'READY' && job.phase !== 'UNAVAILABLE' && <p className={styles.note}>{copy.working}</p>}
       {job?.phase === 'READY' ? inline && onReady && job.status ? <div className={styles.actions}>
-        <Button variant="primary" onClick={() => { onReady(job.status!); chooseAnother(); }}>{copy.addToMonth}</Button>
+        <Button variant="primary" onClick={() => { onReady(job.status!); chooseAnother(); }}>{reveal ? (locale === 'vi' ? 'Dùng cho nội dung AR' : 'Use for AR reveal') : copy.addToMonth}</Button>
         <Button variant="secondary" onClick={chooseAnother}>{copy.another}</Button>
       </div> : <Button variant="primary" onClick={chooseAnother}>{copy.another}</Button> : job?.phase === 'EXPIRED' ? <div className={styles.actions}>
         <Button variant="primary" disabled={!state.mutationReady || coolingDown} onClick={restartExpiredIntent}>{copy.restart}</Button><Button variant="secondary" onClick={chooseAnother}>{copy.chooseAnother}</Button>

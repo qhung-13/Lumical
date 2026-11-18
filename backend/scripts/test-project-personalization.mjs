@@ -545,6 +545,9 @@ await withDisposablePostgres(async ({ url }) => {
       'AR revision handoff and idempotency commit together, replacement/removal preserves history',
       async () => {
         const key = randomUUID();
+        assert.deepEqual((await send('get', ar, owner).expect(200).expect('ETag', tags(9))).body,
+          { data: { config: null, projectVersion: 9 } });
+        await send('get', ar, other).expect(404);
         await send('put', ar, owner, 9, randomUUID())
           .send({ ...reveal, revealAssetId: foreignAsset })
           .expect(404);
@@ -558,6 +561,9 @@ await withDisposablePostgres(async ({ url }) => {
         assert.deepEqual(saved.body, {
           data: { ...reveal, status: 'PREPARING', projectVersion: 10 },
         });
+        assert.deepEqual((await send('get', ar, owner).expect(200)).body,
+          { data: { config: { ...reveal, status: 'PREPARING' }, projectVersion: 10 } });
+        await send('put', ar, owner, 9, randomUUID()).send(reveal).expect(412);
         const replaced = {
           ...reveal,
           revealAssetId: video,
@@ -589,6 +595,8 @@ await withDisposablePostgres(async ({ url }) => {
         await send('delete', ar, owner, 11)
           .expect(204)
           .expect('ETag', tags(12));
+        assert.deepEqual((await send('get', ar, owner).expect(200)).body,
+          { data: { config: null, projectVersion: 12 } });
         assert.equal(
           (
             await db.query(

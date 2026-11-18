@@ -285,6 +285,15 @@ export class PrismaProjectRepository extends ProjectRepository {
     return { resourceId: config.id, projectVersion };
   }
 
+  async arConfig(project: ProjectRecord, context: TransactionContext) {
+    const row = await this.client(context).projectARExperience.findUnique({
+      where: { projectId_ownerId: { projectId: project.id, ownerId: project.ownerId } },
+      select: { monthNumber: true, revealAssetId: true, readableText: true, preparationStatus: true },
+    });
+    return row ? { monthNumber: row.monthNumber, revealAssetId: row.revealAssetId,
+      readableText: row.readableText, status: row.preparationStatus } : null;
+  }
+
   private async cancelARPreparation(client: Prisma.TransactionClient, projectId: string, now?: Date) {
     await client.jobRecord.updateMany({
       where: { kind: 'AR_PREPARE', objectId: projectId, condition: 'PENDING' },

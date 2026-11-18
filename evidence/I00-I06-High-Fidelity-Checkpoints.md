@@ -41,11 +41,11 @@
 
 The isolated snapshot was exported from `dev` commit `9d7a127` and used the same installed locked dependencies and unchanged backend output. `node backend/scripts/test-template-admin.mjs` ran with `LUMICAL_I04_LIVE_UI=1`, Chromium, and a test-owned NestJS/PostgreSQL fixture. The baseline passed the Admin browser journey and 13 backend groups. The first migrated run stopped in Next.js startup and Playwright could not reach the server. The retry passed the real Home-to-detail journey, the full Admin browser journey, and all 13 backend groups. The prior detail-URL timeout did not recur in either completed run. Both fixture runs cleaned up their test database.
 
-[Baseline log](../../ui-evidence/high-fidelity/admin-dev-baseline.log) · [Startup interruption](../../ui-evidence/high-fidelity/admin-migration.log) · [Migrated retry](../../ui-evidence/high-fidelity/admin-migration-retry.log)
+[Baseline log](../.cache/ui-evidence/high-fidelity/admin-dev-baseline.log) · [Startup interruption](../.cache/ui-evidence/high-fidelity/admin-migration.log) · [Migrated retry](../.cache/ui-evidence/high-fidelity/admin-migration-retry.log)
 
 ## Visual evidence
 
-[Open the side-by-side screenshot index](../../ui-evidence/high-fidelity/compare.html). Its 192 V2 captures cover twelve surfaces at 1440, 768, 375, and 320 CSS px in VI/EN and light/dark. The index pairs Home, Catalog, and Detail with 48 public legacy captures. Home also includes the previous V2 layout and a [one-design fixture](../../ui-evidence/high-fidelity/after/home-single-vi-light-1440.png). Capture filenames and access results are recorded in the local JSON manifests.
+[Open the side-by-side screenshot index](../.cache/ui-evidence/high-fidelity/compare.html). Its 192 V2 captures cover twelve surfaces at 1440, 768, 375, and 320 CSS px in VI/EN and light/dark. The index pairs Home, Catalog, and Detail with 48 public legacy captures. Home also includes the previous V2 layout and a [one-design fixture](../.cache/ui-evidence/high-fidelity/after/home-single-vi-light-1440.png). Capture filenames and access results are recorded in the local JSON manifests.
 
 V2 screenshots use synthetic cases for guest, owner and Admin states. The deployed legacy screenshots show its published public content. The actual real-API availability and write behaviors were checked separately with disposable PostgreSQL. The [deployed legacy website](https://lichthietkelumical.com/) supplied the public visual comparison.
 
@@ -65,7 +65,7 @@ V2 screenshots use synthetic cases for guest, owner and Admin states. The deploy
 
 The contract and live harness used a local Node loader to suppress the machine's Console Ninja injection in NestJS. The screenshot run checked horizontal reflow and axe at 320px for every standard language and theme combination. The production build used the repository's locked Node dependencies.
 
-`git diff --check` passed, and `git apply --check --whitespace=error` passed for the [source diff](../../ui-evidence/high-fidelity/i00-i06.patch) from the verified `dev` checkout. The legacy folder is excluded from Git and Docker and was absent from Next.js build traces. The feature worktree has an empty Git index. The backend, generated frontend types, I07 implementation, and approved authority documents are identical to the base commit.
+`git diff --check` passed, and `git apply --check --whitespace=error` passed for the [source diff](../.cache/ui-evidence/high-fidelity/i00-i06.patch) from the verified `dev` checkout. The legacy folder is excluded from Git and Docker and was absent from Next.js build traces. The feature worktree has an empty Git index. The backend, generated frontend types, I07 implementation, and approved authority documents are identical to the base commit.
 
 ## Image provenance
 

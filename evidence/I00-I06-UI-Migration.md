@@ -101,13 +101,13 @@ The built-in image generation tool produced the synthetic hero image using the f
 
 | View | Desktop | Mobile |
 | --- | --- | --- |
-| Deployed reference Home | [1440px](../../ui-evidence/reference-1440.png) | [375px](../../ui-evidence/reference-375.png) |
-| Verified V2 `dev` before the migration | [1440px](../../ui-evidence/before-1440.png) | [375px](../../ui-evidence/before-375.png) |
-| Product Home, EN/Light, synthetic test design response | [1440px](../../ui-evidence/home-en-light-1440.png) | [375px](../../ui-evidence/home-en-light-375.png) |
-| Product Home, VI/Dark, synthetic test design response | [1440px](../../ui-evidence/home-vi-dark-1440.png) | [375px](../../ui-evidence/home-vi-dark-375.png) |
-| Product Home, real API with disposable PostgreSQL fixtures | [1440px](../../ui-evidence/home-live-1440.png) | — |
+| Deployed reference Home | [1440px](../.cache/ui-evidence/reference-1440.png) | [375px](../.cache/ui-evidence/reference-375.png) |
+| Verified V2 `dev` before the migration | [1440px](../.cache/ui-evidence/before-1440.png) | [375px](../.cache/ui-evidence/before-375.png) |
+| Product Home, EN/Light, synthetic test design response | [1440px](../.cache/ui-evidence/home-en-light-1440.png) | [375px](../.cache/ui-evidence/home-en-light-375.png) |
+| Product Home, VI/Dark, synthetic test design response | [1440px](../.cache/ui-evidence/home-vi-dark-1440.png) | [375px](../.cache/ui-evidence/home-vi-dark-375.png) |
+| Product Home, real API with disposable PostgreSQL fixtures | [1440px](../.cache/ui-evidence/home-live-1440.png) | — |
 
-The screenshot capture waits for the deployed reference's entry opacity and the local font render. The Product Home images were visually reviewed alongside the source and before screenshots. The browser suite also checks 320px, 600px, 768px, 960px and 1280px. Screenshots and the [binary-capable source diff](../../ui-evidence/batch-1.patch) are local review artifacts outside the feature worktree.
+The screenshot capture waits for the deployed reference's entry opacity and the local font render. The Product Home images were visually reviewed alongside the source and before screenshots. The browser suite also checks 320px, 600px, 768px, 960px and 1280px. Screenshots and the [binary-capable source diff](../.cache/ui-evidence/batch-1.patch) are local review artifacts outside the feature worktree.
 
 ## Validation
 

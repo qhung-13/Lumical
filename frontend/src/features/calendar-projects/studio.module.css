@@ -30,6 +30,10 @@
 .paper > header span { color: var(--color-text-secondary); }
 .paper > header strong { font: 700 clamp(1.4rem, 3vw, 2rem)/1.15 var(--font-heading); }
 .paper > header small { color: var(--color-text-muted); font-size: var(--type-body-sm); }
+.previewImages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.previewImages[data-layout="PHOTO_FOCUS"] img:first-child { grid-column: 1 / -1; aspect-ratio: 2 / 1; }
+.previewImages img { width: 100%; max-height: 180px; aspect-ratio: 1 / 1; border-radius: var(--radius-control); object-fit: contain; background: var(--color-surface-subtle); }
+.imagePlaceholder, .previewEmpty { display: grid; min-height: 3rem; place-items: center; padding: var(--space-2); color: var(--color-text-secondary); background: var(--color-surface-subtle); text-align: center; }
 .calendar { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: center; }
 .calendar caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .calendar th { color: var(--color-text-secondary); font-size: var(--type-caption); }
@@ -42,6 +46,30 @@
 .inspector dl > div { min-width: 0; }
 .inspector dt { color: var(--color-text-muted); font-size: var(--type-body-sm); }
 .inspector dd { margin: 0; overflow-wrap: anywhere; }
+.editorField { display: grid; gap: var(--space-2); margin-block-end: var(--space-5); }
+.editorField label, .imageItem label { font-weight: 600; }
+.editorField label span { color: var(--color-text-muted); font-weight: 400; }
+.captionInput, .textInput { width: 100%; min-height: var(--control-md); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); padding: var(--space-3); background: var(--color-surface); color: var(--color-text-primary); font: inherit; }
+.captionInput { min-height: 7rem; resize: vertical; }
+.captionInput:focus-visible, .textInput:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.fieldHelp { margin: 0; color: var(--color-text-secondary); font-size: var(--type-body-sm); }
+.fieldError, .editorError { color: var(--color-text-primary); background: var(--color-danger-bg); }
+.fieldError { margin: 0; font-size: var(--type-body-sm); }
+.editorNotice, .editorError { margin-block: var(--space-3); padding: var(--space-3); border-radius: var(--radius-control); }
+.editorNotice { color: var(--color-text-primary); background: var(--color-info-bg); }
+.editorImages { display: grid; gap: var(--space-3); }
+.editorImages h3 { margin: 0; font: 700 var(--type-label)/var(--type-label-line) var(--font-body); }
+.imageList { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.imageItem, .availableImage { display: grid; min-width: 0; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface-raised); }
+.imageItem > img, .availableImage > img { width: 100%; max-height: 180px; aspect-ratio: 4 / 3; border-radius: var(--radius-control); object-fit: contain; background: var(--color-surface-subtle); }
+.imageStatus { color: var(--color-text-secondary); font-size: var(--type-body-sm); }
+.imageActions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.availableImage { grid-template-columns: minmax(48px, 72px) minmax(0, 1fr); align-items: center; }
+.availableImage > img { grid-row: span 2; width: 72px; height: 56px; }
+.availableImage > span { overflow-wrap: anywhere; }
+.projectDetails { margin-block-start: var(--space-5); border-block-start: 1px solid var(--color-border); padding-block-start: var(--space-3); }
+.projectDetails summary { min-height: var(--control-md); font-weight: 600; cursor: pointer; }
+.projectDetails dl { margin-block-start: var(--space-3); }
 .archived, .versionWarning, .message { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-block: 0 var(--space-5); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
 .archived { border-inline-start: 4px solid var(--color-warning); }
 .versionWarning { border-inline-start: 4px solid var(--color-danger); }

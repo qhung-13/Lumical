@@ -1,4 +1,6 @@
 .page { width: min(100%, 65rem); margin-inline: auto; padding-block: 0 2.5rem; }
+.inline { min-width: 0; margin-block-start: var(--space-4); }
+.inline .panel { border-radius: var(--radius-large); }
 .back { margin-block-end: 1rem; }
 .back a { display: inline-flex; align-items: center; gap: .35rem; min-height: 2.75rem; font-weight: 600; }
 .uploadLayout { display: grid; align-items: start; gap: 1rem; }

@@ -60,6 +60,27 @@ describe('Project HTTP API and private query contract', () => {
     expect(fetcher.mock.calls[1][1]).toMatchObject({ method: 'POST', headers: expect.objectContaining({ 'If-Match': '"3"', 'X-CSRF-Token': 'csrf-test' }) });
     expect(fetcher.mock.calls[2][1]).toMatchObject({ method: 'DELETE', headers: expect.objectContaining({ 'If-Match': '"3"', 'X-CSRF-Token': 'csrf-test' }), body: '{"confirmed":true}' });
   });
+  it('replaces a Month with only approved fields and the current Project version', async () => {
+    const image = { assetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', altText: 'Family portrait', crop: null };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: {
+      monthNumber: 4, caption: 'A spring memory', images: [image], projectVersion: 5,
+    } }));
+    const api = projectApi({ csrf: () => 'csrf-test', fetcher });
+    const body = { caption: 'A spring memory', images: [image] } satisfies import('./projects').MonthPatch;
+    expect(await api.updateMonth(project.id, 4, body, 4)).toEqual({
+      monthNumber: 4, caption: 'A spring memory', images: [image], projectVersion: 5,
+    });
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/projects/${project.id}/months/4`);
+    expect(fetcher.mock.calls[0][1]).toMatchObject({ method: 'PUT', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'X-CSRF-Token': 'csrf-test', 'If-Match': '"4"', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body) });
+  });
+  it('keeps the backend version conflict code for stale Month writes', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ error: { code: 'VERSION_CONFLICT' } }, 412));
+    const api = projectApi({ csrf: () => 'csrf-test', fetcher });
+    await expect(api.updateMonth(project.id, 1, { caption: null, images: [] }, 2))
+      .rejects.toMatchObject({ code: 'VERSION_CONFLICT', status: 412 });
+  });
   it('maps safe error envelope and field errors; malformed DTOs never expose server content', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ error: { code: 'VALIDATION_FAILED', requestId: 'req-1', retryable: false,
       fieldErrors: [{ path: 'recipientName', code: 'OUT_OF_RANGE', messageKey: 'validation.projectRecipient' }] } }, 422))

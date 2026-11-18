@@ -4,6 +4,8 @@ export type Project = operations['createProject']['responses'][201]['content']['
 export type ProjectDetail = operations['getProject']['responses'][200]['content']['application/json']['data'];
 export type ProjectMonths = operations['getProjectMonths']['responses'][200]['content']['application/json']['data'];
 export type ProjectCreate = operations['createProject']['requestBody']['content']['application/json'];
+export type MonthPatch = operations['replaceProjectMonth']['requestBody']['content']['application/json'];
+export type MonthRevision = operations['replaceProjectMonth']['responses'][200]['content']['application/json']['data'];
 export type ProjectPage = operations['listProjects']['responses'][200]['content']['application/json'];
 export type ProjectListQuery = NonNullable<operations['listProjects']['parameters']['query']>;
 
@@ -71,23 +73,22 @@ function parseError(value: unknown, status: number): ProjectApiError {
 export interface ProjectApiOptions { csrf: () => string | undefined; fetcher?: typeof fetch; epoch?: () => number; unauthorized?: () => Promise<void> }
 export function projectApi(options: ProjectApiOptions) {
   const fetcher = options.fetcher ?? fetch;
-  async function request<T>(path: string, method: 'GET' | 'POST' | 'DELETE', decode: (value: unknown) => T,
+  async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', decode: (value: unknown) => T,
     signal?: AbortSignal, body?: unknown, key?: string, version?: number): Promise<T> {
     const epoch = options.epoch?.();
     const headers: Record<string, string> = { Accept: 'application/json' };
-    if (body) headers['Content-Type'] = 'application/json';
     if (method !== 'GET') {
       const csrf = options.csrf();
       if (csrf) headers['X-CSRF-Token'] = csrf;
       if (key) headers['Idempotency-Key'] = key;
       if (version !== undefined) headers['If-Match'] = `"${version}"`;
-      if (body) headers['Content-Type'] = 'application/json';
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
     }
     let response: Response;
     try {
       response = await fetcher(`/api/v1${path}`, { method, credentials: 'same-origin', cache: 'no-store', redirect: 'error', headers,
         ...(signal ? { signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]) } : { signal: AbortSignal.timeout(15000) }),
-        ...(body ? { body: JSON.stringify(body) } : {}) });
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     } catch (error) {
       if ((error as { name?: string })?.name === 'AbortError') throw error;
       throw new ProjectApiError('PROVIDER_UNAVAILABLE', 503, undefined, [], true);
@@ -119,6 +120,17 @@ export function projectApi(options: ProjectApiOptions) {
       if (months.some((month, index) => month.monthNumber !== index + 1 || !(month.caption === null || typeof month.caption === 'string'))) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
       return data as unknown as ProjectMonths;
     }, signal),
+    updateMonth: (id: string, number: number, body: MonthPatch, version: number) => request(
+      `/projects/${encodeURIComponent(id)}/months/${number}`, 'PUT', value => {
+        const data = record(record(value).data);
+        if (data.monthNumber !== number || !(data.caption === null || typeof data.caption === 'string') ||
+            typeof data.projectVersion !== 'number' || !Number.isSafeInteger(data.projectVersion) || data.projectVersion < 1 ||
+            !Array.isArray(data.images) || data.images.length > 4 || data.images.some(item => {
+              const image = record(item);
+              return typeof image.assetId !== 'string' || !uuid.test(image.assetId) || typeof image.altText !== 'string' || image.crop !== null;
+            })) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+        return data as unknown as MonthRevision;
+      }, undefined, body, undefined, version),
     create: (body: ProjectCreate, key: string) => request('/projects', 'POST', value => parseProject(value) as Project, undefined, body, key),
     archive: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}/archive`, 'POST', value => parseProject(value) as Project, undefined, undefined, undefined, version),
     restore: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}/restore`, 'POST', value => parseProject(value) as Project, undefined, undefined, undefined, version),

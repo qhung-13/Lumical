@@ -17,10 +17,14 @@ describe('Project HTTP API and private query contract', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const api = projectApi({ csrf: () => 'csrf', fetcher });
     expect(await api.ar(project.id)).toMatchObject({ config: { ...body, status: 'UNAVAILABLE' }, projectVersion: 5 });
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/projects/${project.id}/ar/config`);
+    expect(fetcher.mock.calls[0][1]?.method).toBe('GET');
     expect(await api.saveAR(project.id, body, 'stable-ar-intent', 5)).toMatchObject({ config: { ...body, status: 'PREPARING' }, projectVersion: 6 });
     const headers = new Headers(fetcher.mock.calls[1][1]?.headers);
     expect(headers.get('If-Match')).toBe('"5"'); expect(headers.get('Idempotency-Key')).toBe('stable-ar-intent'); expect(headers.get('X-CSRF-Token')).toBe('csrf');
     await api.deleteAR(project.id, 6);
+    expect(fetcher.mock.calls[1][0]).toBe(`/api/v1/projects/${project.id}/ar`);
+    expect(fetcher.mock.calls[2][0]).toBe(`/api/v1/projects/${project.id}/ar`);
     expect(new Headers(fetcher.mock.calls[2][1]?.headers).get('If-Match')).toBe('"6"');
   });
   it.each([{ monthNumber: 13 }, { revealAssetId: 'foreign-url' }, { status: 'FAKE_READY' }])('rejects malformed AR responses %j', async patch => {

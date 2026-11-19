@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,6 +95,35 @@ describe('one owner AR reveal authoring', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save AR reveal' }));
     await waitFor(() => expect(app.saveAR).toHaveBeenCalledTimes(2));
     expect(app.saveAR.mock.calls[1]).toEqual(app.saveAR.mock.calls[0]);
+  });
+  it('shows the refreshed saved Month, media and text after 412 while preserving all draft fields for explicit review', async () => {
+    const app = setup(); await draft();
+    fireEvent.change(screen.getByLabelText('Reveal Month'), { target: { value: '2' } });
+    const remoteAsset = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const refreshed = Promise.withResolvers<ARRevision>();
+    app.ar.mockImplementation(() => refreshed.promise);
+    app.saveAR.mockRejectedValueOnce(new ProjectApiError('VERSION_CONFLICT', 412));
+    await userEvent.click(screen.getByRole('button', { name: 'Save AR reveal' }));
+    const review = await screen.findByRole('button', { name: /I reviewed the current/ });
+    expect(review).toBeDisabled();
+    await act(async () => refreshed.resolve({ config: { monthNumber: 12, revealAssetId: remoteAsset,
+      readableText: 'Changed in another tab', status: 'PREPARING' }, projectVersion: 4 }));
+    app.props.projectVersion = 4; app.rerenderProps();
+    const saved = within(await screen.findByRole('region', { name: 'Current saved configuration' }));
+    expect(saved.getByText('Saved Month').nextElementSibling).toHaveTextContent('December');
+    expect(saved.getByText('Saved media ID').nextElementSibling).toHaveTextContent(remoteAsset);
+    expect(saved.getByText('Saved readable text').nextElementSibling).toHaveTextContent('Changed in another tab');
+    expect(screen.getByLabelText('Reveal Month')).toHaveValue('2');
+    expect(screen.getByLabelText('Ready reveal media')).toHaveValue(assetId);
+    expect(screen.getByLabelText('Meaningful image message')).toHaveValue('  Our memories  ');
+    expect(screen.getByRole('button', { name: 'Save AR reveal' })).toBeDisabled();
+    expect(app.saveAR).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(review).toBeEnabled());
+    await userEvent.click(review);
+    await userEvent.click(screen.getByRole('button', { name: 'Save AR reveal' }));
+    await waitFor(() => expect(app.saveAR).toHaveBeenCalledTimes(2));
+    expect(app.saveAR.mock.calls[1]).toEqual(['project', { monthNumber: 2, revealAssetId: assetId,
+      readableText: 'Our memories' }, expect.any(String), 4]);
   });
   it('reopens unavailable configuration, explains historical retention and confirms removal', async () => {
     const app = setup({ config: { monthNumber: 4, revealAssetId: assetId, readableText: 'Saved message', status: 'UNAVAILABLE' } });

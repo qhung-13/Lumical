@@ -12,6 +12,7 @@ for (const locale of ['en', 'vi'] as const) test(`owner AR save/reopen/remove an
     const request = route.request(); const path = new URL(request.url()).pathname;
     const reply = (data: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data }) });
     if (path.endsWith('/auth/session')) return reply({ authenticated: true, principal: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) });
+    if (path.endsWith(`/projects/${id}/ar/config`) && request.method() === 'GET') return reply({ config, projectVersion: version });
     if (path.endsWith(`/projects/${id}/ar`)) {
       if (request.method() === 'PUT') {
         expect(request.headers()['if-match']).toBe(`"${version}"`);
@@ -20,7 +21,7 @@ for (const locale of ['en', 'vi'] as const) test(`owner AR save/reopen/remove an
         return reply({ ...config, projectVersion: version });
       }
       if (request.method() === 'DELETE') { config = null; version++; return route.fulfill({ status: 204, headers: { ETag: `"${version}"` } }); }
-      return reply({ config, projectVersion: version });
+      throw new Error('GET /ar is reserved for I08 readiness');
     }
     if (path.endsWith(`/projects/${id}/months`)) return reply({ projectVersion: version, months: Array.from({ length: 12 }, (_, i) => ({ monthNumber: i + 1, caption: null, images: [] })) });
     if (path.endsWith(`/projects/${id}/special-dates`)) return reply({ projectVersion: version, events: [] });

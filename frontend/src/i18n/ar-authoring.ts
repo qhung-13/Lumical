@@ -14,7 +14,8 @@ export const arAuthoringCopy = {
     mediaError: 'Media is unavailable, not owned by you, or does not match the selected type. Choose another Ready asset.',
     failed: 'Could not complete the request. Your draft is preserved. Retry to resolve the same save intent.',
     conflict: 'The Project changed. Reload and review the current configuration before saving your preserved draft.',
-    review: 'I reviewed the current configuration; keep my draft', current: 'Current saved readable text',
+    review: 'I reviewed the current configuration; keep my draft', current: 'Current saved configuration',
+    currentMonth: 'Saved Month', currentMedia: 'Saved media ID', currentText: 'Saved readable text',
     busy: 'Saving…', readOnly: 'AR editing is unavailable while archived, signed out, or Project versions are being refreshed.',
   },
   vi: {
@@ -32,7 +33,8 @@ export const arAuthoringCopy = {
     mediaError: 'Nội dung chưa sẵn sàng, không thuộc bạn hoặc không đúng loại đã chọn. Hãy chọn nội dung khác.',
     failed: 'Chưa hoàn tất yêu cầu. Bản nháp vẫn được giữ. Thử lại để xác minh cùng lần lưu.',
     conflict: 'Dự án đã thay đổi. Tải lại và xem cấu hình hiện tại trước khi lưu bản nháp được giữ lại.',
-    review: 'Đã xem cấu hình hiện tại; giữ bản nháp của tôi', current: 'Văn bản hiện đang lưu',
+    review: 'Đã xem cấu hình hiện tại; giữ bản nháp của tôi', current: 'Cấu hình hiện đang lưu',
+    currentMonth: 'Tháng đã lưu', currentMedia: 'Mã nội dung đã lưu', currentText: 'Văn bản đã lưu',
     busy: 'Đang lưu…', readOnly: 'Chưa thể sửa AR khi dự án được lưu trữ, chưa đăng nhập hoặc đang cập nhật phiên bản.',
   },
 } as const;

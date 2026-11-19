@@ -545,9 +545,9 @@ await withDisposablePostgres(async ({ url }) => {
       'AR revision handoff and idempotency commit together, replacement/removal preserves history',
       async () => {
         const key = randomUUID();
-        assert.deepEqual((await send('get', ar, owner).expect(200).expect('ETag', tags(9))).body,
+        assert.deepEqual((await send('get', ar + '/config', owner).expect(200).expect('ETag', tags(9))).body,
           { data: { config: null, projectVersion: 9 } });
-        await send('get', ar, other).expect(404);
+        await send('get', ar + '/config', other).expect(404);
         await send('put', ar, owner, 9, randomUUID())
           .send({ ...reveal, revealAssetId: foreignAsset })
           .expect(404);
@@ -561,7 +561,7 @@ await withDisposablePostgres(async ({ url }) => {
         assert.deepEqual(saved.body, {
           data: { ...reveal, status: 'PREPARING', projectVersion: 10 },
         });
-        assert.deepEqual((await send('get', ar, owner).expect(200)).body,
+        assert.deepEqual((await send('get', ar + '/config', owner).expect(200)).body,
           { data: { config: { ...reveal, status: 'PREPARING' }, projectVersion: 10 } });
         await send('put', ar, owner, 9, randomUUID()).send(reveal).expect(412);
         const replaced = {
@@ -595,7 +595,7 @@ await withDisposablePostgres(async ({ url }) => {
         await send('delete', ar, owner, 11)
           .expect(204)
           .expect('ETag', tags(12));
-        assert.deepEqual((await send('get', ar, owner).expect(200)).body,
+        assert.deepEqual((await send('get', ar + '/config', owner).expect(200)).body,
           { data: { config: null, projectVersion: 12 } });
         assert.equal(
           (
@@ -697,6 +697,12 @@ await withDisposablePostgres(async ({ url }) => {
       'published OpenAPI describes child version and idempotency headers and response shapes',
       async () => {
         const spec = (await api.get('/api/v1/openapi.json').expect(200)).body;
+        const configRead = spec.paths['/api/v1/projects/{id}/ar/config'].get;
+        assert.equal(configRead.operationId, 'getProjectARConfig');
+        assert.equal(configRead.responses['200'].content['application/json'].schema.$ref,
+          '#/components/schemas/ARCurrentResponseDto');
+        assert.equal(spec.paths['/api/v1/projects/{id}/ar'].get, undefined,
+          'I07 must leave GET /ar reserved for the I08 readiness contract');
         for (const [path, method, status, intent] of [
           ['months/{number}', 'put', '200', false],
           ['special-dates', 'post', '201', true],

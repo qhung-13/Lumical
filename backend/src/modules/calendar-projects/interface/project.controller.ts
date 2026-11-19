@@ -79,8 +79,8 @@ export class ProjectController {
     res.status(status).json({ data });
   }
 
-  @Get(':id/ar') @ApiCookieAuth() @errors()
-  @ApiOperation({ operationId: 'getProjectAR', summary: 'Read the current owner reveal configuration without granting preview readiness.' })
+  @Get(':id/ar/config') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectARConfig', summary: 'Read the current owner reveal configuration without granting preview readiness.' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: ARCurrentResponseDto, headers: etagHeader() })
   async arConfig(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {

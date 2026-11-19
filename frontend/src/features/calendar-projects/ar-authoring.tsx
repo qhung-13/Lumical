@@ -118,7 +118,14 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
     {current.data && <>
       <p className={styles.notice} role="status">{!config ? copy.empty : config.status === 'PREPARING' ? copy.preparing : config.status === 'READY' ? copy.ready : copy.unavailable}</p>
       {config && (persistedMedia.isError || (persistedMedia.data && persistedMedia.data.status !== 'READY')) && <p role="alert">{copy.mediaError}</p>}
-      {config && <p className={styles.help}>{copy.current}: {config.readableText}</p>}
+      {config && <section aria-labelledby={`${id}-current`}>
+        <h3 id={`${id}-current`}>{copy.current}</h3>
+        <dl className={styles.savedConfig}>
+          <div><dt>{copy.currentMonth}</dt><dd>{studioCopy[locale].monthNames[config.monthNumber - 1]}</dd></div>
+          <div><dt>{copy.currentMedia}</dt><dd>{config.revealAssetId}</dd></div>
+          <div><dt>{copy.currentText}</dt><dd>{config.readableText}</dd></div>
+        </dl>
+      </section>}
       {readOnly && <p className={styles.notice}>{copy.readOnly}</p>}
       {(needsReview || staleDraft || !versionMatches) && <div className={styles.notice}>
         <p role="alert">{copy.conflict}</p>

@@ -13,7 +13,7 @@ export type SpecialDateRevision = operations['createProjectSpecialDate']['respon
 export type ProjectPage = operations['listProjects']['responses'][200]['content']['application/json'];
 export type ProjectListQuery = NonNullable<operations['listProjects']['parameters']['query']>;
 export type ARWrite = operations['writeProjectAR']['requestBody']['content']['application/json'];
-export type ARRevision = operations['getProjectAR']['responses'][200]['content']['application/json']['data'];
+export type ARRevision = operations['getProjectARConfig']['responses'][200]['content']['application/json']['data'];
 
 function parseAR(value: unknown): ARRevision {
   const data = record(record(value).data);
@@ -155,7 +155,7 @@ export function projectApi(options: ProjectApiOptions) {
     catch (error) { if (error instanceof ProjectApiError) throw error; throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502); }
   }
   return {
-    ar: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/ar`, 'GET', parseAR, signal),
+    ar: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/ar/config`, 'GET', parseAR, signal),
     saveAR: (id: string, body: ARWrite, key: string, version: number) => request(`/projects/${encodeURIComponent(id)}/ar`, 'PUT', value => {
       const data = record(record(value).data);
       if (data.status !== 'PREPARING') throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);

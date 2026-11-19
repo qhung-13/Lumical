@@ -20,7 +20,7 @@ for (const locale of ['vi', 'en']) for (const theme of ['light', 'dark']) {
     ]);
     await page.route('**/api/v1/**', async route => {
       const path = new URL(route.request().url()).pathname;
-      if (path.endsWith(`/projects/${id}/ar`)) {
+      if (path.endsWith(`/projects/${id}/ar/config`)) {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { config: null, projectVersion: project.version } }) }); return;
       }
       if (path.endsWith('/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content')) {

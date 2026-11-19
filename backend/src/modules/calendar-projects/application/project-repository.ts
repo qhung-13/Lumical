@@ -7,7 +7,7 @@ import type {
 } from '../domain/project';
 
 // One owned Project as stored, plus the approved presets of the revision it
-// captured. `stylePresets` is read for validation only and never projected.
+// captured: PATCH validates against them and the P06 detail read projects them.
 export interface ProjectRecord extends ProjectFacts {
   readonly ownerId: string;
   readonly stylePresets: unknown;

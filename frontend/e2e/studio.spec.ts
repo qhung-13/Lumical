@@ -4,7 +4,8 @@ import AxeBuilder from '@axe-core/playwright';
 const id = '33333333-3333-4333-8333-333333333333';
 const createProject = () => ({ id, title: 'Synthetic family calendar', year: 2027, recipientName: 'Grandma', status: 'WORKING', version: 2,
   stylePresetId: 'classic', baseline: { name: { vi: 'Mẫu gia đình', en: 'Family design' }, layout: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 } },
-  createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', deletionEligible: true });
+  createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', deletionEligible: true,
+  stylePresets: [{ id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } }, { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } }] });
 const createMonths = () => ({ projectVersion: 2, months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1,
   caption: index === 0 ? 'Saved January note' : null,
   images: index === 1 ? [{ assetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', altText: 'A garden photo', crop: null }] : [] })) });
@@ -119,3 +120,90 @@ for (const locale of ['vi', 'en']) for (const theme of ['light', 'dark']) {
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });
 }
+
+// P06: one owner journey for the two explicit dialogs — stale-version review
+// before a style save may resume, and the leave guard over unsaved content.
+test('P06 reviews a stale style version before saving again and asks before leaving unsaved changes', async ({ page }) => {
+  const project = createProject();
+  const months = createMonths();
+  const specialDates = { projectVersion: 2, events: [] as { id: string; date: string; title: string; note: string | null }[] };
+  let patchAttempts = 0;
+  const ifMatch: string[] = [];
+  await page.route('**/api/v1/**', async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith('/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content')) {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+      return;
+    }
+    if (path.endsWith(`/projects/${id}`) && request.method() === 'PATCH') {
+      patchAttempts += 1;
+      ifMatch.push(request.headers()['if-match'] ?? '');
+      if (patchAttempts === 1) {
+        // A second owner session commits version 3 while this tab still holds version 2.
+        project.version += 1;
+        months.projectVersion = project.version;
+        specialDates.projectVersion = project.version;
+        await route.fulfill({ status: 412, contentType: 'application/json',
+          body: JSON.stringify({ error: { code: 'VERSION_CONFLICT', currentVersion: project.version } }) });
+        return;
+      }
+      const body = request.postDataJSON() as { stylePresetId: string };
+      project.version += 1;
+      project.stylePresetId = body.stylePresetId;
+      months.projectVersion = project.version;
+      specialDates.projectVersion = project.version;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: project }) });
+      return;
+    }
+    const data = path.endsWith('/auth/session')
+      ? { data: { authenticated: true, principal: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } }
+      : path.endsWith(`/projects/${id}/months`) ? { data: months }
+        : path.endsWith(`/projects/${id}/special-dates`) ? { data: specialDates }
+          : path.endsWith(`/projects/${id}`) ? { data: project }
+            : path.endsWith('/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') ? { data: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', category: 'IMAGE', status: 'READY', verifiedBytes: 100, contentPath: '/api/v1/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content' } }
+              : { error: { code: 'NOT_FOUND' } };
+    const known = path.endsWith('/auth/session') || path.endsWith(`/projects/${id}`) || path.endsWith(`/projects/${id}/months`)
+      || path.endsWith(`/projects/${id}/special-dates`) || path.endsWith('/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    await route.fulfill({ status: known ? 200 : 404, contentType: 'application/json', body: JSON.stringify(data) });
+  });
+  await page.goto(`/projects/${id}/studio`);
+  const preset = page.getByLabel('Style preset');
+  await expect(preset.locator('option')).toHaveText(['Classic', 'Minimal']);
+
+  // AC3: the stale save refreshes the saved data, tells the server version and
+  // holds saving until the owner has reviewed it.
+  await preset.selectOption('minimal');
+  await page.getByRole('button', { name: 'Save style' }).click();
+  const review = page.getByRole('dialog', { name: 'Review the refreshed calendar before saving again' });
+  await expect(review).toBeVisible();
+  await expect(review).toContainText('The server is now on saved version 3; you loaded an older one.');
+  await expect(review).toContainText('Your draft was kept and was never written over the saved content.');
+  await expect(page.getByText('Loaded saved version 3', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save style' })).toBeDisabled();
+  await expect(preset).toHaveValue('minimal');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await review.getByRole('button', { name: 'I have reviewed — allow saving' }).click();
+  await expect(review).toBeHidden();
+
+  // AC2: the retry is the same conditional write, now against the refreshed version.
+  await expect(page.getByRole('button', { name: 'Save style' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save style' }).click();
+  await expect(page.getByText('Style saved.')).toBeVisible();
+  await expect(page.getByText('Loaded saved version 4', { exact: true })).toBeVisible();
+  expect(ifMatch).toEqual(['"2"', '"3"']);
+
+  // G5: an unsaved month draft blocks the only in-Studio exit until answered.
+  await page.getByLabel(/Month message/).fill('Unsaved e2e note');
+  const back = page.getByRole('link', { name: /Back to calendar/ });
+  await back.click();
+  const leave = page.getByRole('dialog', { name: 'Leave with unsaved changes?' });
+  await expect(leave).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/projects/${id}/studio$`));
+  await leave.getByRole('button', { name: 'Stay and keep editing' }).click();
+  await expect(leave).toBeHidden();
+  await expect(page.getByLabel(/Month message/)).toHaveValue('Unsaved e2e note');
+  await back.click();
+  await leave.getByRole('button', { name: 'Leave anyway' }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${id}$`));
+});

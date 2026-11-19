@@ -1,5 +1,5 @@
 'use client';
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog } from '../../design-system/composites/dialog';
 import { Button } from '../../design-system/primitives/button';
@@ -24,6 +24,8 @@ interface Props {
   fetching: boolean;
   failed: boolean;
   onRetry: () => void;
+  /** G5: tells the Studio guard when this form holds input that leaving would lose. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface CreateIntent { body: SpecialDateWrite; key: string; version: number }
@@ -35,7 +37,7 @@ function errorDetails(error: unknown): { status: number; code: string; retryable
 }
 
 export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVersion, projectStatus, mutationReady,
-  api, events, loading, fetching, failed, onRetry }: Props) {
+  api, events, loading, fetching, failed, onRetry, onDirtyChange }: Props) {
   const { locale } = usePreferences();
   const copy = studioCopy[locale].specialDates;
   const queryClient = useQueryClient();
@@ -48,6 +50,13 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [errors, setErrors] = useState<SpecialDateFieldErrors>({});
+  // G5: typed or open-form input is what the Studio's leave guard must protect.
+  const formDirty = Boolean(pendingIntent || editingId) ||
+    draft.date !== '' || draft.title !== '' || draft.note !== '';
+  useEffect(() => {
+    onDirtyChange?.(formDirty);
+    return () => onDirtyChange?.(false);
+  }, [formDirty, onDirtyChange]);
 
   const versionMatches = events?.projectVersion === projectVersion;
   const readOnly = projectStatus === 'ARCHIVED' || !mutationReady;

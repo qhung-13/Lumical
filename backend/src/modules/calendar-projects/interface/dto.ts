@@ -103,12 +103,22 @@ export class ProjectResponseDto {
   @ApiProperty({ type: ProjectDataDto }) data: ProjectDataDto;
 }
 
+// One style preset the captured revision approved, served only on Project detail.
+export class ProjectStylePresetDto {
+  @ApiProperty({ ...presetSchema, description: 'Preset id approved by the captured revision.' })
+  id: string;
+  @ApiProperty({ type: LocalisedDto, description: 'Display name of the preset in both locales.' })
+  name: LocalisedDto;
+}
+
 export class ProjectDetailDataDto extends ProjectDataDto {
+  @ApiProperty({ type: [ProjectStylePresetDto], description: 'Every style preset the captured revision approved; a curated control may only offer these.' })
+  stylePresets: ProjectStylePresetDto[];
   @ApiProperty({ type: Boolean, description: 'Whether the Project has never been ordered and is currently eligible for permanent deletion.' })
   deletionEligible: boolean;
 
   static from(view: ProjectDetailView): ProjectDetailDataDto {
-    return { ...ProjectDataDto.from(view), deletionEligible: view.deletionEligible };
+    return { ...ProjectDataDto.from(view), stylePresets: [...view.stylePresets], deletionEligible: view.deletionEligible };
   }
 }
 

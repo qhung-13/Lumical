@@ -5,6 +5,13 @@ import { projectApi, projectDetailOptions, projectKeys, projectListOptions, proj
 const project: Project = { id: '11111111-1111-4111-8111-111111111111', title: 'For Mom', year: 2026, recipientName: 'Mom',
   status: 'WORKING', version: 1, stylePresetId: 'classic', baseline: { name: { vi: 'Mẫu', en: 'Design' }, layout: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 } },
   createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+// Detail alone carries the captured preset list (D1-A) and deletion eligibility.
+const capturedPresets = [
+  { id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } },
+  { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } },
+];
+const detail: Project & { deletionEligible: boolean; stylePresets: typeof capturedPresets } =
+  { ...project, stylePresets: capturedPresets, deletionEligible: true };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const keys: string[] = [];
 afterEach(() => { keys.length = 0; });
@@ -36,7 +43,17 @@ describe('Project HTTP API and private query contract', () => {
     { version: 0 }, { version: -1 }, { year: 0 }, { year: 10000 },
     { createdAt: 'invalid timestamp' }, { updatedAt: 'invalid timestamp' },
   ])('rejects an invalid persisted Project boundary value %j', async invalid => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { ...project, ...invalid, deletionEligible: true } }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { ...detail, ...invalid } }));
+    await expect(projectApi({ csrf: () => undefined, fetcher }).detail(project.id))
+      .rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
+  });
+  it.each([
+    { stylePresets: 'classic' },
+    { stylePresets: [{ id: '', name: { vi: 'Cổ điển', en: 'Classic' } }] },
+    { stylePresets: [{ id: 'classic' }] },
+    { stylePresets: [{ id: 'classic', name: { vi: '', en: 'Classic' } }] },
+  ])('rejects a detail response whose captured preset list is not a curated shape %j', async invalid => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { ...detail, ...invalid } }));
     await expect(projectApi({ csrf: () => undefined, fetcher }).detail(project.id))
       .rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
   });
@@ -58,11 +75,26 @@ describe('Project HTTP API and private query contract', () => {
     expect(JSON.parse(String(init?.body))).toEqual(body);
     expect(Object.keys(JSON.parse(String(init?.body))).sort()).toEqual(['recipientName', 'stylePresetId', 'templateId', 'title', 'year']);
   });
+  it('patches curated style with If-Match and keeps the server version named by a 412', async () => {
+    const conflict = { error: { code: 'VERSION_CONFLICT', requestId: 'req-1', currentVersion: 7, retryable: false } };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: project }))
+      .mockResolvedValueOnce(response(conflict, 412));
+    const api = projectApi({ csrf: () => 'csrf-test', fetcher });
+    expect(await api.patch(project.id, { stylePresetId: 'minimal' }, 3)).toEqual(project);
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe(`/api/v1/projects/${project.id}`);
+    expect(init).toMatchObject({ method: 'PATCH', headers: expect.objectContaining({
+      'If-Match': '"3"', 'X-CSRF-Token': 'csrf-test', 'Content-Type': 'application/json' }) });
+    expect(JSON.parse(String(init?.body))).toEqual({ stylePresetId: 'minimal' });
+    // Version honesty: the 412 body's currentVersion survives to the caller.
+    await expect(api.patch(project.id, { stylePresetId: 'minimal' }, 3)).rejects.toMatchObject({
+      code: 'VERSION_CONFLICT', status: 412, currentVersion: 7, requestId: 'req-1' });
+  });
   it('requests list pagination and detail with no-store, validates envelopes, and keeps cursor filters in actor-scoped keys', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: [project], meta: { nextCursor: 'next', hasMore: true } })).mockResolvedValueOnce(response({ data: { ...project, deletionEligible: true } }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: [project], meta: { nextCursor: 'next', hasMore: true } })).mockResolvedValueOnce(response({ data: detail }));
     const api = projectApi({ csrf: () => undefined, fetcher });
     expect(await api.list({ cursor: 'cursor', state: 'WORKING', limit: 5 })).toEqual({ data: [project], meta: { nextCursor: 'next', hasMore: true } });
-    expect(await api.detail(project.id)).toEqual({ ...project, deletionEligible: true });
+    expect(await api.detail(project.id)).toEqual(detail);
     expect(fetcher.mock.calls[0][0]).toBe('/api/v1/projects?state=WORKING&cursor=cursor&limit=5');
     expect(fetcher.mock.calls[0][1]).toMatchObject({ method: 'GET', credentials: 'same-origin', cache: 'no-store' });
     expect(projectKeys.list('actor-a', { cursor: 'x' })).not.toEqual(projectKeys.list('actor-b', { cursor: 'x' }));

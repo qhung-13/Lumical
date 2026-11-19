@@ -14,10 +14,12 @@ import {
   assertProjectAction,
   assertProjectDeletionEligible,
   assertProjectOwner,
+  capturedStylePresets,
   encodeProjectCursor,
   projectListInput,
   projectStatusAfter,
   projectView,
+  type CapturedStylePreset,
   type ProjectListQuery,
   type ProjectView,
 } from '../domain/project';
@@ -54,6 +56,9 @@ export interface ProjectMonthsView {
 }
 
 export interface ProjectDetailView extends ProjectView {
+  // P06: the detail read is the one place that serves the captured preset list,
+  // so a curated control never has to guess what the baseline allows.
+  readonly stylePresets: readonly CapturedStylePreset[];
   readonly deletionEligible: boolean;
 }
 
@@ -167,7 +172,11 @@ export class ProjectOwnerService {
       if (!record) throw new ProjectError('NOT_FOUND');
       assertProjectOwner(actor, record);
       const history = await this.repository.orderHistory(actor.id, id, context);
-      return { ...projectView(record), deletionEligible: history === 'NEVER_ORDERED' };
+      return {
+        ...projectView(record),
+        stylePresets: capturedStylePresets(record.stylePresets),
+        deletionEligible: history === 'NEVER_ORDERED',
+      };
     });
   }
 

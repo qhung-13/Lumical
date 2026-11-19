@@ -286,6 +286,43 @@ export function projectView(record: ProjectFacts): ProjectView {
   };
 }
 
+// P06: one style choice the captured revision actually approved, in the shape
+// the detail contract serves (bilingual display name).
+export interface CapturedStylePreset {
+  readonly id: string;
+  readonly name: { readonly vi: string; readonly en: string };
+}
+
+// The read-side of BR-PRJ-003: the curated control may only offer what the
+// captured revision approved, so this projection is the single source of that
+// list. The stored `style_presets` row is untrusted like any other column: a
+// shape the catalog could not have published is corruption and fails closed as
+// a 500 rather than being served as an approved-looking choice.
+export function capturedStylePresets(value: unknown): CapturedStylePreset[] {
+  if (!Array.isArray(value) || value.length === 0)
+    throw new Error('Corrupt Project captured style presets.');
+  const seen = new Set<string>();
+  return value.map((preset: unknown) => {
+    if (!preset || typeof preset !== 'object' || Array.isArray(preset))
+      throw new Error('Corrupt Project captured style presets.');
+    const stored = preset as Record<string, unknown>;
+    if (
+      Object.keys(stored).length !== 3 ||
+      typeof stored.id !== 'string' ||
+      !stored.id ||
+      stored.id.length > 64 ||
+      seen.has(stored.id) ||
+      typeof stored.nameVi !== 'string' ||
+      !stored.nameVi.trim() ||
+      typeof stored.nameEn !== 'string' ||
+      !stored.nameEn.trim()
+    )
+      throw new Error('Corrupt Project captured style presets.');
+    seen.add(stored.id);
+    return { id: stored.id, name: { vi: stored.nameVi, en: stored.nameEn } };
+  });
+}
+
 // API contract §11: a replay answers with the outcome the intent originally
 // bound, so the safe body is persisted with the record and served later. A
 // stored body is untrusted input — its full shape is re-checked before it can

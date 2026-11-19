@@ -2,6 +2,7 @@ import {
   applyProjectPatch,
   assertProjectAction,
   assertProjectDeletionEligible,
+  capturedStylePresets,
   encodeProjectCursor,
   newProject,
   projectListInput,
@@ -269,6 +270,28 @@ describe('Project safe projection and owner list query', () => {
     for (const corrupt of [null, {}, { ...facts.baselineStyle, type: 'NEON' },
       { ...facts.baselineStyle, monthCount: 6 }, [facts.baselineStyle]]) {
       expect(() => projectView({ ...facts, baselineStyle: corrupt })).toThrow(/Corrupt Project baseline layout/);
+    }
+  });
+
+  it('projects the captured preset list in order with both locale names', () => {
+    expect(capturedStylePresets([
+      { id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' },
+      { id: 'minimal', nameVi: 'Tối giản', nameEn: 'Minimal' },
+    ])).toEqual([
+      { id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } },
+      { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } },
+    ]);
+  });
+
+  it('fails closed when the stored preset row is not an approved shape', () => {
+    for (const corrupt of [undefined, null, 'classic', [], {},
+      [{ id: 'classic' }],
+      [{ id: 'classic', nameVi: '', nameEn: 'Classic' }],
+      [{ id: '', nameVi: 'Cổ điển', nameEn: 'Classic' }],
+      [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic', extra: true }],
+      [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' },
+        { id: 'classic', nameVi: 'Trùng', nameEn: 'Duplicate' }]]) {
+      expect(() => capturedStylePresets(corrupt)).toThrow(/Corrupt Project captured style presets/);
     }
   });
 

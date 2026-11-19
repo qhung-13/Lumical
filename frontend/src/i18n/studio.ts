@@ -52,6 +52,27 @@ export const studioCopy = {
       abandonDescription: 'The previous request may already have added a date. Starting a new request can create a duplicate.', abandonConfirm: 'Start a different request', abandonCancel: 'Keep retrying',
       stale: 'Saved Project and Special Date data have different versions. Refresh before editing.',
     },
+    style: {
+      heading: 'Style preset', description: 'Only presets captured from this calendar’s template are offered here.',
+      save: 'Save style', saving: 'Saving style…', saved: 'Style saved.', draft: 'Unsaved style choice',
+      unchanged: 'The saved style is unchanged.', saveError: 'Could not save the style. Your choice is still here; you can retry.',
+      versionConflict: 'This calendar changed elsewhere. Your choice is preserved; review the refreshed data before saving again.',
+      validation: 'This preset is not part of the captured baseline. Choose one of the offered presets.',
+      archived: 'Archived calendars are read-only.',
+    },
+    conflictReview: {
+      title: 'Review the refreshed calendar before saving again',
+      serverVersion: (currentVersion: number | undefined) => currentVersion === undefined
+        ? 'The server holds a newer saved version than the one you loaded.'
+        : `The server is now on saved version ${currentVersion}; you loaded an older one.`,
+      description: 'Your draft was kept and was never written over the saved content. Look at the refreshed months and style below, then save again if your choice is still what you want.',
+      acknowledge: 'I have reviewed — allow saving',
+    },
+    unsavedNav: {
+      title: 'Leave with unsaved changes?',
+      description: 'This calendar has changes that are not saved yet. If you leave now, they stay only in this tab and are lost.',
+      leave: 'Leave anyway', stay: 'Stay and keep editing',
+    },
     layout: 'Starting layout',
     preset: 'Style',
     year: 'Calendar year',
@@ -117,6 +138,27 @@ export const studioCopy = {
       retryCreate: 'Thử lại đúng yêu cầu cũ', abandonIntent: 'Bắt đầu yêu cầu ngày khác', abandonTitle: 'Bắt đầu yêu cầu khác?',
       abandonDescription: 'Yêu cầu trước có thể đã thêm ngày. Tạo yêu cầu mới có thể làm xuất hiện ngày trùng.', abandonConfirm: 'Bắt đầu yêu cầu khác', abandonCancel: 'Tiếp tục thử lại',
       stale: 'Project và dữ liệu ngày đặc biệt thuộc hai phiên bản khác nhau. Hãy tải lại trước khi sửa.',
+    },
+    style: {
+      heading: 'Phong cách', description: 'Chỉ các preset được capture từ mẫu của lịch này mới được liệt kê ở đây.',
+      save: 'Lưu phong cách', saving: 'Đang lưu phong cách…', saved: 'Đã lưu phong cách.', draft: 'Lựa chọn phong cách chưa lưu',
+      unchanged: 'Phong cách đã lưu không đổi.', saveError: 'Chưa thể lưu phong cách. Lựa chọn của bạn vẫn còn; bạn có thể thử lại.',
+      versionConflict: 'Lịch đã thay đổi ở nơi khác. Lựa chọn của bạn vẫn được giữ; hãy kiểm tra dữ liệu đã tải lại rồi lưu tiếp.',
+      validation: 'Preset này không thuộc captured baseline. Hãy chọn một trong các preset được liệt kê.',
+      archived: 'Lịch đã lưu trữ và chỉ có thể xem.',
+    },
+    conflictReview: {
+      title: 'Kiểm tra lịch đã tải lại trước khi lưu tiếp',
+      serverVersion: (currentVersion: number | undefined) => currentVersion === undefined
+        ? 'Máy chủ đang giữ phiên bản lưu mới hơn phiên bản bạn đã tải.'
+        : `Máy chủ giờ đang ở phiên bản lưu ${currentVersion}; bạn đang giữ phiên bản cũ hơn.`,
+      description: 'Bản nháp của bạn được giữ và không bao giờ ghi đè lên nội dung đã lưu. Hãy xem các tháng và phong cách mới tải lại bên dưới, rồi lưu lại nếu lựa chọn vẫn là điều bạn muốn.',
+      acknowledge: 'Tôi đã kiểm tra — cho phép lưu',
+    },
+    unsavedNav: {
+      title: 'Rời đi khi còn thay đổi chưa lưu?',
+      description: 'Lịch này còn thay đổi chưa lưu. Nếu rời đi bây giờ, chúng chỉ còn trong tab này và sẽ mất.',
+      leave: 'Vẫn rời đi', stay: 'Ở lại tiếp tục chỉnh sửa',
     },
     layout: 'Bố cục ban đầu',
     preset: 'Phong cách',

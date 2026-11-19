@@ -230,7 +230,9 @@ try {
 
       await check('read, preconditions and owner isolation behave per the contract', async () => {
         const read = await getProject(owner, project.id).expect(200).expect('ETag', '"1"');
-        assert.deepEqual(read.body.data, { ...project, deletionEligible: true }, 'the detail projection includes authoritative never-ordered eligibility');
+        // D1-A: detail alone serves the captured preset list, exactly what the revision published.
+        assert.deepEqual(read.body.data, { ...project, stylePresets: revision().presets, deletionEligible: true },
+          'the detail projection includes authoritative never-ordered eligibility and the captured preset list');
         await api().get(`/api/v1/projects/${project.id}`).expect(401);
         await getProject(owner, 'not-a-uuid').expect(422);
         // §13: a foreign id is the same as a missing one — 404, never 403.

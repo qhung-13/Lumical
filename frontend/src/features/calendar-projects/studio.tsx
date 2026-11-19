@@ -1,10 +1,12 @@
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MediaApiError, mediaApi, type OwnedMedia } from '../../api/media';
 import { ProjectApiError, projectApi, projectDetailOptions, projectKeys, projectMonthsOptions, projectSpecialDatesOptions, type MonthPatch } from '../../api/projects';
+import { Dialog } from '../../design-system/composites/dialog';
 import { PreferenceControls } from '../../design-system/foundations/preference-controls';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { Button } from '../../design-system/primitives/button';
@@ -16,6 +18,7 @@ import styles from './studio.module.css';
 import { countVisibleCharacters, monthContentDraft, sameMonthContent, type MonthContentDraft } from './month-editor';
 import { SpecialDatesEditor } from './special-dates-editor';
 import { ARAuthoring } from './ar-authoring';
+import { StyleEditor } from './style-editor';
 
 function calendarWeeks(year: number, monthNumber: number): (number | null)[][] {
   const first = new Date(0); first.setFullYear(year, monthNumber - 1, 1); first.setHours(0, 0, 0, 0);
@@ -51,6 +54,14 @@ function StudioWorkspace({ id }: { id: string }) {
   const [draftState, setDraftState] = useState<{ scope: string; months: Record<number, MonthContentDraft> }>({ scope, months: {} });
   const [sessionMediaState, setSessionMediaState] = useState<{ scope: string; items: OwnedMedia[] }>({ scope, items: [] });
   const [saveState, setSaveState] = useState<{ scope: string; months: Record<number, 'dirty' | 'saving' | 'saved' | 'error' | 'media' | 'conflict' | 'versionConflict' | 'validation'> }>({ scope, months: {} });
+  // P06: one project-level conflict review gates every save until it is acknowledged.
+  const [conflictReview, setConflictReview] = useState<{ currentVersion?: number } | null>(null);
+  const [styleDirty, setStyleDirty] = useState(false);
+  const [specialDirty, setSpecialDirty] = useState(false);
+  const [pendingNav, setPendingNav] = useState<string | null>(null);
+  const reportStyleDirty = useCallback((dirty: boolean) => setStyleDirty(dirty), []);
+  const reportSpecialDirty = useCallback((dirty: boolean) => setSpecialDirty(dirty), []);
+  const router = useRouter();
 
   const returnTo = `/projects/${encodeURIComponent(id)}`;
   const month = months.data?.months.find(item => item.monthNumber === selectedMonth);
@@ -104,7 +115,7 @@ function StudioWorkspace({ id }: { id: string }) {
   }
 
   async function saveMonth() {
-    if (!enabled || !project.data || !month || !draft || project.data.status !== 'WORKING' || versionMismatch || monthSaveStatus === 'saving') return;
+    if (!enabled || !project.data || !month || !draft || project.data.status !== 'WORKING' || versionMismatch || monthSaveStatus === 'saving' || conflictReview) return;
     if (countVisibleCharacters(draft.caption) > 300) { setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'validation' } })); return; }
     const saved = monthContentDraft(month);
     if (sameMonthContent(draft, saved)) { setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saved' } })); return; }
@@ -140,7 +151,18 @@ function StudioWorkspace({ id }: { id: string }) {
         : code === 'MEDIA_UNAVAILABLE' ? 'media' : status === 409 || code === 'CONFLICT' ? 'conflict'
           : status === 422 ? 'validation' : 'error';
       setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: nextStatus } }));
-      if (nextStatus === 'conflict') await Promise.all([
+      if (nextStatus === 'versionConflict') {
+        // AC3/G4: version honesty — really refresh the saved data the message
+        // promises, then require the explicit review before saving may resume.
+        // The local draft in draftState is never overwritten by this refresh.
+        const currentVersion = error instanceof ProjectApiError ? error.currentVersion : undefined;
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id) }),
+          queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id) }),
+          queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, id) }),
+        ]);
+        setConflictReview({ currentVersion });
+      } else if (nextStatus === 'conflict') await Promise.all([
         queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id) }),
         queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id) }),
         queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, id) }),
@@ -161,14 +183,27 @@ function StudioWorkspace({ id }: { id: string }) {
   const captionCount = draft ? countVisibleCharacters(draft.caption) : 0;
   const archived = project.data?.status === 'ARCHIVED';
   const editorReadOnly = archived || !versionsMatch;
-  const saveDisabled = editorReadOnly || !draftChanged || captionCount > 300 || monthSaveStatus === 'saving' ||
+  const saveDisabled = editorReadOnly || !draftChanged || captionCount > 300 || monthSaveStatus === 'saving' || conflictReview !== null ||
     Boolean(draft?.images.some(image => !mediaById.has(image.assetId) || mediaById.get(image.assetId)?.status !== 'READY'));
+  // G5: one guard covers every unsaved source — month draft, style choice, special-date form.
+  const hasUnsaved = draftChanged || styleDirty || specialDirty;
+  useEffect(() => {
+    if (!hasUnsaved) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsaved]);
 
   return <div className={styles.shell}>
     <a className={styles.skip} href="#studio-main">{locale === 'vi' ? 'Bỏ qua đến nội dung Studio' : 'Skip to Studio workspace'}</a>
     <header className={styles.header}>
       <div className={styles.headerContent}>
-        <Link className={styles.back} href={returnTo}>← {copy.back}</Link>
+        <Link className={styles.back} href={returnTo} onClick={event => {
+          // SPA navigation cannot use beforeunload; intercept the only in-Studio exit.
+          if (!hasUnsaved) return;
+          event.preventDefault();
+          setPendingNav(returnTo);
+        }}>← {copy.back}</Link>
         {project.data && <div className={styles.projectHeading}>
           <div><p className={styles.eyebrow}>{copy.status[project.data.status]}</p><h1>{project.data.title}</h1></div>
           <p className={styles.saveStatus} role="status">{versionStatus}</p>
@@ -301,12 +336,20 @@ function StudioWorkspace({ id }: { id: string }) {
               <Button variant="primary" disabled={saveDisabled} loading={monthSaveStatus === 'saving'} loadingLabel={copy.editor.saving}
                 onClick={() => void saveMonth()}>{copy.editor.save}</Button>
             </>}
+            <StyleEditor actorId={actorId} projectId={id} presets={project.data.stylePresets}
+              savedPresetId={project.data.stylePresetId} version={project.data.version}
+              projectStatus={project.data.status} mutationReady={state.mutationReady}
+              blocked={versionMismatch || conflictReview !== null} api={api}
+              onDirtyChange={reportStyleDirty} onConflict={currentVersion => setConflictReview({ currentVersion })} />
             <details className={styles.projectDetails}>
               <summary>{copy.savedContent}</summary>
               <dl>
                 <div><dt>{copy.monthNavigation}</dt><dd>{copy.monthNames[selectedMonth - 1]}</dd></div>
                 <div><dt>{copy.layout}</dt><dd>{project.data.baseline.layout.type === 'COLLAGE' ? (locale === 'vi' ? 'Ảnh ghép' : 'Collage') : (locale === 'vi' ? 'Tập trung ảnh' : 'Photo focus')}</dd></div>
-                <div><dt>{copy.preset}</dt><dd>{project.data.stylePresetId}</dd></div>
+                <div><dt>{copy.preset}</dt><dd>{(() => {
+                  const preset = project.data.stylePresets.find(item => item.id === project.data.stylePresetId);
+                  return (locale === 'vi' ? preset?.name.vi : preset?.name.en) ?? project.data.stylePresetId;
+                })()}</dd></div>
                 <div><dt>{copy.year}</dt><dd>{project.data.year}</dd></div>
                 <div><dt>{copy.recipient}</dt><dd>{project.data.recipientName}</dd></div>
               </dl>
@@ -314,9 +357,18 @@ function StudioWorkspace({ id }: { id: string }) {
             {project.data && <SpecialDatesEditor actorId={actorId} projectId={id} projectYear={project.data.year}
               projectVersion={project.data.version} projectStatus={project.data.status} mutationReady={state.mutationReady}
               api={api} events={specialDates.data} loading={specialDates.isPending} fetching={specialDates.isFetching}
-              failed={specialDates.isError} onRetry={() => { void Promise.all([project.refetch(), specialDates.refetch()]); }} />}
+              failed={specialDates.isError} onDirtyChange={reportSpecialDirty}
+              onRetry={() => { void Promise.all([project.refetch(), specialDates.refetch()]); }} />}
             <ARAuthoring actorId={actorId} projectId={id} projectVersion={project.data.version} projectStatus={project.data.status}
               mutationReady={state.mutationReady} api={api} media={media} availableMedia={availableMedia} />
+            <Dialog open={conflictReview !== null} onOpenChange={open => { if (!open) setConflictReview(null); }}
+              title={copy.conflictReview.title}
+              description={`${copy.conflictReview.serverVersion(conflictReview?.currentVersion)} ${copy.conflictReview.description}`}
+              cancelLabel={copy.conflictReview.acknowledge} />
+            <Dialog open={pendingNav !== null} onOpenChange={open => { if (!open) setPendingNav(null); }}
+              title={copy.unsavedNav.title} description={copy.unsavedNav.description}
+              cancelLabel={copy.unsavedNav.stay} confirmLabel={copy.unsavedNav.leave}
+              onConfirm={() => { const href = pendingNav; setPendingNav(null); if (href) router.push(href); }} />
           </aside>
         </div>
       </>}

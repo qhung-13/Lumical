@@ -5,6 +5,10 @@ import { PreferencesProvider } from '../../design-system/foundations/preferences
 import { IdentityProvider } from '../identity/provider';
 import { Studio } from './studio';
 
+// The Studio guard navigates with the App Router; tests assert the push itself.
+const routerPush = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: routerPush }) }));
+
 const projectId = '33333333-3333-4333-8333-333333333333';
 const ownerId = '11111111-1111-4111-8111-111111111111';
 const mediaId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -14,13 +18,18 @@ const fourthMediaId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const imageIds = [mediaId, secondMediaId, thirdMediaId, fourthMediaId];
 const savedProject = { id: projectId, title: 'Family calendar', year: 2027, recipientName: 'Grandma', status: 'WORKING', version: 3,
   stylePresetId: 'classic', baseline: { name: { vi: 'Mẫu gia đình', en: 'Family design' }, layout: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 } },
-  createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', deletionEligible: true };
+  createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', deletionEligible: true,
+  stylePresets: [
+    { id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } },
+    { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } },
+  ] };
 const monthData = { projectVersion: 3, months: Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1,
   caption: index === 2 ? 'Birthday memories' : null, images: index === 2 ? [{ assetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', altText: 'Family photo', crop: null }] : [] })) };
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
 function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?: number; locale?: 'en' | 'vi';
-  putStatus?: number; mediaStatus?: 'READY' | 'PENDING' | 'UNAVAILABLE'; availableImages?: number;
+  putStatus?: number; putStatusOnce?: boolean; mediaStatus?: 'READY' | 'PENDING' | 'UNAVAILABLE'; availableImages?: number;
+  patchPlan?: 'conflictOnce' | 'errorOnce' | 'rejectAlways';
   specialEvents?: { id: string; date: string; title: string; note: string | null }[];
   specialDateWriteStatus?: number; specialDateWriteFields?: { path: string; code: string; messageKey: string }[];
   mismatchSpecialDatesAfterProjectWrite?: boolean; loseFirstSpecialDateResponse?: boolean } = {}) {
@@ -30,6 +39,8 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
   let currentSpecialEvents = (options.specialEvents ?? []).map(event => ({ ...event }));
   let lostCreateResponse = false;
   let servedStaleSpecialDates = false;
+  let putAttempts = 0;
+  let patchAttempts = 0;
   if ((options.availableImages ?? 1) > 1) currentMonths.months[1] = { ...currentMonths.months[1], images: imageIds.slice(1, options.availableImages)
     .map((assetId, index) => ({ assetId, altText: `Photo ${index + 2}`, crop: null })) };
   const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
@@ -45,7 +56,16 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
         ...(status === 'READY' ? { contentPath: `/api/v1/media/${assetId}/content` } : {}) } });
     }
     if (url.match(new RegExp(`/projects/${projectId}/months/\\d+$`)) && method === 'PUT') {
-      if (options.putStatus) return json({ error: { code: options.putStatus === 412 ? 'VERSION_CONFLICT' : options.putStatus === 409 ? 'MEDIA_UNAVAILABLE' : 'VALIDATION_FAILED' } }, options.putStatus);
+      putAttempts += 1;
+      if (options.putStatus && (!options.putStatusOnce || putAttempts === 1)) {
+        if (options.putStatus === 412) {
+          // Concurrent owner editing: another session commits while this draft waits.
+          currentVersion += 1;
+          project.version = currentVersion;
+          return json({ error: { code: 'VERSION_CONFLICT', currentVersion } }, 412);
+        }
+        return json({ error: { code: options.putStatus === 409 ? 'MEDIA_UNAVAILABLE' : 'VALIDATION_FAILED' } }, options.putStatus);
+      }
       const number = Number(url.split('/').at(-1));
       const body = JSON.parse(String(init?.body)) as { caption: string | null; images: typeof monthData.months[number]['images'] };
       currentVersion += 1;
@@ -104,6 +124,23 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
       return new Response(null, { status: 204, headers: { ETag: `"${currentVersion}"` } });
     }
     if (url.endsWith(`/projects/${projectId}/months`)) return json({ data: { ...currentMonths, projectVersion: options.monthVersion ?? currentVersion } });
+    if (url.endsWith(`/projects/${projectId}`) && method === 'PATCH') {
+      patchAttempts += 1;
+      const body = JSON.parse(String(init?.body)) as { stylePresetId?: string };
+      if (options.patchPlan === 'conflictOnce' && patchAttempts === 1) {
+        // Concurrent owner editing: the other session committed version 4 first.
+        currentVersion += 1;
+        project.version = currentVersion;
+        return json({ error: { code: 'VERSION_CONFLICT', currentVersion } }, 412);
+      }
+      if (options.patchPlan === 'rejectAlways') return json({ error: { code: 'VALIDATION_FAILED',
+        fieldErrors: [{ path: 'stylePresetId', code: 'VALIDATION_FAILED', messageKey: 'errors.validationFailed' }] } }, 422);
+      if (options.patchPlan === 'errorOnce' && patchAttempts === 1) return json({ error: { code: 'PROVIDER_UNAVAILABLE', retryable: true } }, 503);
+      currentVersion += 1;
+      project.version = currentVersion;
+      if (body.stylePresetId) project.stylePresetId = body.stylePresetId;
+      return json({ data: { ...project } });
+    }
     if (url.endsWith(`/projects/${projectId}`)) return json({ data: project });
     return json({ error: { code: 'NOT_FOUND' } }, 404);
   });
@@ -120,6 +157,7 @@ afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new Event('close')); };
+  routerPush.mockClear();
 });
 
 describe('guided Studio shell', () => {
@@ -419,5 +457,136 @@ describe('guided Studio shell', () => {
     expect(await within(secondEditor).findByText('The server could not accept this date request. Review the form and try again.')).toBeVisible();
     expect(within(secondEditor).getByLabelText('Title')).toHaveAttribute('aria-invalid', 'false');
     expect(within(secondEditor).getByLabelText('Date')).toHaveAttribute('aria-invalid', 'false');
+  });
+});
+
+describe('P06 curated style, conflict review and the leave guard', () => {
+  it('offers exactly the captured preset list with no free-form entry (AC1)', async () => {
+    renderStudio({ locale: 'vi' });
+    const select = await screen.findByLabelText('Phong cách');
+    const options = within(select).getAllByRole('option');
+    expect(options.map(option => option.textContent)).toEqual(['Cổ điển', 'Tối giản']);
+    expect(options.map(option => (option as HTMLOptionElement).value)).toEqual(['classic', 'minimal']);
+    expect(screen.queryByRole('textbox', { name: 'Phong cách' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lưu phong cách' })).toBeDisabled();
+  });
+
+  it('keeps the style choice after a recoverable failure and retries the same conditional write (AC2)', async () => {
+    const user = userEvent.setup();
+    const { fetcher } = renderStudio({ patchPlan: 'errorOnce' });
+    const select = await screen.findByLabelText('Style preset');
+    await user.selectOptions(select, 'minimal');
+    expect(screen.getByText('Unsaved style choice')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    expect(await screen.findByText('Could not save the style. Your choice is still here; you can retry.')).toBeVisible();
+    expect(screen.getByLabelText('Style preset')).toHaveValue('minimal');
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    expect(await screen.findByText('Style saved.')).toBeVisible();
+    const patches = fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH');
+    expect(patches).toHaveLength(2);
+    expect(patches.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['"3"', '"3"']);
+    expect(String(patches[0][1]?.body)).toBe(String(patches[1][1]?.body));
+  });
+
+  it('rejects a preset outside the captured baseline while keeping the selection (AC1/AC2 422)', async () => {
+    const user = userEvent.setup();
+    renderStudio({ patchPlan: 'rejectAlways' });
+    await user.selectOptions(await screen.findByLabelText('Style preset'), 'minimal');
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    expect(await screen.findByText('This preset is not part of the captured baseline. Choose one of the offered presets.')).toBeVisible();
+    expect(screen.getByLabelText('Style preset')).toHaveValue('minimal');
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeEnabled();
+  });
+
+  it('requires current-content review after a concurrent owner commit, then retries with the server version (AC3)', async () => {
+    const user = userEvent.setup();
+    renderStudio({ patchPlan: 'conflictOnce' });
+    await user.selectOptions(await screen.findByLabelText('Style preset'), 'minimal');
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Review the refreshed calendar before saving again' });
+    expect(dialog).toHaveTextContent('The server is now on saved version 4; you loaded an older one.');
+    expect(dialog).toHaveTextContent('Your draft was kept and was never written over the saved content.');
+    // The refresh really happened: both queries now serve the concurrent version.
+    expect(await screen.findByText('Loaded saved version 4')).toBeVisible();
+    // Saving stays blocked until the review is acknowledged; the draft survives.
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeDisabled();
+    expect(screen.getByLabelText('Style preset')).toHaveValue('minimal');
+    await user.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeEnabled();
+    expect(screen.getByLabelText('Style preset')).toHaveValue('minimal');
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    expect(await screen.findByText('Style saved.')).toBeVisible();
+    expect(await screen.findByText('Loaded saved version 5')).toBeVisible();
+  });
+
+  it('holds month saving until the 412 review is acknowledged and keeps the caption draft (AC3 month)', async () => {
+    const user = userEvent.setup();
+    renderStudio({ putStatus: 412, putStatusOnce: true });
+    await user.click(await screen.findByRole('tab', { name: 'March' }));
+    await user.clear(screen.getByLabelText(/Month message/));
+    await user.type(screen.getByLabelText(/Month message/), 'Keep reviewing me');
+    await user.click(screen.getByRole('button', { name: 'Save month' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Review the refreshed calendar before saving again' });
+    expect(dialog).toHaveTextContent('The server is now on saved version 4');
+    expect(await screen.findByText('Loaded saved version 4')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Save month' })).toBeDisabled();
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('Keep reviewing me');
+    await user.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Save month' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Save month' }));
+    expect(await screen.findByText('Month saved.')).toBeVisible();
+    expect(await screen.findByText('Loaded saved version 5')).toBeVisible();
+  });
+
+  it('blocks leaving the Studio, keeps the draft on Stay and navigates on Leave (G5)', async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    await user.type(await screen.findByLabelText(/Month message/), 'Unsaved note');
+    const back = screen.getByRole('link', { name: /Back to calendar/ });
+    await user.click(back);
+    const dialog = await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' });
+    expect(routerPush).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Stay and keep editing' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('Unsaved note');
+    await user.click(back);
+    await user.click(await screen.findByRole('button', { name: 'Leave anyway' }));
+    expect(routerPush).toHaveBeenCalledWith(`/projects/${projectId}`);
+  });
+
+  it('treats an unsaved style choice as content leaving must confirm (G5 source: style)', async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    await user.selectOptions(await screen.findByLabelText('Style preset'), 'minimal');
+    await user.click(screen.getByRole('link', { name: /Back to calendar/ }));
+    expect(await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' })).toBeVisible();
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('treats typed Special Date input as content leaving must confirm (G5 source: special dates)', async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    const editor = await screen.findByRole('region', { name: 'Special Dates' });
+    await user.type(within(editor).getByLabelText('Title'), 'Guard this input');
+    await user.click(screen.getByRole('link', { name: /Back to calendar/ }));
+    expect(await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' })).toBeVisible();
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('warns before unload only while something is unsaved (G5 beforeunload)', async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    await screen.findByRole('button', { name: 'Save month' });
+    const clean = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(clean);
+    expect(clean.defaultPrevented).toBe(false);
+    await user.type(screen.getByLabelText(/Month message/), 'Edited');
+    const dirty = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(dirty);
+    expect(dirty.defaultPrevented).toBe(true);
   });
 });

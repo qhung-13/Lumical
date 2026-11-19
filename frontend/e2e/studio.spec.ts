@@ -20,6 +20,9 @@ for (const locale of ['vi', 'en']) for (const theme of ['light', 'dark']) {
     ]);
     await page.route('**/api/v1/**', async route => {
       const path = new URL(route.request().url()).pathname;
+      if (path.endsWith(`/projects/${id}/ar/config`)) {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { config: null, projectVersion: project.version } }) }); return;
+      }
       if (path.endsWith('/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content')) {
         await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
         return;

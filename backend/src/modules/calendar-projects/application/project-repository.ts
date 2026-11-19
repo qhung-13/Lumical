@@ -33,6 +33,10 @@ export interface SpecialDateRecord extends EventWrite {
   readonly id: string;
 }
 
+export interface ARConfigRecord extends ARWrite {
+  readonly status: 'NOT_CONFIGURED' | 'PREPARING' | 'READY' | 'UNAVAILABLE';
+}
+
 export interface ProjectIntent {
   readonly actorId: string;
   readonly operation: 'SPECIAL_DATE_CREATE' | 'PROJECT_AR_WRITE';
@@ -117,6 +121,8 @@ export abstract class ProjectRepository {
   abstract saveAR(
     project: ProjectRecord, input: ARWrite, now: Date, context: TransactionContext,
   ): Promise<ProjectIntentResult>;
+
+  abstract arConfig(project: ProjectRecord, context: TransactionContext): Promise<ARConfigRecord | null>;
 
   abstract deleteAR(project: ProjectRecord, now: Date, context: TransactionContext): Promise<boolean>;
 

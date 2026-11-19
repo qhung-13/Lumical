@@ -10,6 +10,28 @@ const keys: string[] = [];
 afterEach(() => { keys.length = 0; });
 
 describe('Project HTTP API and private query contract', () => {
+  it('reads only the owner AR projection and sends version, CSRF and a stable intent on writes', async () => {
+    const body = { monthNumber: 12, revealAssetId: project.id, readableText: 'A meaningful message' };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: { config: { ...body, status: 'UNAVAILABLE' }, projectVersion: 5 } }))
+      .mockResolvedValueOnce(response({ data: { ...body, status: 'PREPARING', projectVersion: 6 } }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const api = projectApi({ csrf: () => 'csrf', fetcher });
+    expect(await api.ar(project.id)).toMatchObject({ config: { ...body, status: 'UNAVAILABLE' }, projectVersion: 5 });
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/projects/${project.id}/ar/config`);
+    expect(fetcher.mock.calls[0][1]?.method).toBe('GET');
+    expect(await api.saveAR(project.id, body, 'stable-ar-intent', 5)).toMatchObject({ config: { ...body, status: 'PREPARING' }, projectVersion: 6 });
+    const headers = new Headers(fetcher.mock.calls[1][1]?.headers);
+    expect(headers.get('If-Match')).toBe('"5"'); expect(headers.get('Idempotency-Key')).toBe('stable-ar-intent'); expect(headers.get('X-CSRF-Token')).toBe('csrf');
+    await api.deleteAR(project.id, 6);
+    expect(fetcher.mock.calls[1][0]).toBe(`/api/v1/projects/${project.id}/ar`);
+    expect(fetcher.mock.calls[2][0]).toBe(`/api/v1/projects/${project.id}/ar`);
+    expect(new Headers(fetcher.mock.calls[2][1]?.headers).get('If-Match')).toBe('"6"');
+  });
+  it.each([{ monthNumber: 13 }, { revealAssetId: 'foreign-url' }, { status: 'FAKE_READY' }])('rejects malformed AR responses %j', async patch => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { projectVersion: 1,
+      config: { monthNumber: 1, revealAssetId: project.id, readableText: 'Message', status: 'PREPARING', ...patch } } }));
+    await expect(projectApi({ csrf: () => undefined, fetcher }).ar(project.id)).rejects.toMatchObject({ status: 502 });
+  });
   it.each([
     { version: 0 }, { version: -1 }, { year: 0 }, { year: 10000 },
     { createdAt: 'invalid timestamp' }, { updatedAt: 'invalid timestamp' },

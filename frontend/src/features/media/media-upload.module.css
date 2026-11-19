@@ -12,7 +12,7 @@
 .field { display: grid; gap: .5rem; margin-block-end: 1.25rem; }
 .field label { font-size: var(--type-label); line-height: var(--type-label-line); font-weight: 600; }
 .field select { width: 100%; }
-.panel input[type='file'] { width: 100%; min-height: 4.35rem; padding: .75rem; border: 1px dashed var(--color-border-strong); background: var(--color-surface-subtle); }
+.panel input[type='file'] { width: 100%; overflow: hidden; min-height: 4.35rem; padding: .75rem; border: 1px dashed var(--color-border-strong); background: var(--color-surface-subtle); }
 .panel input[type='file']:hover:not(:disabled) { border-color: var(--color-brand-text); }
 .panel input[type='file']::file-selector-button { min-height: var(--control-md); margin-block: .15rem; margin-inline-end: .65rem; background: var(--color-surface); }
 .panel input[type='file'][aria-invalid='true'] { border-color: var(--color-danger); }

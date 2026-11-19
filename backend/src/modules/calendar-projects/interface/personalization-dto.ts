@@ -98,3 +98,17 @@ export class SpecialDatesResponseDto {
 export class ARConfigResponseDto {
   @ApiProperty({ type: ARRevisionDto }) data: ARRevisionDto;
 }
+
+export class ARCurrentConfigDto extends ARWriteDto {
+  @ApiProperty({ enum: ['NOT_CONFIGURED', 'PREPARING', 'READY', 'UNAVAILABLE'] })
+  status: 'NOT_CONFIGURED' | 'PREPARING' | 'READY' | 'UNAVAILABLE';
+}
+
+export class ARCurrentRevisionDto {
+  @ApiProperty({ type: ARCurrentConfigDto, nullable: true }) config: ARCurrentConfigDto | null;
+  @ApiProperty(version) projectVersion: number;
+}
+
+export class ARCurrentResponseDto {
+  @ApiProperty({ type: ARCurrentRevisionDto }) data: ARCurrentRevisionDto;
+}

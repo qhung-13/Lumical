@@ -60,6 +60,7 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
 
   async function refreshProjectData() {
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: projectKeys.ar(actorId, projectId), refetchType: 'active' }),
       queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, projectId), refetchType: 'active' }),
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, projectId), refetchType: 'active' }),
       queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, projectId), refetchType: 'active' }),

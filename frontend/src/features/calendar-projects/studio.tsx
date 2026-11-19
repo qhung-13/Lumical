@@ -15,6 +15,7 @@ import { studioCopy } from '../../i18n/studio';
 import styles from './studio.module.css';
 import { countVisibleCharacters, monthContentDraft, sameMonthContent, type MonthContentDraft } from './month-editor';
 import { SpecialDatesEditor } from './special-dates-editor';
+import { ARAuthoring } from './ar-authoring';
 
 function calendarWeeks(year: number, monthNumber: number): (number | null)[][] {
   const first = new Date(0); first.setFullYear(year, monthNumber - 1, 1); first.setHours(0, 0, 0, 0);
@@ -127,6 +128,7 @@ function StudioWorkspace({ id }: { id: string }) {
         [selectedMonth]: monthContentDraft({ monthNumber: result.monthNumber, caption: result.caption, images: result.images }) } }));
       setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saved' } }));
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectKeys.ar(actorId, id), refetchType: 'active' }),
         queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id), refetchType: 'active' }),
         queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id), refetchType: 'active' }),
         queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, id), refetchType: 'active' }),
@@ -313,6 +315,8 @@ function StudioWorkspace({ id }: { id: string }) {
               projectVersion={project.data.version} projectStatus={project.data.status} mutationReady={state.mutationReady}
               api={api} events={specialDates.data} loading={specialDates.isPending} fetching={specialDates.isFetching}
               failed={specialDates.isError} onRetry={() => { void Promise.all([project.refetch(), specialDates.refetch()]); }} />}
+            <ARAuthoring actorId={actorId} projectId={id} projectVersion={project.data.version} projectStatus={project.data.status}
+              mutationReady={state.mutationReady} api={api} media={media} availableMedia={availableMedia} />
           </aside>
         </div>
       </>}

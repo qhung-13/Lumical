@@ -2832,6 +2832,140 @@
         ]
       }
     },
+    "/api/v1/projects/{id}/ar/config": {
+      "get": {
+        "operationId": "getProjectARConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ARCurrentResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Read the current owner reveal configuration without granting preview readiness.",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/api/v1/projects/{id}/months/{number}": {
       "put": {
         "operationId": "replaceProjectMonth",
@@ -6467,6 +6601,72 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ProjectMonthsDataDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ARCurrentConfigDto": {
+        "type": "object",
+        "properties": {
+          "monthNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "revealAssetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "readableText": {
+            "type": "string",
+            "description": "Readable image message, video caption/transcript, or audio transcript/caption."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "NOT_CONFIGURED",
+              "PREPARING",
+              "READY",
+              "UNAVAILABLE"
+            ]
+          }
+        },
+        "required": [
+          "monthNumber",
+          "revealAssetId",
+          "readableText",
+          "status"
+        ]
+      },
+      "ARCurrentRevisionDto": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ARCurrentConfigDto"
+              }
+            ]
+          },
+          "projectVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "config",
+          "projectVersion"
+        ]
+      },
+      "ARCurrentResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ARCurrentRevisionDto"
           }
         },
         "required": [

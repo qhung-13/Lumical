@@ -4,6 +4,12 @@ See the [root README](../README.md) for pinned tools, environment files, Docker,
 identity setup and the shared quality gate. Frontend data access remains typed
 backend HTTP; no database or provider-secret access belongs here.
 
+The Vercel production API route is a server-only HTTP gateway; its fixed HTTPS
+`BACKEND_URL` and `LUMICAL_GATEWAY_KEY` must be configured as described in the
+[Vercel/Render runbook](../docs/deployment-vercel-render.md). Development rewrites
+and the separate Compose gateway retain their original transport. Never expose
+the gateway key through `NEXT_PUBLIC_`, `next.config.env`, props or client code.
+
 `src/design-system/` implements the required I00 slice of the approved
 [Design System](../docs/DESIGN_SYSTEM.md): semantic tokens, essential controls,
 FormField, native modal Dialog, presentation preferences and public/Admin shells.

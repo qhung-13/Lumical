@@ -9,6 +9,7 @@ import request from 'supertest';
 import { createServer, request as httpRequest } from 'node:http';
 import { createGateway } from '../../infra/proxy.mjs';
 import { withDisposablePostgres } from './disposable-postgres.mjs';
+import { withNextGateway } from './next-gateway-fixture.mjs';
 import { projectFixture, orderFixture } from '../test/database/fixtures.mjs';
 const require = createRequire(import.meta.url);
 const { Test } = require('@nestjs/testing');
@@ -396,6 +397,88 @@ try {
           if (gateway) await close(gateway);
           await close(web);
         }
+      });
+      if (process.argv.includes('--next-gateway')) await check('built Next gateway + TLS + real PostgreSQL: auth, catalog, Admin, CSRF, direct denial and source rate isolation', async () => {
+        await app.close();
+        const gatewayKey = randomBytes(32).toString('hex');
+        process.env.LUMICAL_GATEWAY_KEY = gatewayKey;
+        process.env.IDENTITY_TRUSTED_PROXY_IPS = '';
+        process.env.IDENTITY_AUTH_ATTEMPTS = '10';
+        await start(); await app.listen(0, '127.0.0.1');
+        const direct = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+        for (const route of ['/auth/session', '/templates', '/account/me', '/admin/templates']) {
+          const denied = await fetch(`${direct}/api/v1${route}`, { headers: { 'X-Lumical-Gateway-Key': 'forged', 'X-Lumical-Client-IP': '198.51.100.2', 'X-Forwarded-For': '198.51.100.3' } });
+          assert.equal(denied.status, 403); assert.equal(denied.headers.get('cache-control'), 'no-store');
+        }
+        assert.equal((await fetch(`${direct}/api/v1/health/live`)).status, 200);
+        await withNextGateway(app, gatewayKey, async base => {
+          const call = (route, { ip = '198.51.100.7', headers = {}, ...options } = {}) => fetch(`${base}/api/v1${route}`, { ...options, headers: {
+            'x-vercel-forwarded-for': ip, 'content-type': 'application/json', ...headers,
+          } });
+          const principal = async response => { assert.equal(response.status, 200); return (await response.json()).data; };
+          const anon = await call('/auth/session'); assert.equal(anon.status, 200); assert.deepEqual(await anon.json(), { data: { authenticated: false } });
+          const email = 'next-gateway@example.invalid';
+          const registered = await call('/auth/register', { method: 'POST', headers: { Origin: origin, 'Idempotency-Key': randomUUID() }, body: JSON.stringify({ email, password }) });
+          assert.equal(registered.status, 201);
+          const user = (await registered.json()).data;
+          const sessionCookie = registered.headers.getSetCookie()[0];
+          assert.match(sessionCookie, /Secure/); assert.match(sessionCookie, /HttpOnly/); assert.match(sessionCookie, /SameSite=Lax/);
+          assert.ok(!sessionCookie.includes('Domain='));
+          const userCookie = sessionCookie.split(';')[0];
+          assert.equal((await principal(await call('/account/me', { headers: { Cookie: userCookie } }))).id, user.id);
+          assert.equal((await principal(await call('/auth/session', { headers: { Cookie: userCookie } }))).authenticated, true);
+          const catalog = await call('/templates?category=GENERAL&query=&limit=1'); assert.equal(catalog.status, 200);
+          assert.ok(Array.isArray((await catalog.json()).data)); assert.equal(catalog.headers.get('cache-control'), 'no-store');
+          assert.equal((await call('/templates?cursor=')).status, 422);
+          assert.equal((await call('/admin/templates')).status, 401);
+          assert.equal((await call('/admin/templates', { headers: { Cookie: userCookie } })).status, 403);
+          // Restore only the disposable fixture's operator to verify real Admin authorization.
+          await migration.query("UPDATE lumical.users SET status='ACTIVE' WHERE id=$1", [adminId]);
+          const adminLogin = await call('/auth/login', { method: 'POST', headers: { Origin: origin }, body: JSON.stringify({ email: 'operator@example.invalid', password }) });
+          assert.equal(adminLogin.status, 200);
+          const nextAdminCookie = adminLogin.headers.getSetCookie()[0].split(';')[0];
+          assert.equal((await call('/admin/templates', { headers: { Cookie: nextAdminCookie } })).status, 200);
+          for (const headers of [{ Origin: origin }, { Origin: 'https://evil.invalid', 'X-CSRF-Token': user.csrfToken }]) {
+            assert.equal((await call('/auth/session', { method: 'DELETE', headers: { Cookie: userCookie, ...headers } })).status, 403);
+          }
+          assert.equal((await call('/auth/login', { method: 'POST', headers: { Origin: 'https://evil.invalid' }, body: JSON.stringify({ email, password }) })).status, 403);
+          assert.equal((await call('/auth/register', { method: 'POST', headers: { Origin: origin, 'Idempotency-Key': randomUUID() }, body: JSON.stringify({ email: 'role-injection@example.invalid', password, role: 'ADMIN' }) })).status, 422);
+          assert.equal((await call('/auth/login', { method: 'POST', headers: { Origin: origin }, body: '{' })).status, 422);
+          const loggedOut = await call('/auth/session', { method: 'DELETE', headers: { Cookie: userCookie, Origin: origin, 'X-CSRF-Token': user.csrfToken } });
+          assert.equal(loggedOut.status, 204); assert.equal(await loggedOut.text(), '');
+          assert.match(loggedOut.headers.getSetCookie()[0], /Max-Age=0/);
+          assert.equal((await call('/account/me', { headers: { Cookie: userCookie } })).status, 401);
+          const loggedIn = await call('/auth/login', { method: 'POST', headers: { Origin: origin }, body: JSON.stringify({ email, password }) });
+          assert.equal(loggedIn.status, 200);
+          const loginCookie = loggedIn.headers.getSetCookie()[0].split(';')[0];
+          const loginData = (await loggedIn.json()).data;
+          const pageResponse = await fetch(base + '/account', { headers: { Cookie: loginCookie } });
+          assert.match(pageResponse.headers.get('cache-control') ?? '', /no-store/);
+          const html = await pageResponse.text();
+          assert.ok(html.includes(email), 'SSR must bootstrap the authenticated principal through the gateway credential');
+          for (const sensitive of [gatewayKey, secret(loginCookie), loginData.csrfToken]) assert.ok(!html.includes(sensitive));
+          const multiple = await call('/__gateway-fixture/cookies');
+          assert.equal(multiple.headers.getSetCookie().length, 2);
+          assert.ok(multiple.headers.getSetCookie()[0].includes('Expires=Wed, 01 Jan 2031'));
+          assert.deepEqual(new Uint8Array(await multiple.arrayBuffer()), new Uint8Array([0, 255, 42]));
+          const unavailable = await call('/__gateway-fixture/failure');
+          assert.equal(unavailable.status, 502); assert.equal((await unavailable.json()).error.code, 'PROVIDER_UNAVAILABLE');
+          assert.equal((await call('/__gateway-fixture/redirect')).status, 502);
+          const observed = []; const abuse = app.get(AuthAttempts); const originalCheck = abuse.check.bind(abuse);
+          abuse.check = (ip, value) => { observed.push(ip); originalCheck(ip, value); };
+          try {
+            for (let attempt = 0; attempt < 50; attempt++) {
+              const limited = await call('/auth/login', { method: 'POST', ip: '198.51.100.20', headers: { Origin: origin,
+                'X-Forwarded-For': `203.0.113.${attempt + 1}`, 'X-Lumical-Client-IP': '203.0.113.99', 'X-Lumical-Gateway-Key': 'spoofed' },
+                body: JSON.stringify({ email: `next-limit-${attempt}@example.invalid`, password }) });
+              assert.equal(limited.status, 401);
+            }
+            assert.ok(observed.every(ip => ip === '198.51.100.20'));
+            assert.equal((await call('/auth/login', { method: 'POST', ip: '198.51.100.20', headers: { Origin: origin }, body: JSON.stringify({ email, password }) })).status, 429);
+            assert.equal((await call('/auth/login', { method: 'POST', ip: '198.51.100.21', headers: { Origin: origin }, body: JSON.stringify({ email, password }) })).status, 200);
+          } finally { abuse.check = originalCheck; }
+          assert.ok(!logs.join('\n').includes(gatewayKey));
+        });
       });
     } finally { await app?.close(); await runtime.end(); await migration.end(); }
   });

@@ -3,20 +3,9 @@ import { request as httpsRequest } from 'node:https';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { isIP } from 'node:net';
+import { trustedOrigin as origin, transportHeaders as headers, upstreamTimeout, gatewayFailure } from './http-gateway.mjs';
 
-function origin(value) {
-  const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol) || url.origin !== value || url.username || url.password) throw new Error('Invalid trusted proxy origin.');
-  return url;
-}
-const hopHeaders = new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade']);
 const clientHeaders = new Set(['forwarded', 'x-real-ip', 'x-client-ip', 'client-ip', 'true-client-ip', 'cf-connecting-ip', 'fastly-client-ip']);
-// Nest's provider-backed media handlers have a 25 s response deadline.
-const mediaTimeout = 30_000;
-function headers(source) {
-  const extra = String(source.connection ?? '').split(',').map(value => value.trim().toLowerCase());
-  return Object.fromEntries(Object.entries(source).filter(([name]) => !hopHeaders.has(name.toLowerCase()) && !extra.includes(name.toLowerCase())));
-}
 // HTTP routing only. Credentials, cookies and business validation belong to Nest.
 export function createGateway(backend, frontend) {
   const api = origin(backend); const web = origin(frontend);
@@ -33,7 +22,7 @@ export function createGateway(backend, frontend) {
     if (!clientAddress || !isIP(clientAddress)) { res.writeHead(400).end(); return; }
     forwarded['x-forwarded-for'] = clientAddress;
     const providerBackedMedia = /^\/api\/v1\/media\/[^/]+\/(?:content|finalize)\/?$/i.test(destination.pathname);
-    const timeout = providerBackedMedia ? mediaTimeout : 15_000;
+    const timeout = upstreamTimeout(destination.pathname);
     const upstream = (target.protocol === 'https:' ? httpsRequest : httpRequest)(destination,
       { method: req.method, headers: forwarded, timeout }, (response) => {
         clearTimeout(responseDeadline);
@@ -49,7 +38,7 @@ export function createGateway(backend, frontend) {
       if (res.destroyed) return;
       if (res.headersSent) { res.destroy(); return; }
       res.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-Id': requestId });
-      res.end(JSON.stringify({ error: { code: 'PROVIDER_UNAVAILABLE', messageKey: 'errors.unavailable', requestId, retryable: true, fieldErrors: [] } }));
+      res.end(JSON.stringify(gatewayFailure(requestId)));
     });
     req.on('aborted', () => upstream.destroy());
     res.once('close', () => { if (!res.writableFinished) upstream.destroy(); });

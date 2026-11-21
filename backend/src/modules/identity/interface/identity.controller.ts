@@ -5,6 +5,7 @@ import { IdentityService, type AuthResult, type BrowserContext } from '../applic
 import { IdentityPolicy } from '../application/ports';
 import { accountCookie, invalid } from '../domain/identity';
 import { AccountStatusChangeDto, AccountStatusResponseDto, AuthResponseDto, CredentialsDto, ErrorResponseDto, PrincipalResponseDto, SessionResponseDto } from './dto';
+import { requestClientAddress } from '../../../platform/http/gateway-authentication';
 
 const errors = () => applyDecorators(...[401,403,404,409,412,413,422,428,429,500,503].map((status) => ApiResponse({ status, type: ErrorResponseDto })));
 const origin = () => ApiHeader({ name: 'Origin', required: true, schema: { type: 'string' } });
@@ -17,7 +18,7 @@ export class IdentityController {
   constructor(@Inject(IdentityService) private readonly identity: IdentityService, @Inject(IdentityPolicy) private readonly policy: IdentityPolicy) {}
   private browser(req: Request, res: Response): BrowserContext {
     return { secret: accountCookie(req.headers.cookie, this.policy.cookieName), origin: req.get('Origin'),
-      csrf: req.get('X-CSRF-Token'), ip: req.ip ?? req.socket.remoteAddress ?? 'unknown', requestId: String(res.getHeader('X-Request-Id')) };
+      csrf: req.get('X-CSRF-Token'), ip: requestClientAddress(req), requestId: String(res.getHeader('X-Request-Id')) };
   }
   private cookie(res: Response, secret: string | null, expiresAt?: Date): void {
     res.cookie(this.policy.cookieName, secret ?? '', { httpOnly: true, secure: this.policy.secure, sameSite: 'lax', path: '/',

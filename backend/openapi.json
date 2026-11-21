@@ -6961,6 +6961,29 @@
           "data"
         ]
       },
+      "ProjectStylePresetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Preset id approved by the captured revision."
+          },
+          "name": {
+            "description": "Display name of the preset in both locales.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocalisedDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
       "ProjectDetailDataDto": {
         "type": "object",
         "properties": {
@@ -7014,6 +7037,13 @@
             "type": "string",
             "format": "date-time"
           },
+          "stylePresets": {
+            "description": "Every style preset the captured revision approved; a curated control may only offer these.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectStylePresetDto"
+            }
+          },
           "deletionEligible": {
             "type": "boolean",
             "description": "Whether the Project has never been ordered and is currently eligible for permanent deletion."
@@ -7030,6 +7060,7 @@
           "baseline",
           "createdAt",
           "updatedAt",
+          "stylePresets",
           "deletionEligible"
         ]
       },

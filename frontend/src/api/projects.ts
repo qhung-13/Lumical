@@ -4,6 +4,7 @@ export type Project = operations['createProject']['responses'][201]['content']['
 export type ProjectDetail = operations['getProject']['responses'][200]['content']['application/json']['data'];
 export type ProjectMonths = operations['getProjectMonths']['responses'][200]['content']['application/json']['data'];
 export type ProjectCreate = operations['createProject']['requestBody']['content']['application/json'];
+export type ProjectPatch = operations['patchProject']['requestBody']['content']['application/json'];
 export type MonthPatch = operations['replaceProjectMonth']['requestBody']['content']['application/json'];
 export type MonthRevision = operations['replaceProjectMonth']['responses'][200]['content']['application/json']['data'];
 export type SpecialDateWrite = operations['createProjectSpecialDate']['requestBody']['content']['application/json'];
@@ -29,7 +30,10 @@ function parseAR(value: unknown): ARRevision {
 
 export class ProjectApiError extends Error {
   constructor(readonly code: string, readonly status: number, readonly requestId?: string,
-    readonly fields: { path: string; code: string; messageKey: string }[] = [], readonly retryable = false) {
+    readonly fields: { path: string; code: string; messageKey: string }[] = [], readonly retryable = false,
+    // P06: a 412 names the version the server is actually on, so conflict review
+    // can tell the truth instead of guessing.
+    readonly currentVersion?: number) {
     super(code);
     this.name = 'ProjectApiError';
   }
@@ -61,7 +65,12 @@ function validProject(value: unknown, detail = false): value is Project | Projec
     layout.monthCount === 12 && layout.maxImagesPerMonth === 4 &&
     typeof data.createdAt === 'string' && !Number.isNaN(Date.parse(data.createdAt)) &&
     typeof data.updatedAt === 'string' && !Number.isNaN(Date.parse(data.updatedAt)) &&
-    (!detail || typeof data.deletionEligible === 'boolean');
+    (!detail || (typeof data.deletionEligible === 'boolean' && Array.isArray(data.stylePresets) &&
+      data.stylePresets.every(preset => {
+        const item = record(preset); const name = record(item.name);
+        return typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 64 &&
+          typeof name.vi === 'string' && name.vi.length > 0 && typeof name.en === 'string' && name.en.length > 0;
+      })));
 }
 function parseProject(value: unknown, detail = false): Project | ProjectDetail {
   const data = record(value).data;
@@ -106,24 +115,26 @@ function parseError(value: unknown, status: number): ProjectApiError {
       status === 428 ? 'PRECONDITION_REQUIRED' : status === 429 ? 'RATE_LIMITED' : 'PROVIDER_UNAVAILABLE';
   let requestId: string | undefined; let retryable = status >= 500;
   let fields: ProjectApiError['fields'] = [];
+  let currentVersion: number | undefined;
   try {
     const error = record(record(value).error);
     if (typeof error.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code)) code = error.code;
     if (typeof error.requestId === 'string') requestId = error.requestId;
     if (typeof error.retryable === 'boolean') retryable = error.retryable;
+    if (typeof error.currentVersion === 'number' && Number.isSafeInteger(error.currentVersion) && error.currentVersion >= 1) currentVersion = error.currentVersion;
     if (Array.isArray(error.fieldErrors)) fields = error.fieldErrors.flatMap(item => {
       const field = record(item);
       return typeof field.path === 'string' && typeof field.code === 'string' && typeof field.messageKey === 'string'
         ? [{ path: field.path, code: field.code, messageKey: field.messageKey }] : [];
     });
   } catch { /* Preserve only the status-based safe error. */ }
-  return new ProjectApiError(code, status, requestId, fields, retryable);
+  return new ProjectApiError(code, status, requestId, fields, retryable, currentVersion);
 }
 
 export interface ProjectApiOptions { csrf: () => string | undefined; fetcher?: typeof fetch; epoch?: () => number; unauthorized?: () => Promise<void> }
 export function projectApi(options: ProjectApiOptions) {
   const fetcher = options.fetcher ?? fetch;
-  async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', decode: (value: unknown) => T,
+  async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', decode: (value: unknown) => T,
     signal?: AbortSignal, body?: unknown, key?: string, version?: number): Promise<T> {
     const epoch = options.epoch?.();
     const headers: Record<string, string> = { Accept: 'application/json' };
@@ -199,6 +210,9 @@ export function projectApi(options: ProjectApiOptions) {
     deleteSpecialDate: (id: string, eventId: string, version: number) => request(
       `/projects/${encodeURIComponent(id)}/special-dates/${encodeURIComponent(eventId)}`, 'DELETE', () => undefined, undefined, undefined, undefined, version),
     create: (body: ProjectCreate, key: string) => request('/projects', 'POST', value => parseProject(value) as Project, undefined, body, key),
+    // P06: identity/curated-style edits carry If-Match like every other write.
+    patch: (id: string, body: ProjectPatch, version: number) => request(
+      `/projects/${encodeURIComponent(id)}`, 'PATCH', value => parseProject(value) as Project, undefined, body, undefined, version),
     archive: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}/archive`, 'POST', value => parseProject(value) as Project, undefined, undefined, undefined, version),
     restore: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}/restore`, 'POST', value => parseProject(value) as Project, undefined, undefined, undefined, version),
     remove: (id: string, version: number) => request(`/projects/${encodeURIComponent(id)}`, 'DELETE', () => undefined, undefined, { confirmed: true }, undefined, version),

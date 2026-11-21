@@ -58,7 +58,11 @@ const ownedRecord: ProjectRecord = {
   id: '10000000-0000-4000-8000-000000000001', ownerId: principal.id, title: 'A saved year', year: 2027,
   recipientName: 'Owner', status: 'WORKING', version: 2, stylePresetId: 'classic', baselineNameVi: 'Mẫu', baselineNameEn: 'Design',
   baselineStyle: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 },
-  createdAt: new Date('2026-01-01T00:00:00.000Z'), updatedAt: new Date('2026-01-02T00:00:00.000Z'), stylePresets: [],
+  createdAt: new Date('2026-01-01T00:00:00.000Z'), updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+  stylePresets: [
+    { id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' },
+    { id: 'minimal', nameVi: 'Tối giản', nameEn: 'Minimal' },
+  ],
 };
 
 describe('Project child write boundary', () => {
@@ -171,5 +175,36 @@ describe('Project restart boundary', () => {
       field: 'limit',
     });
     expect(accounts.attempts).toBe(0);
+  });
+});
+
+describe('Project detail curated preset projection', () => {
+  const appWith = (record: ProjectRecord) =>
+    new ProjectOwnerService(
+      new FlakyAccounts(0, serialization),
+      { now: () => new Date('2026-01-03T00:00:00.000Z') } as Clock,
+      {
+        find: async () => record,
+        orderHistory: async () => 'NEVER_ORDERED',
+      } as unknown as ProjectRepository,
+      {} as CreateProject,
+      {} as OwnerMediaRepository,
+    );
+
+  it('serves exactly the presets the captured revision approved, bilingual', async () => {
+    await expect(appWith(ownedRecord).get(ownedRecord.id, {})).resolves.toMatchObject({
+      stylePresets: [
+        { id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } },
+        { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } },
+      ],
+    });
+  });
+
+  it('fails closed instead of serving a corrupt preset row as an approved choice', async () => {
+    for (const stylePresets of [undefined, null, [], [{ id: 'classic' }],
+      [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic', extra: true }]]) {
+      await expect(appWith({ ...ownedRecord, stylePresets } as ProjectRecord).get(ownedRecord.id, {}))
+        .rejects.toThrow(/Corrupt Project captured style presets/);
+    }
   });
 });

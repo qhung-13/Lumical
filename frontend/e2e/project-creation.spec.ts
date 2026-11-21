@@ -34,7 +34,8 @@ async function mockJourney(page: Page, options: { unavailable?: boolean } = {}) 
     }
     if (request.method() === 'GET' && url.pathname.endsWith(`/projects/${projectId}`)) {
       detailGets++;
-      await route.fulfill({ status: 200, headers: { ETag: '"1"' }, contentType: 'application/json', body: JSON.stringify({ data: { ...project, deletionEligible: true } }) }); return;
+      await route.fulfill({ status: 200, headers: { ETag: '"1"' }, contentType: 'application/json', body: JSON.stringify({ data: { ...project, deletionEligible: true,
+        stylePresets: template.publishedRevision.presets } }) }); return;
     }
     if (request.method() === 'POST' && url.pathname.endsWith('/projects')) {
       attempts.push({ headers: request.headers(), body: request.postDataJSON() }); createCount++;

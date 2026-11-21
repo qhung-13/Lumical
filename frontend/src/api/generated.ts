@@ -812,6 +812,12 @@ export interface components {
         ARConfigResponseDto: {
             data: components["schemas"]["ARRevisionDto"];
         };
+        ProjectStylePresetDto: {
+            /** @description Preset id approved by the captured revision. */
+            id: string;
+            /** @description Display name of the preset in both locales. */
+            name: components["schemas"]["LocalisedDto"];
+        };
         ProjectDetailDataDto: {
             /** Format: uuid */
             id: string;
@@ -831,6 +837,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description Every style preset the captured revision approved; a curated control may only offer these. */
+            stylePresets: components["schemas"]["ProjectStylePresetDto"][];
             /** @description Whether the Project has never been ordered and is currently eligible for permanent deletion. */
             deletionEligible: boolean;
         };

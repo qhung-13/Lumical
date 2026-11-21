@@ -25,7 +25,8 @@ for (const locale of ['en', 'vi'] as const) test(`owner AR save/reopen/remove an
     }
     if (path.endsWith(`/projects/${id}/months`)) return reply({ projectVersion: version, months: Array.from({ length: 12 }, (_, i) => ({ monthNumber: i + 1, caption: null, images: [] })) });
     if (path.endsWith(`/projects/${id}/special-dates`)) return reply({ projectVersion: version, events: [] });
-    if (path.endsWith(`/projects/${id}`)) return reply({ id, title: 'Synthetic calendar', year: 2027, recipientName: 'Family', status: 'WORKING', version, stylePresetId: 'classic', baseline: { name: { vi: 'Design', en: 'Design' }, layout: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 } }, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', deletionEligible: true });
+    if (path.endsWith(`/projects/${id}`)) return reply({ id, title: 'Synthetic calendar', year: 2027, recipientName: 'Family', status: 'WORKING', version, stylePresetId: 'classic', baseline: { name: { vi: 'Design', en: 'Design' }, layout: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 } }, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', deletionEligible: true,
+      stylePresets: [{ id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } }, { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } }] });
     if (path.endsWith(`/media/${asset}`)) return reply({ id: asset, category: 'IMAGE', status: 'READY', verifiedBytes: 100, contentPath: `/api/v1/media/${asset}/content` });
     return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'NOT_FOUND' } }) });
   });

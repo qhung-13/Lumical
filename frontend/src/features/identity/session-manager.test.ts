@@ -137,4 +137,17 @@ describe('typed identity transport and private session cache', () => {
     const client = queryClient(); const manager = new SessionManager(client, { phase: 'unauthenticated' }, vi.fn<typeof fetch>().mockResolvedValue(body({ authenticated: true, principal: { ...a, passwordHash: 'PRIVATE' } })));
     await manager.bootstrap(); expect(manager.getSnapshot().phase).toBe('unavailable'); expect(client.getQueryCache().getAll()).toHaveLength(0);
   });
+  it('SSR authenticates only to the configured HTTPS backend and never serializes the gateway key', async () => {
+    const key = '0123456789abcdef'.repeat(4);
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(body({ authenticated: true, principal: a, csrfToken: token }));
+    const result = await serverBootstrap(null, 'https://backend.example', '__Host-lumical_session', fetcher, key);
+    expect(fetcher).toHaveBeenCalledWith(new URL('https://backend.example/api/v1/auth/session'), expect.objectContaining({
+      headers: { Accept: 'application/json', 'X-Lumical-Gateway-Key': key }, cache: 'no-store', redirect: 'error',
+    }));
+    expect(result).toEqual({ phase: 'authenticated', principal: a });
+    expect(JSON.stringify(result)).not.toContain(key); expect(JSON.stringify(result)).not.toContain(token);
+    fetcher.mockClear();
+    expect(await serverBootstrap(null, 'http://backend.example', '__Host-lumical_session', fetcher, key)).toEqual({ phase: 'unavailable' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 });

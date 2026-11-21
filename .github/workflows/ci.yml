@@ -49,6 +49,9 @@ jobs:
       - name: Run quality gate
         run: pnpm verify
 
+      - name: Verify built Next gateway with TLS and disposable PostgreSQL
+        run: pnpm test:gateway
+
       - name: Preserve browser evidence on failure
         if: failure()
         uses: actions/upload-artifact@v4

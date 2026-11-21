@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     localPatterns: [],
     remotePatterns: [],
   },
-  // Development HTTP proxy only; Compose/deployed traffic uses the separate gateway.
+  // Development only. Compose uses infra/proxy; Vercel uses the server API route.
   async rewrites() {
     if (process.env.NODE_ENV !== 'development') return [];
     const backend = process.env.BACKEND_URL ?? 'http://localhost:3001';

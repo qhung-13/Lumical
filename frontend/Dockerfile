@@ -25,6 +25,7 @@ RUN pnpm install \
 FROM deps AS build
 
 COPY frontend ./frontend
+COPY infra ./infra
 
 RUN pnpm --dir frontend build
 

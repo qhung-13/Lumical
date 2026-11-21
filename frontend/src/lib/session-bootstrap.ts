@@ -2,14 +2,15 @@ import { parseSession } from '../api/identity';
 import type { SafeBootstrap } from '../features/identity/session-manager';
 
 // Pure server transport helper, tested without rendering or serializing raw cookies.
-export async function serverBootstrap(cookieHeader: string | null, origin: string, cookieName: string, fetcher: typeof fetch = fetch): Promise<SafeBootstrap> {
+export async function serverBootstrap(cookieHeader: string | null, origin: string, cookieName: string, fetcher: typeof fetch = fetch, gatewayKey?: string): Promise<SafeBootstrap> {
   try {
     const trusted = new URL(origin);
     if (!['http:', 'https:'].includes(trusted.protocol) || trusted.origin !== origin || trusted.username || trusted.password) throw new Error();
+    if (gatewayKey !== undefined && (trusted.protocol !== 'https:' || !/^[a-f0-9]{64}$/i.test(gatewayKey) || /^([a-f0-9])\1+$/i.test(gatewayKey))) throw new Error();
     const relevant = (cookieHeader ?? '').split(';').map(value => value.trim()).filter(value => value.startsWith(`${cookieName}=`));
     const cookie = relevant.length === 1 && /^[A-Za-z0-9_-]{43}$/.test(relevant[0].slice(cookieName.length + 1)) ? relevant[0] : undefined;
     const response = await fetcher(new URL('/api/v1/auth/session', trusted), { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(5000),
-      headers: { Accept: 'application/json', ...(cookie ? { Cookie: cookie } : {}) } });
+      headers: { Accept: 'application/json', ...(cookie ? { Cookie: cookie } : {}), ...(gatewayKey ? { 'X-Lumical-Gateway-Key': gatewayKey } : {}) } });
     if (response.status === 401) return { phase: 'unauthenticated' };
     if (!response.ok) return { phase: 'unavailable' };
     const envelope: unknown = await response.json();

@@ -173,6 +173,12 @@ Set `IDENTITY_ALLOWED_ORIGINS` to that exact HTTPS origin; HTTP loopback
 cookie mode is rejected in production. The exposed loopback backend port is for
 local diagnostics and should stay private in deployed topology.
 
+For the academic **Vercel + Render** deployment, use the authenticated Next.js
+server API gateway and follow [the deployment runbook](docs/deployment-vercel-render.md).
+It preserves backend-owned auth/CSRF and attests Vercel's edge IP with a server-only
+gateway key instead of trusting Render's forwarding chain. `pnpm test:gateway`
+verifies the built Next route, HTTPS transport and real PostgreSQL sessions.
+
 `pnpm contract:generate` builds Nest OpenAPI and derives frontend types.
 `pnpm contract:check` detects drift. `pnpm test:identity` runs durable-session,
 security and controlled-race checks in disposable PostgreSQL. `pnpm verify`

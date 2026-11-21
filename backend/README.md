@@ -199,6 +199,13 @@ independent. The gateway must receive each client's socket address: HTTPS
 termination must preserve those source addresses. A conventional additional HTTP
 reverse proxy which collapses sockets to its own IP is not this supported topology.
 
+The Vercel + Render academic demo has a separate authenticated transport mode;
+see [deployment and source-IP rules](../docs/deployment-vercel-render.md).
+`LUMICAL_GATEWAY_KEY` is mandatory on Render and blocks direct business requests
+before controller execution. Only authenticated `X-Lumical-Client-IP` metadata is
+used for its IP limiter; do not add Render proxy ranges to `IDENTITY_TRUSTED_PROXY_IPS`.
+Health reads stay public. Session authorization and Origin/CSRF checks still apply.
+
 Email and audit reasons reject NUL/unpaired Unicode surrogates before hashing or
 persistence, with 422 field errors. Valid Unicode and password semantics remain
 unchanged. Known-length and streamed oversized JSON retain the parser's size

@@ -6,6 +6,7 @@ import { ApiErrors } from '../platform/http/api-errors';
 import { openApiDocument } from '../platform/http/openapi';
 import { SwaggerModule } from '@nestjs/swagger';
 import { trustedProxy } from '../platform/http/client-address';
+import { gatewayAuthentication } from '../platform/http/gateway-authentication';
 
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api/v1');
@@ -16,6 +17,7 @@ export function configureApp(app: INestApplication): void {
     next();
   });
   app.useGlobalFilters(new ApiErrors());
+  app.use(gatewayAuthentication());
   const policy = app.get(IdentityPolicy);
   app.getHttpAdapter().getInstance().set('trust proxy', trustedProxy(policy.trustedProxyIPs));
   app.enableCors({ origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {

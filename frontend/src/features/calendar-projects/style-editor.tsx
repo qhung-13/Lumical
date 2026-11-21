@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../design-system/primitives/button';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
@@ -21,6 +21,8 @@ interface Props {
   mutationReady: boolean;
   /** True while a conflict review or a version mismatch holds every save. */
   blocked: boolean;
+  /** Incremented when the shared conflict review is acknowledged; lets this draft move its pinned version forward. */
+  reviewAck: number;
   api: ProjectApi;
   onDirtyChange: (dirty: boolean) => void;
   onConflict: (currentVersion?: number) => void;
@@ -29,12 +31,18 @@ interface Props {
 type Status = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'versionConflict' | 'validation';
 
 export function StyleEditor({ actorId, projectId, presets, savedPresetId, version, projectStatus,
-  mutationReady, blocked, api, onDirtyChange, onConflict }: Props) {
+  mutationReady, blocked, reviewAck, api, onDirtyChange, onConflict }: Props) {
   const { locale } = usePreferences();
   const copy = studioCopy[locale].style;
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState(savedPresetId);
   const [status, setStatus] = useState<Status>('idle');
+  // P06 review G4: the draft is pinned to the version it started on. A
+  // concurrent commit while the owner types must surface as a 412 review —
+  // never as a silently newer If-Match that skips it. A ref is enough: only
+  // save() reads it, so no re-render is needed.
+  const draftVersion = useRef<number | null>(null);
+  const lastAck = useRef(0);
   const dirty = selected !== savedPresetId;
   const readOnly = projectStatus === 'ARCHIVED' || !mutationReady;
   const fieldId = 'studio-style-preset';
@@ -45,6 +53,14 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
     onDirtyChange(dirty);
     return () => onDirtyChange(false);
   }, [dirty, onDirtyChange]);
+
+  // Only an acknowledged conflict review may move the pin forward, and only to
+  // the refreshed version the review just displayed.
+  useEffect(() => {
+    if (reviewAck === lastAck.current) return;
+    lastAck.current = reviewAck;
+    if (dirty) draftVersion.current = version;
+  }, [reviewAck, version, dirty]);
 
   async function refresh() {
     await Promise.all([
@@ -59,12 +75,15 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
     if (readOnly || blocked || !dirty || status === 'saving') return;
     setStatus('saving');
     try {
-      const view = await api.patch(projectId, { stylePresetId: selected }, version);
+      // The conditional write targets the version this draft started on, so a
+      // concurrent bump is answered with 412 and the shared conflict review.
+      const view = await api.patch(projectId, { stylePresetId: selected }, draftVersion.current ?? version);
       // Committed: merge the new core view, keeping detail-only keys, then bring
       // the child queries to the advanced Project version (G6).
       queryClient.setQueryData<ProjectDetail>(projectKeys.detail(actorId, projectId),
         current => current ? { ...current, ...view } : current);
       setStatus('saved');
+      draftVersion.current = null;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, projectId), refetchType: 'active' }),
         queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, projectId), refetchType: 'active' }),
@@ -102,7 +121,15 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
   return <section className={styles.editorField}>
     <label htmlFor={fieldId}>{copy.heading}</label>
     <select id={fieldId} value={selected} disabled={readOnly || blocked || status === 'saving'}
-      aria-describedby={helpId} onChange={event => { setSelected(event.target.value); setStatus('dirty'); }}>
+      aria-describedby={helpId} onChange={event => {
+        const next = event.target.value;
+        // Reverting to the saved choice ends the draft; a fresh draft pins the
+        // version it starts on and keeps it until a review is acknowledged.
+        if (next === savedPresetId) draftVersion.current = null;
+        else if (!dirty) draftVersion.current = version;
+        setSelected(next);
+        setStatus('dirty');
+      }}>
       {presets.map(preset => <option key={preset.id} value={preset.id}>{locale === 'vi' ? preset.name.vi : preset.name.en}</option>)}
     </select>
     <p id={helpId} className={styles.fieldHelp}>{readOnly ? copy.archived : copy.description}</p>

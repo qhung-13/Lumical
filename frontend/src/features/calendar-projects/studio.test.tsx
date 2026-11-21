@@ -126,6 +126,11 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
     if (url.endsWith(`/projects/${projectId}/months`)) return json({ data: { ...currentMonths, projectVersion: options.monthVersion ?? currentVersion } });
     if (url.endsWith(`/projects/${projectId}`) && method === 'PATCH') {
       patchAttempts += 1;
+      // The real backend is conditional: a stale If-Match is a 412, never a silent overwrite.
+      const ifMatch = new Headers(init?.headers).get('If-Match');
+      if (ifMatch && ifMatch !== `"${currentVersion}"`) {
+        return json({ error: { code: 'VERSION_CONFLICT', currentVersion } }, 412);
+      }
       const body = JSON.parse(String(init?.body)) as { stylePresetId?: string };
       if (options.patchPlan === 'conflictOnce' && patchAttempts === 1) {
         // Concurrent owner editing: the other session committed version 4 first.
@@ -575,6 +580,68 @@ describe('P06 curated style, conflict review and the leave guard', () => {
     await user.click(screen.getByRole('link', { name: /Back to calendar/ }));
     expect(await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' })).toBeVisible();
     expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('requires Escape-proof review: cancelling the 412 dialog must not unlock saving', async () => {
+    const user = userEvent.setup();
+    renderStudio({ patchPlan: 'conflictOnce' });
+    await user.selectOptions(await screen.findByLabelText('Style preset'), 'minimal');
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    const name = 'Review the refreshed calendar before saving again';
+    const dialog = await screen.findByRole('dialog', { name });
+    // Escape reaches the dialog as a cancel event; a non-dismissible review ignores it.
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(screen.getByRole('dialog', { name })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeDisabled();
+    expect(screen.getByLabelText('Style preset')).toHaveValue('minimal');
+    // Only the explicit acknowledgment may release the lock.
+    await user.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeEnabled();
+  });
+
+  it('pins the style draft to the version it started on and only adopts the refreshed one after review (G4)', async () => {
+    const user = userEvent.setup();
+    const { fetcher } = renderStudio();
+    // The draft starts while the Project is still on saved version 3.
+    await user.selectOptions(await screen.findByLabelText('Style preset'), 'minimal');
+    // A concurrent commit advances the server to version 4 before Save is pressed.
+    await user.type(screen.getByLabelText(/Month message/), 'Advance the version');
+    await user.click(screen.getByRole('button', { name: 'Save month' }));
+    expect(await screen.findByText('Month saved.')).toBeVisible();
+    expect(await screen.findByText('Loaded saved version 4')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    const patches = () => fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH');
+    // The conditional write still targets the pinned version 3, so the server can refuse it.
+    expect(new Headers(patches()[0][1]?.headers).get('If-Match')).toBe('"3"');
+    const dialog = await screen.findByRole('dialog', { name: 'Review the refreshed calendar before saving again' });
+    expect(dialog).toHaveTextContent('The server is now on saved version 4');
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeDisabled();
+    await user.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // After the review the draft adopts the refreshed version and retries.
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    expect(await screen.findByText('Style saved.')).toBeVisible();
+    expect(patches()).toHaveLength(2);
+    expect(new Headers(patches()[1][1]?.headers).get('If-Match')).toBe('"4"');
+  });
+
+  it('asks before leaving when a non-selected Month still holds a draft (G5 across months)', async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    await user.type(await screen.findByLabelText(/Month message/), 'January draft');
+    await user.click(screen.getByRole('tab', { name: 'February' }));
+    // February itself is untouched, yet January's draft still needs confirming.
+    expect(screen.getByRole('button', { name: 'Save month' })).toBeDisabled();
+    await user.click(screen.getByRole('link', { name: /Back to calendar/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' });
+    expect(routerPush).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Stay and keep editing' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // The January draft survives the round trip.
+    await user.click(screen.getByRole('tab', { name: 'January' }));
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('January draft');
   });
 
   it('warns before unload only while something is unsaved (G5 beforeunload)', async () => {

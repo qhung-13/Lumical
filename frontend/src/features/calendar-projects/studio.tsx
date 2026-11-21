@@ -56,6 +56,8 @@ function StudioWorkspace({ id }: { id: string }) {
   const [saveState, setSaveState] = useState<{ scope: string; months: Record<number, 'dirty' | 'saving' | 'saved' | 'error' | 'media' | 'conflict' | 'versionConflict' | 'validation'> }>({ scope, months: {} });
   // P06: one project-level conflict review gates every save until it is acknowledged.
   const [conflictReview, setConflictReview] = useState<{ currentVersion?: number } | null>(null);
+  // P06 review: acknowledging the review is what may move a pinned draft version forward.
+  const [reviewAck, setReviewAck] = useState(0);
   const [styleDirty, setStyleDirty] = useState(false);
   const [specialDirty, setSpecialDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<string | null>(null);
@@ -185,8 +187,13 @@ function StudioWorkspace({ id }: { id: string }) {
   const editorReadOnly = archived || !versionsMatch;
   const saveDisabled = editorReadOnly || !draftChanged || captionCount > 300 || monthSaveStatus === 'saving' || conflictReview !== null ||
     Boolean(draft?.images.some(image => !mediaById.has(image.assetId) || mediaById.get(image.assetId)?.status !== 'READY'));
-  // G5: one guard covers every unsaved source — month draft, style choice, special-date form.
-  const hasUnsaved = draftChanged || styleDirty || specialDirty;
+  // G5: one guard covers every unsaved source — any Month draft (not only the
+  // selected one), the style choice and the special-date form.
+  const anyDraftChanged = Object.entries(drafts).some(([monthNumber, value]) => {
+    const saved = months.data?.months.find(item => item.monthNumber === Number(monthNumber));
+    return saved ? !sameMonthContent(value, monthContentDraft(saved)) : true;
+  });
+  const hasUnsaved = anyDraftChanged || styleDirty || specialDirty;
   useEffect(() => {
     if (!hasUnsaved) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -339,7 +346,7 @@ function StudioWorkspace({ id }: { id: string }) {
             <StyleEditor actorId={actorId} projectId={id} presets={project.data.stylePresets}
               savedPresetId={project.data.stylePresetId} version={project.data.version}
               projectStatus={project.data.status} mutationReady={state.mutationReady}
-              blocked={versionMismatch || conflictReview !== null} api={api}
+              blocked={versionMismatch || conflictReview !== null} reviewAck={reviewAck} api={api}
               onDirtyChange={reportStyleDirty} onConflict={currentVersion => setConflictReview({ currentVersion })} />
             <details className={styles.projectDetails}>
               <summary>{copy.savedContent}</summary>
@@ -361,7 +368,10 @@ function StudioWorkspace({ id }: { id: string }) {
               onRetry={() => { void Promise.all([project.refetch(), specialDates.refetch()]); }} />}
             <ARAuthoring actorId={actorId} projectId={id} projectVersion={project.data.version} projectStatus={project.data.status}
               mutationReady={state.mutationReady} api={api} media={media} availableMedia={availableMedia} />
-            <Dialog open={conflictReview !== null} onOpenChange={open => { if (!open) setConflictReview(null); }}
+            {/* Only the explicit acknowledge closes this one: Escape/backdrop must
+                never clear the review and re-enable saving behind the owner's back. */}
+            <Dialog open={conflictReview !== null} onOpenChange={open => { if (!open) { setConflictReview(null); setReviewAck(count => count + 1); } }}
+              dismissible={false}
               title={copy.conflictReview.title}
               description={`${copy.conflictReview.serverVersion(conflictReview?.currentVersion)} ${copy.conflictReview.description}`}
               cancelLabel={copy.conflictReview.acknowledge} />

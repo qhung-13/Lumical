@@ -182,6 +182,10 @@ test('P06 reviews a stale style version before saving again and asks before leav
   await expect(page.getByText('Loaded saved version 3', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save style' })).toBeDisabled();
   await expect(preset).toHaveValue('minimal');
+  // Escape must not dismiss the review or release the save lock (P06 review fix).
+  await page.keyboard.press('Escape');
+  await expect(review).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save style' })).toBeDisabled();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await review.getByRole('button', { name: 'I have reviewed — allow saving' }).click();
   await expect(review).toBeHidden();
@@ -203,6 +207,16 @@ test('P06 reviews a stale style version before saving again and asks before leav
   await leave.getByRole('button', { name: 'Stay and keep editing' }).click();
   await expect(leave).toBeHidden();
   await expect(page.getByLabel(/Month message/)).toHaveValue('Unsaved e2e note');
+
+  // The draft belongs to January: switching months must not lose the guard.
+  await page.getByRole('tab', { name: 'February' }).click();
+  await expect(page.getByRole('button', { name: 'Save month' })).toBeDisabled();
+  await back.click();
+  await expect(leave).toBeVisible();
+  await leave.getByRole('button', { name: 'Stay and keep editing' }).click();
+  await page.getByRole('tab', { name: 'January' }).click();
+  await expect(page.getByLabel(/Month message/)).toHaveValue('Unsaved e2e note');
+
   await back.click();
   await leave.getByRole('button', { name: 'Leave anyway' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${id}$`));

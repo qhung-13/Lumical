@@ -361,11 +361,33 @@ await withDisposablePostgres(async ({ url }) => {
           .expect(200)
           .expect('ETag', tags(2));
         assert.deepEqual(read.body.data.months[0], { ...body, monthNumber: 1 });
+        assert.deepEqual(
+          read.body.data.months.map((month) => month.monthNumber),
+          Array.from({ length: 12 }, (_, index) => index + 1),
+        );
         assert.equal(JSON.stringify(read.body).includes('test-only:'), false);
         await send('put', months + '/12', owner, 2)
           .send({ images: [image(media)] })
           .expect(200)
           .expect('ETag', tags(3));
+        // I07-P07 AC1: a later Month write keeps every other Month, so the
+        // whole twelve-Month set still reads back in order with both edits.
+        const reopened = await send('get', months, owner).expect(200);
+        assert.deepEqual(
+          reopened.body.data.months.map((month) => month.monthNumber),
+          Array.from({ length: 12 }, (_, index) => index + 1),
+        );
+        assert.deepEqual(reopened.body.data.months[0], {
+          ...body,
+          monthNumber: 1,
+        });
+        assert.equal(
+          reopened.body.data.months[11].caption,
+          read.body.data.months[11].caption,
+        );
+        assert.deepEqual(reopened.body.data.months[11].images, [
+          image(media),
+        ]);
       },
     );
 

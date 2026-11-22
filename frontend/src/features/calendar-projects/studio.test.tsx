@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '../../design-system/foundations/preferences-provider';
+import { studioCopy } from '../../i18n/studio';
 import { IdentityProvider } from '../identity/provider';
 import { Studio } from './studio';
 
@@ -41,12 +42,22 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
   let servedStaleSpecialDates = false;
   let putAttempts = 0;
   let patchAttempts = 0;
+  // P07/T19: the reveal configuration is persisted like any other child write,
+  // so a Project with no Special Dates can still carry one.
+  let arConfig: { monthNumber: number; revealAssetId: string; readableText: string; status: 'PREPARING' } | null = null;
   if ((options.availableImages ?? 1) > 1) currentMonths.months[1] = { ...currentMonths.months[1], images: imageIds.slice(1, options.availableImages)
     .map((assetId, index) => ({ assetId, altText: `Photo ${index + 2}`, crop: null })) };
   const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
-    if (url.endsWith(`/projects/${projectId}/ar/config`) && method === 'GET') return json({ data: { config: null, projectVersion: currentVersion } });
+    if (url.endsWith(`/projects/${projectId}/ar/config`) && method === 'GET') return json({ data: { config: arConfig, projectVersion: currentVersion } });
+    if (url.endsWith(`/projects/${projectId}/ar`) && method === 'PUT') {
+      const body = JSON.parse(String(init?.body)) as { monthNumber: number; revealAssetId: string; readableText: string };
+      currentVersion += 1;
+      project.version = currentVersion;
+      arConfig = { ...body, status: 'PREPARING' };
+      return json({ data: { ...arConfig, projectVersion: currentVersion } });
+    }
     if (url.endsWith('/auth/session')) return json({ data: { authenticated: true,
       principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
     if (/\/media\/[a-f0-9-]+$/.test(url) && imageIds.includes(url.split('/').at(-1)!)) {
@@ -150,12 +161,15 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
     return json({ error: { code: 'NOT_FOUND' } }, 404);
   });
   vi.stubGlobal('fetch', fetcher);
-  const view = render(<PreferencesProvider initial={{ locale: options.locale ?? 'en', theme: 'light' }}>
+  const tree = <PreferencesProvider initial={{ locale: options.locale ?? 'en', theme: 'light' }}>
     <IdentityProvider initial={{ phase: 'authenticated', principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' } }}>
       <Studio id={projectId} />
     </IdentityProvider>
-  </PreferencesProvider>);
-  return { ...view, fetcher };
+  </PreferencesProvider>;
+  const view = render(tree);
+  // P07/AC1: a reopen is a brand-new Studio tree (fresh query cache) whose
+  // only source of truth is the same server answer the mock still holds.
+  return { ...view, fetcher, remount: () => render(tree) };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -253,6 +267,31 @@ describe('guided Studio shell', () => {
     expect(await screen.findByRole('heading', { name: '1 selected image / 4' })).toBeVisible();
   });
 
+  it('keeps every one of the twelve edited Months after the Studio is reopened (P07 AC1)', async () => {
+    const user = userEvent.setup();
+    const view = renderStudio();
+    const tabs = await screen.findByRole('tablist', { name: 'Choose a month' });
+    for (let monthNumber = 1; monthNumber <= 12; monthNumber += 1) {
+      await user.click(within(tabs).getByRole('tab', { name: studioCopy.en.monthNames[monthNumber - 1] }));
+      fireEvent.change(screen.getByLabelText(/Month message/), { target: { value: `P07 note ${monthNumber}` } });
+      await user.click(screen.getByRole('button', { name: 'Save month' }));
+      expect(await screen.findByText('Month saved.')).toBeVisible();
+    }
+    // Reopen: a new Studio tree over a new query cache, so only the mock
+    // server's twelve persisted Months can answer for the content.
+    view.unmount();
+    view.remount();
+    const reopened = await screen.findByRole('tablist', { name: 'Choose a month' });
+    expect(within(reopened).getAllByRole('tab')).toHaveLength(12);
+    for (let monthNumber = 1; monthNumber <= 12; monthNumber += 1) {
+      await user.click(within(reopened).getByRole('tab', { name: studioCopy.en.monthNames[monthNumber - 1] }));
+      expect(screen.getByLabelText(/Month message/)).toHaveValue(`P07 note ${monthNumber}`);
+      // The calendar preview itself, not just the editor field, carries it.
+      const paper = screen.getByRole('article', { name: /Calendar preview/ });
+      expect(within(paper).getByText(`P07 note ${monthNumber}`)).toBeVisible();
+    }
+  });
+
   it('saves an emptied Month with null caption and zero images', async () => {
     const user = userEvent.setup();
     const { fetcher } = renderStudio();
@@ -344,6 +383,29 @@ describe('guided Studio shell', () => {
     expect(await screen.findByRole('heading', { name: 'Family celebration' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Your dates (2)' })).toBeVisible();
     expect(fetcher.mock.calls.filter(([url, init]) => String(url).endsWith('/special-dates') && init?.method === 'POST')).toHaveLength(2);
+  });
+
+  it('personalizes a Month, its style and an AR reveal with zero Special Dates and never asks for one (P07 AC2/T19)', async () => {
+    const user = userEvent.setup();
+    const { fetcher } = renderStudio({ specialEvents: [] });
+    expect(await screen.findByText('No Special Dates yet. This calendar is valid without any.')).toBeVisible();
+    await user.type(screen.getByLabelText(/Month message/), 'No dated events needed');
+    await user.click(screen.getByRole('button', { name: 'Save month' }));
+    expect(await screen.findByText('Month saved.')).toBeVisible();
+    await user.selectOptions(screen.getByLabelText('Style preset'), 'minimal');
+    await user.click(screen.getByRole('button', { name: 'Save style' }));
+    expect(await screen.findByText('Style saved.')).toBeVisible();
+    // The image-message reveal is a child write of its own: it needs no dated event.
+    fireEvent.change(screen.getByLabelText('Ready reveal media'), { target: { value: mediaId } });
+    fireEvent.change(screen.getByLabelText('Meaningful image message'), { target: { value: 'A story with no dates' } });
+    // The style save advanced the Project version; the AR read moves with it.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save AR reveal' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Save AR reveal' }));
+    expect(await screen.findByText('AR configuration saved.')).toBeVisible();
+    expect(fetcher.mock.calls.some(([url]) => String(url).endsWith(`/projects/${projectId}/ar`))).toBe(true);
+    // Optional means optional: nothing anywhere complains that the list is empty.
+    expect(fetcher.mock.calls.some(([url, init]) => String(url).includes('/special-dates') && init?.method === 'POST')).toBe(false);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('edits and confirms deletion of an event without leaving the Studio', async () => {

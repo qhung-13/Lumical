@@ -146,4 +146,25 @@ describe('AR write policy', () => {
       ).toThrow('VALIDATION_FAILED');
     },
   );
+
+  it('needs only one Ready image plus readable text; video and audio are alternatives, never requirements', () => {
+    const allowed = ['IMAGE', 'VIDEO', 'AUDIO'] as const;
+    // An owned Ready IMAGE is a complete reveal input on its own.
+    expect(() =>
+      assertAttachable({ category: 'IMAGE', status: 'READY' }, allowed),
+    ).not.toThrow();
+    const write = arWrite({
+      monthNumber: 3,
+      revealAssetId: assetId,
+      readableText: 'Open our family story.',
+    });
+    // The write asks for one asset and its text only: no category switch, no
+    // second asset and no video/audio substitute is ever demanded here.
+    expect(Object.keys(write).sort()).toEqual([
+      'monthNumber',
+      'readableText',
+      'revealAssetId',
+    ]);
+    expect(JSON.stringify(write)).not.toMatch(/VIDEO|AUDIO|category/);
+  });
 });

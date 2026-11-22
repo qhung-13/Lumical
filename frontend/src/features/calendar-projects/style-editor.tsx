@@ -67,6 +67,9 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, projectId), refetchType: 'active' }),
       queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, projectId), refetchType: 'active' }),
       queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, projectId), refetchType: 'active' }),
+      // Every child view carries the Project version; the AR read must move
+      // with it or the reveal panel reports a conflict that never happened.
+      queryClient.invalidateQueries({ queryKey: projectKeys.ar(actorId, projectId), refetchType: 'active' }),
       queryClient.invalidateQueries({ queryKey: projectKeys.lists(actorId), refetchType: 'active' }),
     ]);
   }
@@ -87,6 +90,7 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, projectId), refetchType: 'active' }),
         queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, projectId), refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.ar(actorId, projectId), refetchType: 'active' }),
         queryClient.invalidateQueries({ queryKey: projectKeys.lists(actorId), refetchType: 'active' }),
       ]);
     } catch (error) {

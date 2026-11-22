@@ -395,6 +395,16 @@ try {
       await check(
         'normalized email unique/check, FK ownership, month range/uniqueness, civil dates',
         async () => {
+          // INV-01: a Project can never exist without an owner, whatever the write path.
+          await rejectsSql(
+            runtime,
+            `INSERT INTO lumical.calendar_projects
+              (id,owner_id,template_revision_id,title,year,recipient_name,baseline_name_vi,baseline_name_en,
+               baseline_style,style_preset_id,unit_price_minor,updated_at)
+             VALUES($1,NULL,$2,'TEST ONLY',2027,'Synthetic recipient','Mẫu','Synthetic','{}','synthetic-neutral',1450,now())`,
+            [randomUUID(), syntheticIds.revision],
+            '23502',
+          );
           const insert =
             "INSERT INTO lumical.users(id,normalized_email,password_hash,updated_at) VALUES($1,$2,'TEST_ONLY',now())";
           await rejectsSql(

@@ -242,6 +242,10 @@ try {
         await archiveProject(other, project.id, '"1"').expect(404);
         await restoreProject(other, project.id, '"1"').expect(404);
         await deleteProject(other, project.id, { confirmed: true }, '"1"').expect(404);
+        // T01: ownership is not transferable through the edit contract, even by the owner.
+        const transfer = await patchProject(owner, project.id, { ownerId: other.id }, '"1"').expect(422);
+        assert.equal(transfer.body.error.code, 'VALIDATION_FAILED');
+        assert.equal((await runtime.query('SELECT owner_id,version FROM lumical.calendar_projects WHERE id=$1', [project.id])).rows[0].owner_id, ownerId);
 
         // §12: missing precondition is 428, malformed is 422, stale is 412 with the safe version.
         await api().patch(`/api/v1/projects/${project.id}`).set('Origin', origin).set('Cookie', owner.cookie)

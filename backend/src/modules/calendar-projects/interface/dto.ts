@@ -3,6 +3,7 @@ import {
   ApiPropertyOptional,
   type ApiPropertyOptions,
 } from '@nestjs/swagger';
+import { MonthImageDto } from './personalization-dto';
 import type { ProjectMonthRecord } from '../application/project-repository';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
 import type { ProjectDetailView } from '../application/project-owner';
@@ -102,12 +103,22 @@ export class ProjectResponseDto {
   @ApiProperty({ type: ProjectDataDto }) data: ProjectDataDto;
 }
 
+// One style preset the captured revision approved, served only on Project detail.
+export class ProjectStylePresetDto {
+  @ApiProperty({ ...presetSchema, description: 'Preset id approved by the captured revision.' })
+  id: string;
+  @ApiProperty({ type: LocalisedDto, description: 'Display name of the preset in both locales.' })
+  name: LocalisedDto;
+}
+
 export class ProjectDetailDataDto extends ProjectDataDto {
+  @ApiProperty({ type: [ProjectStylePresetDto], description: 'Every style preset the captured revision approved; a curated control may only offer these.' })
+  stylePresets: ProjectStylePresetDto[];
   @ApiProperty({ type: Boolean, description: 'Whether the Project has never been ordered and is currently eligible for permanent deletion.' })
   deletionEligible: boolean;
 
   static from(view: ProjectDetailView): ProjectDetailDataDto {
-    return { ...ProjectDataDto.from(view), deletionEligible: view.deletionEligible };
+    return { ...ProjectDataDto.from(view), stylePresets: [...view.stylePresets], deletionEligible: view.deletionEligible };
   }
 }
 
@@ -131,7 +142,16 @@ export class ProjectListResponseDto {
 
 export class ProjectMonthDto {
   @ApiProperty({ type: Number, minimum: 1, maximum: 12 }) monthNumber: number;
-  @ApiProperty({ type: String, nullable: true, maxLength: 300 }) caption: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'At most 300 grapheme clusters.' }) caption: string | null;
+  @ApiProperty({ type: [MonthImageDto], maxItems: 4 }) images: MonthImageDto[];
+}
+
+export class MonthRevisionDto extends ProjectMonthDto {
+  @ApiProperty({ type: 'integer', minimum: 1 }) projectVersion: number;
+}
+
+export class MonthResponseDto {
+  @ApiProperty({ type: MonthRevisionDto }) data: MonthRevisionDto;
 }
 
 // BR-MON-001: the twelve Months are returned together, ordered, with the
@@ -144,7 +164,7 @@ export class ProjectMonthsDataDto {
   static from(projectVersion: number, months: ProjectMonthRecord[]): ProjectMonthsDataDto {
     return {
       projectVersion,
-      months: months.map((month) => ({ monthNumber: month.monthNumber, caption: month.caption })),
+      months,
     };
   }
 }

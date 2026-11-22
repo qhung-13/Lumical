@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import type { TransactionContext } from '../../../platform/database/application/transactions';
+import type { OwnerMediaRepository } from '../../media/application/owner-media';
 import { ActiveAccounts, Clock } from '../../identity/application/ports';
 import type { ActiveAccountPrincipal } from '../../identity/domain/identity';
 import { ProjectError } from '../domain/project';
@@ -50,14 +51,73 @@ const service = (accounts: ActiveAccounts): ProjectOwnerService =>
     { now: () => new Date('2026-01-01T00:00:00.000Z') } as Clock,
     { list: async () => [] } as unknown as ProjectRepository,
     {} as CreateProject,
+    {} as OwnerMediaRepository,
   );
 
 const ownedRecord: ProjectRecord = {
   id: '10000000-0000-4000-8000-000000000001', ownerId: principal.id, title: 'A saved year', year: 2027,
   recipientName: 'Owner', status: 'WORKING', version: 2, stylePresetId: 'classic', baselineNameVi: 'Mẫu', baselineNameEn: 'Design',
   baselineStyle: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 },
-  createdAt: new Date('2026-01-01T00:00:00.000Z'), updatedAt: new Date('2026-01-02T00:00:00.000Z'), stylePresets: [],
+  createdAt: new Date('2026-01-01T00:00:00.000Z'), updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+  stylePresets: [
+    { id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic' },
+    { id: 'minimal', nameVi: 'Tối giản', nameEn: 'Minimal' },
+  ],
 };
+
+describe('Project child write boundary', () => {
+  const event = { date: '2027-01-01', title: 'New event' };
+  const key = 'synthetic-event-key';
+  function setup(project: ProjectRecord | null = ownedRecord) {
+    const advanceVersion = jest.fn().mockResolvedValue(3);
+    const saveSpecialDate = jest.fn().mockResolvedValue(ownedRecord.id);
+    const completeIntent = jest.fn();
+    const replayIntent = jest.fn().mockResolvedValue(null);
+    const lock = jest.fn().mockResolvedValue(project);
+    const repository = { lock, advanceVersion, saveSpecialDate, completeIntent, replayIntent };
+    const app = new ProjectOwnerService(
+      new FlakyAccounts(0, serialization),
+      { now: () => new Date('2026-01-03T00:00:00.000Z') },
+      repository as unknown as ProjectRepository,
+      {} as CreateProject,
+      {} as OwnerMediaRepository,
+    );
+    return { app, ...repository };
+  }
+
+  it.each([
+    [null, '"2"', 'NOT_FOUND'],
+    [ownedRecord, undefined, 'PRECONDITION_REQUIRED'],
+    [ownedRecord, '"1"', 'VERSION_CONFLICT'],
+    [{ ...ownedRecord, status: 'ARCHIVED' as const }, '"2"', 'INVALID_TRANSITION'],
+  ] as const)('rejects before mutating the child or advancing the root (%#)', async (row, etag, code) => {
+    const { app, advanceVersion, saveSpecialDate, completeIntent } = setup(row);
+    await expect(app.createSpecialDate(ownedRecord.id, event, etag, key, {})).rejects.toMatchObject({ code });
+    expect(saveSpecialDate).not.toHaveBeenCalled();
+    expect(advanceVersion).not.toHaveBeenCalled();
+    expect(completeIntent).not.toHaveBeenCalled();
+  });
+
+  it('binds the child result and original revision in the same context and replays it without writing', async () => {
+    const { app, lock, advanceVersion, saveSpecialDate, completeIntent, replayIntent } = setup();
+    const result = await app.createSpecialDate(ownedRecord.id, event, '"2"', key, {});
+    const [intent, digest, outcome, context] = completeIntent.mock.calls[0];
+    expect(intent).toEqual({ actorId: principal.id, operation: 'SPECIAL_DATE_CREATE', key });
+    expect(lock).toHaveBeenCalledWith(principal.id, ownedRecord.id, context);
+    expect(saveSpecialDate).toHaveBeenCalledWith(ownedRecord, { ...event, note: null }, undefined, context);
+    expect(advanceVersion).toHaveBeenCalledWith(ownedRecord, expect.any(Date), context);
+    expect(outcome).toEqual({ resourceId: ownedRecord.id, projectVersion: 3 });
+
+    lock.mockResolvedValue({ ...ownedRecord, version: 3, status: 'ARCHIVED' });
+    replayIntent.mockResolvedValue({ digest, ...outcome });
+    await expect(app.createSpecialDate(ownedRecord.id, event, '"2"', key, {})).resolves.toEqual(result);
+    await expect(app.createSpecialDate(ownedRecord.id, { ...event, title: 'Changed' }, '"2"', key, {}))
+      .rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    expect(saveSpecialDate).toHaveBeenCalledTimes(1);
+    expect(advanceVersion).toHaveBeenCalledTimes(1);
+    expect(completeIntent).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('Project restart boundary', () => {
   it.each([
@@ -73,6 +133,7 @@ describe('Project restart boundary', () => {
       { now: () => new Date('2026-01-03T00:00:00.000Z') } as Clock,
       repository,
       {} as CreateProject,
+      {} as OwnerMediaRepository,
     );
     await expect(app.get(ownedRecord.id, {})).resolves.toMatchObject({ id: ownedRecord.id, deletionEligible: eligible });
   });
@@ -114,5 +175,36 @@ describe('Project restart boundary', () => {
       field: 'limit',
     });
     expect(accounts.attempts).toBe(0);
+  });
+});
+
+describe('Project detail curated preset projection', () => {
+  const appWith = (record: ProjectRecord) =>
+    new ProjectOwnerService(
+      new FlakyAccounts(0, serialization),
+      { now: () => new Date('2026-01-03T00:00:00.000Z') } as Clock,
+      {
+        find: async () => record,
+        orderHistory: async () => 'NEVER_ORDERED',
+      } as unknown as ProjectRepository,
+      {} as CreateProject,
+      {} as OwnerMediaRepository,
+    );
+
+  it('serves exactly the presets the captured revision approved, bilingual', async () => {
+    await expect(appWith(ownedRecord).get(ownedRecord.id, {})).resolves.toMatchObject({
+      stylePresets: [
+        { id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } },
+        { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } },
+      ],
+    });
+  });
+
+  it('fails closed instead of serving a corrupt preset row as an approved choice', async () => {
+    for (const stylePresets of [undefined, null, [], [{ id: 'classic' }],
+      [{ id: 'classic', nameVi: 'Cổ điển', nameEn: 'Classic', extra: true }]]) {
+      await expect(appWith({ ...ownedRecord, stylePresets } as ProjectRecord).get(ownedRecord.id, {}))
+        .rejects.toThrow(/Corrupt Project captured style presets/);
+    }
   });
 });

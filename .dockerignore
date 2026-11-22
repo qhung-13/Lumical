@@ -2,6 +2,9 @@
 .git
 .gitignore
 
+# Local legacy reference, excluded from the root build context
+Lumical_Old
+
 # Dependencies
 node_modules
 **/node_modules

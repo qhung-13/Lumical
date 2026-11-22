@@ -10,7 +10,8 @@ import { useIdentity } from '../identity/provider';
 import { adminTemplateApi, adminTemplateDetailOptions, adminTemplateKeys, type TemplateAvailability } from '../../api/admin-templates';
 import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
-import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
+import { AdminShell, PageHeader } from './admin-shell';
+import { PreferenceControls } from '../../design-system/foundations/preference-controls';
 import { AvailabilityPanel } from './availability-panel';
 import { ConflictBanner } from './conflict-banner';
 import { RevisionForm, toRevisionBody, type RevisionDraft } from './revision-form';
@@ -81,8 +82,8 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
 
   if (session.phase === 'loading' || (actorId && detail.isPending)) {
     return (
-      <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
-        <PageHeader title={t('detailTitle')} description={t('detailDesc')} actions={<LocaleSwitcher />} />
+      <AdminShell adminEmail={manager.getSnapshot().principal?.email}>
+        <PageHeader title={t('detailTitle')} description={t('detailDesc')} actions={<PreferenceControls />} />
         <p className={styles.status} role="status" aria-live="polite">{t('savingList')}</p>
       </AdminShell>
     );
@@ -90,8 +91,8 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
 
   if (!actorId || !template) {
     return (
-      <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
-        <PageHeader title={t('detailTitle')} description={t('detailDesc')} actions={<LocaleSwitcher />}
+      <AdminShell adminEmail={manager.getSnapshot().principal?.email}>
+        <PageHeader title={t('detailTitle')} description={t('detailDesc')} actions={<PreferenceControls />}
           onRefresh={detail.isError || session.phase === 'unavailable'
             ? () => void (actorId ? detail.refetch() : manager.bootstrap()) : undefined} />
         <section className={`${styles.banner} ${styles.bannerDanger}`} role="alert">
@@ -107,14 +108,14 @@ export function TemplateDetailScreen({ templateId }: TemplateDetailScreenProps) 
   }
 
   return (
-    <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
+    <AdminShell adminEmail={manager.getSnapshot().principal?.email}>
       <PageHeader
         title={`${t('detailTitle')} · ${template.id.slice(0, 8)}`}
         description={t('detailDesc')}
         crumbs={[{ label: t('crumbTemplates'), href: '/admin/templates' }, { label: t('crumbDetail') }]}
         caption={t('currentVersionIs', { version: template.version })}
         onRefresh={() => void detail.refetch()}
-        actions={<LocaleSwitcher />}
+        actions={<PreferenceControls />}
       />
 
       {detail.isError && <p role="alert" className={styles.status}>{t('unavailable')}</p>}

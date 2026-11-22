@@ -62,7 +62,7 @@ export function ProjectDetail({ id }: { id: string }) {
   }
   function moveTab(index: number) { const next = (index + 12) % 12; setSelectedMonth(next + 1); tabs.current[next]?.focus(); }
   return <PublicShell><div className={styles.page}>
-    <Link href="/account">← {copy.back}</Link><h1>{copy.detail}</h1>
+    <Link className={styles.back} href="/account">← {copy.back}</Link><h1>{copy.detail}</h1>
     {state.phase === 'loading' && <p role="status">{copy.loading}</p>}
     {state.phase === 'unavailable' && <p role="alert">{copy.detailError}</p>}
     {state.phase === 'unauthenticated' && <section className={styles.panel}><p>{copy.signIn}</p><Link href={`/login?next=${encodeURIComponent(returnTo)}`}>{copy.signIn}</Link></section>}
@@ -71,9 +71,10 @@ export function ProjectDetail({ id }: { id: string }) {
       <p>{detail.error instanceof Error && 'status' in detail.error && detail.error.status === 404 ? copy.notFound : copy.detailError}</p>
       <Button onClick={() => void detail.refetch()}>{copy.retry}</Button>
     </section>}
-    {state.phase === 'authenticated' && detail.data && <article className={styles.panel}>
+    {state.phase === 'authenticated' && detail.data && <article className={`${styles.panel} ${styles.detail}`}>
       <div className={styles.workspaceHeading}><div><p className={styles.eyebrow}>{copy.status[detail.data.status]}</p><h2>{detail.data.title}</h2></div>
         <div ref={actions} className={styles.projectActions}>
+          <Link className={styles.studioLink} href={`/projects/${encodeURIComponent(id)}/studio`}>{copy.openStudio}</Link>
           {detail.data.status === 'WORKING' && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.archive} title={copy.archiveTitle} description={copy.archiveDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('archive')} />}
           {detail.data.status === 'ARCHIVED' && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.restore} title={copy.restoreTitle} description={copy.restoreDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.confirm} onConfirm={() => void lifecycle('restore')} />}
           {detail.data.deletionEligible && <Dialog disabled={pending || !state.mutationReady} triggerLabel={copy.delete} title={copy.deleteTitle} description={copy.deleteDescription} cancelLabel={copy.lifecycleCancel} confirmLabel={copy.delete} destructive onConfirm={() => void lifecycle('remove')} />}
@@ -90,7 +91,7 @@ export function ProjectDetail({ id }: { id: string }) {
         <h2>{copy.monthNav}</h2>
         {months.isPending && <p role="status">{copy.loading}</p>}
         {months.isError && <div role="alert"><p>{copy.monthError}</p><Button onClick={() => void months.refetch()}>{copy.retry}</Button></div>}
-        {months.data && <>
+        {months.data && <div className={styles.monthBoard}>
           <div className={styles.monthTabs} role="tablist" aria-label={copy.monthNav}>
             {copy.monthNames.map((name, index) => <button key={index} ref={element => { tabs.current[index] = element; }} type="button" role="tab"
               id={`month-tab-${index + 1}`} aria-controls="month-panel" aria-selected={selectedMonth === index + 1} tabIndex={selectedMonth === index + 1 ? 0 : -1}
@@ -104,7 +105,7 @@ export function ProjectDetail({ id }: { id: string }) {
           {(() => { const month = months.data.months.find(item => item.monthNumber === selectedMonth); return <section className={styles.monthPanel} id="month-panel" role="tabpanel" aria-labelledby={`month-tab-${selectedMonth}`} tabIndex={0}>
             <h3>{copy.monthNames[selectedMonth - 1]}</h3><p>{month?.caption?.trim() || copy.emptyMonth}</p>
           </section>; })()}
-        </>}
+        </div>}
       </section>
     </article>}
   </div></PublicShell>;

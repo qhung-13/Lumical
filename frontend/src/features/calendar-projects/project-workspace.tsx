@@ -11,6 +11,8 @@ import { Dialog } from '../../design-system/composites/dialog';
 import { PublicShell } from '../../design-system/layouts/public-shell';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
 import { useIdentity } from '../identity/provider';
+import { CalendarMockup } from '../templates/calendar-mockup';
+import { templateCopy } from '../../i18n/templates';
 import { IdentityScreen } from '../identity/identity-screen';
 import { projectCopy } from './copy';
 import { bindProjectWorkspaceDraftIdentity, readProjectWorkspaceDraft, writeProjectWorkspaceDraft, type ProjectWorkspaceDraft } from './workspace-draft';
@@ -120,9 +122,16 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
   }
 
   const templateNotFound = selectedTemplate.error instanceof TemplateApiError && selectedTemplate.error.status === 404;
-  return <PublicShell><div className={styles.page}>
-    <div className={styles.workspaceHeading}><div><p className={styles.eyebrow}>LumiCal</p><h1>{copy.title}</h1><p className={styles.intro}>{copy.intro}</p></div>
-      <div className={styles.projectActions}><Link href="/media/upload">{copy.mediaLink}</Link><Button variant="outline" loading={logoutPending} loadingLabel={copy.logout} disabled={!state.mutationReady} onClick={() => void logout()}>{copy.logout}</Button></div></div>
+  return <PublicShell fullWidth>
+    <div className={styles.accountHero}><header className={`${styles.page} ${styles.workspaceHeading}`}>
+      <div><h1>{copy.title}</h1><p className={styles.intro}>{copy.intro}</p></div>
+      <div className={styles.projectActions}>
+        {!templateId && <Link className={styles.studioLink} href="/templates">{copy.catalog}</Link>}
+        <Link className={styles.studioLink} href="/media/upload">{copy.mediaLink}</Link>
+        <Button variant="outline" loading={logoutPending} loadingLabel={copy.logout} disabled={!state.mutationReady} onClick={() => void logout()}>{copy.logout}</Button>
+      </div>
+    </header></div>
+    <div className={styles.page}>
     {draft.submitError === 'ERROR' && !template && <p role="alert">{copy.error}</p>}
     {draft.intent && <section className={styles.panel} aria-label={copy.retryPrevious}>
       <p role="status" className={styles.summary}>{copy.unresolvedIntent}</p>
@@ -130,15 +139,15 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
       {!pending && <Dialog triggerLabel={copy.startNewIntent} title={copy.startNewIntentTitle} description={copy.startNewIntentDescription}
         cancelLabel={copy.cancel} confirmLabel={copy.startNewIntentConfirm} destructive onConfirm={() => updateDraft({ intent: undefined, submitError: undefined, fieldErrors: {} })} />}
     </section>}
-    {templateId ? selectedTemplate.isPending ? <section className={styles.panel} role="status">{copy.loadingTemplate}</section> : templateNotFound ?
+    {templateId && (selectedTemplate.isPending ? <section className={styles.panel} role="status">{copy.loadingTemplate}</section> : templateNotFound ?
       <section className={styles.panel} role="alert"><p>{copy.missing}</p><Link href="/templates">{copy.catalog}</Link></section> : selectedTemplate.isError ?
       <section className={styles.panel} role="alert"><p>{copy.error}</p><Button onClick={() => void selectedTemplate.refetch()}>{copy.retry}</Button></section> : template ?
       <section className={styles.composition} aria-label={copy.template}>
-        <div className={styles.preview} data-layout={template.publishedRevision.layout.type}>
-          <div className={styles.paper}><span>{template.publishedRevision.name[locale]}</span><div aria-hidden="true">{Array.from({ length: 12 }, (_, index) => <i key={index} />)}</div></div>
-        </div>
-        <div className={styles.panel}><p className={styles.eyebrow}>{copy.template} · {template.publishedRevision.name[locale]}</p><p>{template.publishedRevision.description[locale]}</p>
-          <Link href="/templates">{copy.change}</Link>
+        <figure className={styles.preview}>
+          <div className={styles.previewStage}><CalendarMockup locale={locale} layout={template.publishedRevision.layout.type} /></div>
+          <figcaption><strong>{template.publishedRevision.name[locale]}</strong><small>{templateCopy[locale].illustrationLabel}</small><Link href="/templates">{copy.change}</Link></figcaption>
+        </figure>
+        <div className={styles.formPane}><h2>{templateCopy[locale].handoffTitle}</h2><p>{template.publishedRevision.description[locale]}</p>
           <form onSubmit={event => void submit(event)} noValidate>
             {draft.submitError && <div className={styles.summary} role="alert" tabIndex={-1} ref={summary}>{draft.submitError === 'VALIDATION_FAILED' ? copy.validation : draft.submitError === 'TEMPLATE_UNAVAILABLE' ? copy.unavailable : draft.submitError === 'CONFLICT' ? copy.conflict : copy.error}</div>}
             <fieldset disabled={pending || !state.mutationReady} className={styles.fields}>
@@ -153,12 +162,12 @@ function ProjectWorkspaceActor({ templateId }: { templateId?: string }) {
             {!draft.intent && <Button type="submit" variant="primary" size="lg" disabled={pending || !state.mutationReady} loading={pending} loadingLabel={copy.creating}>{copy.create}</Button>}
           </form>
         </div>
-      </section> : null : <section className={styles.panel}><p>{copy.missing}</p><Link href="/templates">{copy.catalog}</Link></section>}
+      </section> : null)}
     <section className={styles.list} aria-labelledby="my-projects"><h2 id="my-projects">{copy.myProjects}</h2>
       {pageQueries[0]?.isPending && projectRows.length === 0 && <p role="status">{copy.loading}</p>}
       {pageQueries[0]?.isError && projectRows.length === 0 && <div role="alert"><p>{copy.listError}</p><Button onClick={() => void pageQueries[0]?.refetch()}>{copy.retry}</Button></div>}
       {!pageQueries[0]?.isPending && !pageQueries[0]?.isError && projectRows.length === 0 && <p>{copy.empty}</p>}
-      {projectRows.length > 0 && <ul className={styles.projectList}>{projectRows.map(project => <li key={project.id}><Link href={`/projects/${encodeURIComponent(project.id)}`}><strong>{project.title}</strong><span>{project.recipientName} · {project.year}</span><span>{copy.status[project.status]}</span></Link></li>)}</ul>}
+      {projectRows.length > 0 && <ul className={styles.projectList}>{projectRows.map(project => <li key={project.id}><Link href={`/projects/${encodeURIComponent(project.id)}`}><strong>{project.title}</strong><span>{project.recipientName} · {project.year}</span><span className={styles.projectStatus}>{copy.status[project.status]} <span aria-hidden="true">→</span></span></Link></li>)}</ul>}
       {lastPage?.isError && projectRows.length > 0 && <div role="alert"><p>{copy.listError}</p><Button onClick={() => void lastPage.refetch()}>{copy.retry}</Button></div>}
       {latest?.data?.meta.hasMore && !lastPage?.isError && <Button variant="secondary" disabled={lastPage?.isFetching} onClick={() => { const cursor = latest.data?.meta.nextCursor; if (cursor && !draft.cursorStack.includes(cursor)) updateDraft({ cursorStack: [...draft.cursorStack, cursor] }); }}>{copy.loadMore}</Button>}
     </section>

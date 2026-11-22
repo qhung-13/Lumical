@@ -8,7 +8,7 @@ import { readProjectWorkspaceDraft, resetProjectWorkspaceDraftStore } from './wo
 import { useIdentity } from '../identity/provider';
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }), usePathname: () => '/account' }));
 const templateId = '11111111-1111-4111-8111-111111111111';
 const anotherTemplateId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const projectId = '33333333-3333-4333-8333-333333333333';

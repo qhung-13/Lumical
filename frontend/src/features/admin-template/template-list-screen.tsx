@@ -10,7 +10,8 @@ import { useIdentity } from '../identity/provider';
 import { adminTemplateApi, adminTemplateListOptions, type AdminTemplateData, type AdminTemplateListQuery, type TemplateAvailability } from '../../api/admin-templates';
 import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
-import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
+import { AdminShell, PageHeader } from './admin-shell';
+import { PreferenceControls } from '../../design-system/foundations/preference-controls';
 import { IconAlertCircle, IconChevronLeft, IconChevronRight, IconPlus, IconTemplates } from './icons';
 import styles from './admin-template.module.css';
 
@@ -55,13 +56,13 @@ export function TemplateListScreen() {
   const changeState = (value: string) => { setCursors([null]); setState(value as TemplateAvailability | ''); };
 
   return (
-    <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
+    <AdminShell adminEmail={manager.getSnapshot().principal?.email}>
       <PageHeader
         title={t('listTitle')}
         description={t('listDesc')}
         caption={t('listCaption')}
         onRefresh={() => { setCursors([null]); void first?.refetch(); }}
-        actions={<LocaleSwitcher />}
+        actions={<PreferenceControls />}
       />
 
       <div className={styles.toolbar}>
@@ -103,36 +104,39 @@ export function TemplateListScreen() {
 
       {rows.length > 0 && (
         <div className={styles.tableWrap}>
-          <table>
+          <table role="table">
             <caption className={styles.vh}>{t('tableCaption')}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t('thTemplate')}</th>
-                <th scope="col">{t('thCategory')}</th>
-                <th scope="col">{t('thAvailability')}</th>
-                <th scope="col">{t('thVersion')}</th>
-                <th scope="col">{t('thPublished')}</th>
-                <th scope="col" className={styles.thAction}>{t('thAction')}</th>
+            <thead className={styles.vh} role="rowgroup">
+              <tr role="row">
+                <th role="columnheader" scope="col">{t('thTemplate')}</th>
+                <th role="columnheader" scope="col">{t('thCategory')}</th>
+                <th role="columnheader" scope="col">{t('thAvailability')}</th>
+                <th role="columnheader" scope="col">{t('thVersion')}</th>
+                <th role="columnheader" scope="col">{t('thPublished')}</th>
+                <th role="columnheader" scope="col">{t('thAction')}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>
+                <tr key={row.id} role="row" data-availability={row.availability}>
+                  <td role="cell" className={styles.identityCell}>
+                    <IconTemplates size={20} />
+                    <div>
                     <span className={styles.cellStrong}>{row.id.slice(0, 8)}</span>
                     <span className={styles.cellSub}>{row.id}</span>
+                    </div>
                   </td>
-                  <td>{t(CATEGORY_KEY[row.category])}</td>
-                  <td>
+                  <td role="cell">{t(CATEGORY_KEY[row.category])}</td>
+                  <td role="cell">
                     <span className={`${styles.pill} ${styles[AVAILABILITY_PILL[row.availability]]}`}>
                       {t(AVAILABILITY_KEY[row.availability])}
                     </span>
                   </td>
-                  <td className={styles.num}>{t('versionLabel').replace('{n}', String(row.version))}</td>
-                  <td className={styles.num}>
+                  <td role="cell" className={styles.num}>{t('versionLabel').replace('{n}', String(row.version))}</td>
+                  <td role="cell" className={styles.num}>
                     {row.publishedRevision === null ? t('neverPublished') : t('publishedRev').replace('{n}', String(row.publishedRevision))}
                   </td>
-                  <td className={styles.tdAction}>
+                  <td role="cell" className={styles.tdAction}>
                     <Link className={styles.linkBtn} href={`/admin/templates/${encodeURIComponent(row.id)}`}>
                       {t('manage')}
                     </Link>

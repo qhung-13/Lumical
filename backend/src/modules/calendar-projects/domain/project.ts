@@ -33,6 +33,8 @@ type ProjectErrorCode =
   | 'VALIDATION_FAILED'
   | 'UNAUTHENTICATED'
   | 'TEMPLATE_UNAVAILABLE'
+  | 'MEDIA_UNAVAILABLE'
+  | 'CONFLICT'
   | 'IDEMPOTENCY_CONFLICT'
   | 'NOT_FOUND'
   | 'INVALID_TRANSITION'
@@ -48,7 +50,14 @@ export type ProjectField =
   | 'confirmed'
   | 'state'
   | 'cursor'
-  | 'limit';
+  | 'limit'
+  | 'caption'
+  | 'images'
+  | 'date'
+  | 'note'
+  | 'monthNumber'
+  | 'revealAssetId'
+  | 'readableText';
 
 export class ProjectError extends Error {
   constructor(
@@ -61,6 +70,14 @@ export class ProjectError extends Error {
 }
 
 export function projectName(input: unknown, field: ProjectNameField): string {
+  return projectText(input, field, { maxLength: 80 });
+}
+
+export function projectText(
+  input: unknown,
+  field: ProjectField,
+  { allowBlank = false, maxLength }: { allowBlank?: boolean; maxLength?: number } = {},
+): string {
   if (
     typeof input !== 'string' ||
     input.includes('\u0000') ||
@@ -74,12 +91,15 @@ export function projectName(input: unknown, field: ProjectNameField): string {
       value,
     )
   ) {
+    if (allowBlank && value === '') return value;
     throw new ProjectError('VALIDATION_FAILED', field);
   }
 
-  const graphemes = projectNameSegmenter.segment(value)[Symbol.iterator]();
-  for (let count = 1; !graphemes.next().done; count += 1) {
-    if (count > 80) throw new ProjectError('VALIDATION_FAILED', field);
+  if (maxLength !== undefined) {
+    const graphemes = projectNameSegmenter.segment(value)[Symbol.iterator]();
+    for (let count = 1; !graphemes.next().done; count += 1) {
+      if (count > maxLength) throw new ProjectError('VALIDATION_FAILED', field);
+    }
   }
   return value;
 }
@@ -264,6 +284,43 @@ export function projectView(record: ProjectFacts): ProjectView {
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
+}
+
+// P06: one style choice the captured revision actually approved, in the shape
+// the detail contract serves (bilingual display name).
+export interface CapturedStylePreset {
+  readonly id: string;
+  readonly name: { readonly vi: string; readonly en: string };
+}
+
+// The read-side of BR-PRJ-003: the curated control may only offer what the
+// captured revision approved, so this projection is the single source of that
+// list. The stored `style_presets` row is untrusted like any other column: a
+// shape the catalog could not have published is corruption and fails closed as
+// a 500 rather than being served as an approved-looking choice.
+export function capturedStylePresets(value: unknown): CapturedStylePreset[] {
+  if (!Array.isArray(value) || value.length === 0)
+    throw new Error('Corrupt Project captured style presets.');
+  const seen = new Set<string>();
+  return value.map((preset: unknown) => {
+    if (!preset || typeof preset !== 'object' || Array.isArray(preset))
+      throw new Error('Corrupt Project captured style presets.');
+    const stored = preset as Record<string, unknown>;
+    if (
+      Object.keys(stored).length !== 3 ||
+      typeof stored.id !== 'string' ||
+      !stored.id ||
+      stored.id.length > 64 ||
+      seen.has(stored.id) ||
+      typeof stored.nameVi !== 'string' ||
+      !stored.nameVi.trim() ||
+      typeof stored.nameEn !== 'string' ||
+      !stored.nameEn.trim()
+    )
+      throw new Error('Corrupt Project captured style presets.');
+    seen.add(stored.id);
+    return { id: stored.id, name: { vi: stored.nameVi, en: stored.nameEn } };
+  });
 }
 
 // API contract §11: a replay answers with the outcome the intent originally

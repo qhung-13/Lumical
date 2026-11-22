@@ -242,7 +242,7 @@ model CalendarMonth {
   id                      String              @id @default(uuid()) @db.Uuid
   projectId               String              @map("project_id") @db.Uuid
   monthNumber             Int                 @map("month_number") @db.SmallInt
-  caption                 String?             @db.VarChar(300)
+  caption                 String?
   project                 CalendarProject     @relation("CalendarMonth_project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   projectMonthMedia_month ProjectMonthMedia[] @relation("ProjectMonthMedia_month")
 
@@ -301,8 +301,8 @@ model SpecialDate {
   id        String          @id @default(uuid()) @db.Uuid
   projectId String          @map("project_id") @db.Uuid
   eventDate DateTime        @map("event_date") @db.Date
-  title     String          @db.VarChar(80)
-  note      String?         @db.VarChar(300)
+  title     String
+  note      String?
   project   CalendarProject @relation("SpecialDate_project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([projectId, eventDate, id])

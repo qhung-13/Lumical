@@ -9,6 +9,8 @@ import { TemplateAdminError } from '../../modules/templates/domain/template-admi
 const PROJECT_ERROR = {
   UNAUTHENTICATED: { status: 401, messageKey: 'errors.unauthenticated' },
   NOT_FOUND: { status: 404, messageKey: 'errors.notFound' },
+  MEDIA_UNAVAILABLE: { status: 409, messageKey: 'errors.mediaUnavailable' },
+  CONFLICT: { status: 409, messageKey: 'errors.conflict' },
   IDEMPOTENCY_CONFLICT: { status: 409, messageKey: 'errors.idempotencyConflict' },
   PROJECT_HAS_ORDERS: { status: 409, messageKey: 'errors.projectHasOrders' },
   INVALID_TRANSITION: { status: 409, messageKey: 'errors.invalidTransition' },

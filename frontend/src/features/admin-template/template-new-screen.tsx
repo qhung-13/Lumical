@@ -9,7 +9,8 @@ import { useIdentity } from '../identity/provider';
 import { adminTemplateApi } from '../../api/admin-templates';
 import { formatTemplateAdmin, type TemplateAdminKey } from '../../i18n/admin-templates';
 import { usePreferences } from '../../design-system/foundations/preferences-provider';
-import { AdminShell, LocaleSwitcher, PageHeader } from './admin-shell';
+import { AdminShell, PageHeader } from './admin-shell';
+import { PreferenceControls } from '../../design-system/foundations/preference-controls';
 import { RevisionForm, toRevisionBody, type RevisionDraft } from './revision-form';
 import { useAdminCommand, useTemplateIntent } from './use-admin-command';
 import { IntentReview } from './intent-review';
@@ -37,13 +38,13 @@ export function TemplateNewScreen() {
   };
 
   return (
-    <AdminShell activeItem="templates" adminEmail={manager.getSnapshot().principal?.email}>
+    <AdminShell adminEmail={manager.getSnapshot().principal?.email}>
       <PageHeader
         title={t('newTitle')}
         description={t('newDesc')}
         crumbs={[{ label: t('crumbTemplates'), href: '/admin/templates' }, { label: t('crumbNew') }]}
         caption={t('listCaption')}
-        actions={<LocaleSwitcher />}
+        actions={<PreferenceControls />}
       />
 
       {command.notice && (

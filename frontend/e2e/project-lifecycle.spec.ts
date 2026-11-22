@@ -18,7 +18,8 @@ async function setup(page: Page, options: { initialStatus?: 'WORKING' | 'ARCHIVE
     }
     if (request.method() === 'GET') {
       if (deleted) { await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'NOT_FOUND' } }) }); return; }
-      await route.fulfill({ status: 200, headers: { ETag: `"${version}"` }, contentType: 'application/json', body: JSON.stringify({ data: { ...project, status, version, deletionEligible: eligible } }) }); return;
+      await route.fulfill({ status: 200, headers: { ETag: `"${version}"` }, contentType: 'application/json', body: JSON.stringify({ data: { ...project, status, version, deletionEligible: eligible,
+        stylePresets: [{ id: 'classic', name: { vi: 'Cổ điển', en: 'Classic' } }, { id: 'minimal', name: { vi: 'Tối giản', en: 'Minimal' } }] } }) }); return;
     }
     if (request.method() === 'POST' && (url.pathname.endsWith('/archive') || url.pathname.endsWith('/restore'))) {
       if (options.stale) { status = 'ARCHIVED'; version = 2; options.stale = false; await route.fulfill({ status: 412, contentType: 'application/json', body: JSON.stringify({ error: { code: 'VERSION_CONFLICT', currentVersion: version } }) }); return; }

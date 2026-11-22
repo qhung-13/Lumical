@@ -96,3 +96,52 @@ it('keeps a native radio group at one Tab stop and refreshes disabled actions on
   await user.tab(); expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   await user.tab({ shift: true }); expect(screen.getByLabelText('First')).toHaveFocus();
 });
+
+it('runs controlled without a trigger: the parent opens it, hears every close and can block Escape', async () => {
+  const user = userEvent.setup();
+  const onOpenChange = vi.fn();
+  const base = { title: 'Review', description: 'Refreshed content', cancelLabel: 'Acknowledge',
+    confirmLabel: 'Enable saving', onOpenChange };
+  const { rerender } = render(<Dialog {...base} open={false} />);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  rerender(<Dialog {...base} open dismissible={false} />);
+  const dialog = screen.getByRole('dialog', { name: 'Review' });
+  expect(dialog).toHaveAttribute('open');
+  // A confirm-capable controlled dialog parks focus on its safe action.
+  expect(screen.getByRole('button', { name: 'Acknowledge' })).toHaveFocus();
+  // Escape cannot dismiss a non-dismissible controlled dialog.
+  fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  expect(dialog).toHaveAttribute('open');
+  expect(onOpenChange).not.toHaveBeenCalled();
+  // The explicit action closes and reports the close upward.
+  rerender(<Dialog {...base} open />);
+  await user.click(screen.getByRole('button', { name: 'Enable saving' }));
+  expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  expect(dialog).not.toHaveAttribute('open');
+  // Retracting the flag keeps it closed; raising it again reopens the layer.
+  rerender(<Dialog {...base} open={false} />);
+  expect(dialog).not.toHaveAttribute('open');
+  rerender(<Dialog {...base} open />);
+  expect(dialog).toHaveAttribute('open');
+});
+
+it('holds an acknowledgment until its content is available and then supports keyboard activation', async () => {
+  const user = userEvent.setup();
+  const onOpenChange = vi.fn();
+  const props = { open: true, dismissible: false, title: 'Review saved content', description: 'Loading',
+    cancelLabel: 'Acknowledge', onOpenChange };
+  const { rerender } = render(<Dialog {...props} cancelDisabled />);
+  const dialog = screen.getByRole('dialog');
+  expect(screen.getByRole('heading', { name: 'Review saved content' })).toHaveFocus();
+  const action = screen.getByRole('button', { name: 'Acknowledge' });
+  expect(action).toBeDisabled();
+  await user.click(action);
+  fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  fireEvent.click(dialog);
+  expect(onOpenChange).not.toHaveBeenCalled();
+  rerender(<Dialog {...props} description="Saved content available" cancelDisabled={false} />);
+  await user.tab();
+  expect(action).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+});

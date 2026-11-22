@@ -1,0 +1,10 @@
+.brand { display: inline-flex; vertical-align: middle; }
+.logo { height: 3.8rem; width: auto; object-fit: contain; }
+.inverse { display: none; align-items: center; gap: .5rem; color: #fbf6ec; font: 700 1.25rem/1.2 var(--font-heading); }
+.inverse img { height: 2.25rem; width: auto; }
+.brand[data-inverse='true'] .logo, :global(html[data-theme='dark']) .logo { display: none; }
+.brand[data-inverse='true'] .inverse, :global(html[data-theme='dark']) .inverse { display: inline-flex; }
+@media (prefers-color-scheme: dark) {
+  :global(html[data-theme='system']) .logo { display: none; }
+  :global(html[data-theme='system']) .inverse { display: inline-flex; }
+}

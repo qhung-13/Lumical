@@ -4,7 +4,7 @@ import { foundationCopy } from '../src/i18n/foundation';
 import { templateCopy } from '../src/i18n/templates';
 import { projectCopy } from '../src/features/calendar-projects/copy';
 
-const views = ['/', '/foundation/form', '/foundation/admin'];
+const views = ['/foundation/public', '/foundation/form', '/foundation/admin'];
 const templateId = '11111111-1111-4111-8111-111111111111';
 const templateFixture = {
   id: templateId, category: 'BIRTHDAY', publishedRevision: {
@@ -149,7 +149,7 @@ for (const locale of ['en', 'vi'] as const) for (const theme of ['light', 'dark'
 }
 
 test('OS theme follows changes; explicit preferences survive reload and navigation without JS or sensitive storage', async ({ page, context, browser }) => {
-  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' }); await page.goto('/');
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' }); await page.goto('/foundation/public');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(24, 21, 18)');
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(250, 247, 241)');
@@ -164,7 +164,7 @@ test('OS theme follows changes; explicit preferences survive reload and navigati
   expect(await page.evaluate(() => ({ ...localStorage }))).toEqual({});
   const noJs = await browser.newContext({ javaScriptEnabled: false, storageState: await context.storageState() });
   try {
-    const serverPage = await noJs.newPage(); await serverPage.goto('http://127.0.0.1:3210/');
+    const serverPage = await noJs.newPage(); await serverPage.goto('http://127.0.0.1:3210/foundation/public');
     await expect(serverPage.locator('html')).toHaveAttribute('lang', 'vi');
     await expect(serverPage.locator('body')).toHaveCSS('background-color', 'rgb(24, 21, 18)');
   } finally { await noJs.close(); }

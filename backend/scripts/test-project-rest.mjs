@@ -230,7 +230,9 @@ try {
 
       await check('read, preconditions and owner isolation behave per the contract', async () => {
         const read = await getProject(owner, project.id).expect(200).expect('ETag', '"1"');
-        assert.deepEqual(read.body.data, { ...project, deletionEligible: true }, 'the detail projection includes authoritative never-ordered eligibility');
+        // D1-A: detail alone serves the captured preset list, exactly what the revision published.
+        assert.deepEqual(read.body.data, { ...project, stylePresets: revision().presets, deletionEligible: true },
+          'the detail projection includes authoritative never-ordered eligibility and the captured preset list');
         await api().get(`/api/v1/projects/${project.id}`).expect(401);
         await getProject(owner, 'not-a-uuid').expect(422);
         // §13: a foreign id is the same as a missing one — 404, never 403.
@@ -240,6 +242,10 @@ try {
         await archiveProject(other, project.id, '"1"').expect(404);
         await restoreProject(other, project.id, '"1"').expect(404);
         await deleteProject(other, project.id, { confirmed: true }, '"1"').expect(404);
+        // T01: ownership is not transferable through the edit contract, even by the owner.
+        const transfer = await patchProject(owner, project.id, { ownerId: other.id }, '"1"').expect(422);
+        assert.equal(transfer.body.error.code, 'VALIDATION_FAILED');
+        assert.equal((await runtime.query('SELECT owner_id,version FROM lumical.calendar_projects WHERE id=$1', [project.id])).rows[0].owner_id, ownerId);
 
         // §12: missing precondition is 428, malformed is 422, stale is 412 with the safe version.
         await api().patch(`/api/v1/projects/${project.id}`).set('Origin', origin).set('Cookie', owner.cookie)
@@ -297,8 +303,9 @@ try {
         assert.equal(response.body.data.projectVersion, 5);
         assert.deepEqual(response.body.data.months.map(month => month.monthNumber), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
         assert.equal(response.body.data.months.length, 12);
-        for (const month of response.body.data.months) assert.deepEqual(Object.keys(month).sort(), ['caption', 'monthNumber']);
+        for (const month of response.body.data.months) assert.deepEqual(Object.keys(month).sort(), ['caption', 'images', 'monthNumber']);
         assert.equal(response.body.data.months[0].caption, null, 'an untouched Month carries no caption');
+        assert.ok(response.body.data.months.every(month => month.images.length === 0));
         await api().get(`/api/v1/projects/${project.id}/months`).expect(401);
         await monthsOf(owner, 'not-a-uuid').expect(422);
       });

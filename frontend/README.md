@@ -19,7 +19,7 @@ Dancing Script and the rest of the component inventory are unnecessary for this 
 Fontsource's weight entry points retain Unicode ranges, so unused script/weight
 subsets are not downloaded simply because both languages are supported.
 
-The neutral examples are `/`, `/foundation/form` and `/foundation/admin`. The
+The product homepage is `/`. The neutral examples are `/foundation/public`, `/foundation/form` and `/foundation/admin`. The
 Admin composition describes UI examples only and grants no permissions. The form
 changes temporary component state, never business or persisted data. Existing
 register/login/account behavior stays owned by I02.

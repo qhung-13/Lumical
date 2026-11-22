@@ -1,41 +1,63 @@
 'use client';
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../primitives/button';
 import styles from './dialog.module.css';
 
 interface DialogProps {
-  triggerLabel: string;
+  /** The opening button; omit it when a parent controls `open` from its own trigger (P06 review/navigation dialogs). */
+  triggerLabel?: string;
   title: string;
   description: string;
   cancelLabel: string;
+  /** Hold the sole acknowledgment action while required content is loading. */
+  cancelDisabled?: boolean;
   confirmLabel?: string;
   onConfirm?: () => void;
   destructive?: boolean;
   dismissible?: boolean;
   disabled?: boolean;
   children?: ReactNode;
+  /** Controlled mode: when given, the parent owns visibility and hears every close. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 export function Dialog({ triggerLabel, title, description, cancelLabel, confirmLabel, onConfirm,
-  destructive = false, dismissible = true, disabled = false, children }: DialogProps) {
+  destructive = false, dismissible = true, disabled = false, cancelDisabled = false, children, open: controlledOpen, onOpenChange }: DialogProps) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLSpanElement>(null);
   const cancel = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : internalOpen;
   const close = () => dialog.current?.close();
   const restoreFocus = () => {
     // Native close events are queued: an earlier close must not disturb a reopen.
     if (dialog.current?.open) return;
-    setOpen(false); trigger.current?.querySelector('button')?.focus();
+    // A controlled dialog has no trigger to return to; the parent retracts its flag.
+    if (controlled) { onOpenChange?.(false); return; }
+    setInternalOpen(false); trigger.current?.querySelector('button')?.focus();
   };
+  // Controlled mode mirrors the parent's flag onto the native top-layer dialog.
+  useEffect(() => {
+    const element = dialog.current;
+    if (!controlled || !element) return;
+    if (controlledOpen && !element.open) {
+      element.showModal();
+      if (confirmLabel) cancel.current?.querySelector('button')?.focus();
+      else element.querySelector<HTMLElement>('h2')?.focus();
+    } else if (!controlledOpen && element.open) element.close();
+  }, [controlled, controlledOpen, confirmLabel]);
   return <>
-    <span ref={trigger}><Button disabled={disabled} aria-haspopup="dialog" aria-controls={id} aria-expanded={open} onClick={() => {
+    {triggerLabel !== undefined && <span ref={trigger}><Button disabled={disabled} aria-haspopup="dialog" aria-controls={id} aria-expanded={open} onClick={() => {
       if (!dialog.current || dialog.current.open) return;
-      dialog.current.showModal(); setOpen(true);
+      // Controlled mode: the parent raises its flag, the effect opens the layer.
+      if (controlled) { onOpenChange?.(true); return; }
+      dialog.current.showModal(); setInternalOpen(true);
       // Cancel is safe for confirmations; the heading is intentional for information.
       if (confirmLabel) cancel.current?.querySelector('button')?.focus();
       else dialog.current?.querySelector<HTMLElement>('h2')?.focus();
-    }}>{triggerLabel}</Button></span>
+    }}>{triggerLabel}</Button></span>}
     <dialog ref={dialog} id={id} className={styles.dialog} aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
       onClose={event => { if (event.target === event.currentTarget) restoreFocus(); }}
       onCancel={event => {
@@ -84,7 +106,7 @@ export function Dialog({ triggerLabel, title, description, cancelLabel, confirmL
       <p id={`${id}-description`}>{description}</p>
       <div className={styles.body}>{children}</div>
       <div className={styles.actions} ref={cancel}>
-        <Button onClick={close}>{cancelLabel}</Button>
+        <Button disabled={cancelDisabled} onClick={close}>{cancelLabel}</Button>
         {confirmLabel && <Button disabled={disabled} variant={destructive ? 'destructive' : 'primary'} onClick={() => { onConfirm?.(); close(); }}>{confirmLabel}</Button>}
       </div>
     </dialog>

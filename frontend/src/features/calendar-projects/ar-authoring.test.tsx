@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '../../design-system/foundations/preferences-provider';
-import { ProjectApiError, type ARRevision, type ProjectApi } from '../../api/projects';
+import { ProjectApiError, projectKeys, type ARRevision, type ProjectApi } from '../../api/projects';
 import { type MediaApi, type OwnedMedia } from '../../api/media';
 import { ARAuthoring } from './ar-authoring';
 
@@ -23,10 +23,11 @@ function setup(options: { category?: OwnedMedia['category']; config?: ARRevision
   const props = { actorId: 'owner', projectId: 'project', projectVersion: 3,
     projectStatus: options.archived ? 'ARCHIVED' as const : 'WORKING' as const, mutationReady: true,
     api: { ar, saveAR, deleteAR } as unknown as ProjectApi, media: { status } as unknown as MediaApi,
-    availableMedia: [{ ...ready, category: options.category ?? 'IMAGE' }] };
+    availableMedia: [{ ...ready, category: options.category ?? 'IMAGE' }], onDirtyChange: vi.fn<(dirty: boolean) => void>() };
   const tree = () => <QueryClientProvider client={client}><PreferencesProvider initial={{ locale: options.locale ?? 'en', theme: 'light' }}><ARAuthoring {...props} /></PreferencesProvider></QueryClientProvider>;
   const view = render(tree());
-  return { ...view, props, ar, saveAR, deleteAR, status, rerenderProps: () => view.rerender(tree()) };
+  return { ...view, props, ar, saveAR, deleteAR, status, client,
+    setRevision: (next: ARRevision) => { revision = next; }, rerenderProps: () => view.rerender(tree()) };
 }
 async function draft(label = 'Meaningful image message') {
   await screen.findByLabelText('Reveal Month');
@@ -38,6 +39,42 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new Event('close')); };
 });
 describe('one owner AR reveal authoring', () => {
+  it('reports dirty changes, clears an exact revert, and releases the host guard on unmount', async () => {
+    const app = setup();
+    await screen.findByLabelText('Reveal Month');
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(false);
+    fireEvent.change(screen.getByLabelText('Reveal Month'), { target: { value: '2' } });
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(true);
+    fireEvent.change(screen.getByLabelText('Reveal Month'), { target: { value: '1' } });
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(false);
+    fireEvent.change(screen.getByLabelText('Ready reveal media'), { target: { value: assetId } });
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(true);
+    app.unmount();
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('reports an unresolved save intent as dirty even when refetch shows identical saved content, and blocks retry while unverified', async () => {
+    const config = { monthNumber: 1, revealAssetId: assetId, readableText: 'Saved text', status: 'PREPARING' as const };
+    const app = setup({ config });
+    await screen.findByDisplayValue('Saved text');
+    app.saveAR.mockRejectedValueOnce(new TypeError('lost response'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save AR reveal' }));
+    await screen.findByText(/Your draft is preserved/);
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(true);
+    app.setRevision({ config, projectVersion: 4 });
+    await act(async () => app.client.invalidateQueries({ queryKey: projectKeys.ar('owner', 'project') }));
+    app.props.projectVersion = 4; app.props.mutationReady = false; app.rerenderProps();
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(screen.getByRole('button', { name: 'Save AR reveal' })).toBeDisabled();
+    fireEvent.submit(screen.getByLabelText('Meaningful image message').closest('form')!);
+    expect(app.saveAR).toHaveBeenCalledTimes(1);
+    app.props.mutationReady = true; app.rerenderProps();
+    fireEvent.click(screen.getByRole('button', { name: 'Save AR reveal' }));
+    await screen.findByText('AR configuration saved.');
+    expect(app.saveAR.mock.calls[1]).toEqual(app.saveAR.mock.calls[0]);
+    expect(app.props.onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
   it.each([
     ['IMAGE', 'Meaningful image message'], ['VIDEO', 'Video caption or transcript'], ['AUDIO', 'Audio transcript or caption'],
   ] as const)('saves %s with readable text and shows genuine pending preparation', async (category, label) => {

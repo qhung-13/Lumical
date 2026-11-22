@@ -180,6 +180,7 @@ test('P06 reviews a stale style version before saving again and asks before leav
   await expect(review).toBeVisible();
   await expect(review).toContainText('The server is now on saved version 3; you loaded an older one.');
   await expect(review).toContainText('Your draft was kept and was never written over the saved content.');
+  await expect(review.getByRole('region', { name: 'Current saved content' })).toContainText('Classic (classic)');
   await expect(page.getByText('Loaded saved version 3', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save style' })).toBeDisabled();
   await expect(preset).toHaveValue('minimal');
@@ -228,6 +229,9 @@ test('P06 reviews a stale style version before saving again and asks before leav
 // alt text. Two language/theme states, as the task asks.
 for (const [locale, theme] of [['en', 'dark'], ['vi', 'light']] as const) {
   test(`P07 saves and reopens all twelve Months with one reused photo: ${locale}/${theme}`, async ({ page, baseURL }) => {
+    // This single scenario performs 12 complete saves plus 12 reopen checks.
+    // WebKit completes it in about 31s locally; keep the budget local to this test.
+    test.setTimeout(60_000);
     const project = createProject();
     const months = createMonths();
     const specialDates = { projectVersion: 2, events: [] as { id: string; date: string; title: string; note: string | null }[] };
@@ -362,25 +366,33 @@ test('P07 announces a version mismatch and retries a style save after a transien
 
 // T01: a signed-in second owner opening someone else's Project gets the same
 // safe unavailable state as a missing one — no title, Month or version leaks.
-test('P07 shows a foreign Project as unavailable without leaking its content', async ({ page }) => {
-  await page.route('**/api/v1/**', async route => {
-    const path = new URL(route.request().url()).pathname;
-    if (path.endsWith('/auth/session')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: {
-        authenticated: true,
-        principal: { id: '22222222-2222-4222-8222-222222222222', email: 'other@example.test', role: 'USER', accountStatus: 'ACTIVE' },
-        csrfToken: 'c'.repeat(64) } }) });
-      return;
-    }
-    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'NOT_FOUND' } }) });
+for (const [locale, status] of [['en', 404], ['vi', 404], ['en', 503], ['vi', 503]] as const) {
+  test(`F06 shows a safe accessible unavailable state: ${locale}/${status}`, async ({ page, baseURL }) => {
+    const copy = studioCopy[locale];
+    await page.context().addCookies([{ name: 'lumical_locale', value: locale, url: baseURL! }]);
+    await page.route('**/api/v1/**', async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/auth/session')) {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: {
+          authenticated: true,
+          principal: { id: '22222222-2222-4222-8222-222222222222', email: 'other@example.test', role: 'USER', accountStatus: 'ACTIVE' },
+          csrfToken: 'c'.repeat(64) } }) });
+        return;
+      }
+      await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ error: { code: status === 404 ? 'NOT_FOUND' : 'PROVIDER_UNAVAILABLE' } }) });
+    });
+    await page.goto(`/projects/${id}/studio`);
+    await expect(page.getByRole('heading', { level: 1, name: copy.title, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByText(status === 404 ? copy.notFound : copy.error, { exact: true })).toBeVisible();
+    await expect(page.getByText('Synthetic family calendar')).toHaveCount(0);
+    await expect(page.getByRole('tablist')).toHaveCount(0);
+    await expect(page.getByRole('article')).toHaveCount(0);
+    await page.getByRole('button', { name: copy.retry, exact: true }).focus();
+    await expect(page.getByRole('button', { name: copy.retry, exact: true })).toBeFocused();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });
-  await page.goto(`/projects/${id}/studio`);
-  await expect(page.getByText('This calendar is unavailable.', { exact: true })).toBeVisible();
-  await expect(page.getByText('Synthetic family calendar')).toHaveCount(0);
-  await expect(page.getByRole('tablist')).toHaveCount(0);
-  // The unavailable state itself has no h1 yet (reported as a P02 shell defect in
-  // the P07 report), so axe is asserted on the Studio shell, not this state.
-});
+}
 
 // T21: the Studio keeps a visible keyboard focus ring, reflows at 320px with
 // doubled text size and honours reduced motion. This is real text resizing, not

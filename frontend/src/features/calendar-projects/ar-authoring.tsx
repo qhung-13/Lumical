@@ -1,5 +1,5 @@
 'use client';
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProjectApiError, projectKeys, type ARWrite, type ProjectApi } from '../../api/projects';
 import { MediaApiError, type MediaApi, type OwnedMedia } from '../../api/media';
@@ -16,12 +16,13 @@ interface Props {
   actorId: string; projectId: string; projectVersion: number;
   projectStatus: 'WORKING' | 'ARCHIVED'; mutationReady: boolean;
   api: ProjectApi; media: MediaApi; availableMedia: OwnedMedia[];
+  onDirtyChange?: (dirty: boolean) => void;
 }
 interface Draft { body: ARWrite; version: number }
 interface Intent extends Draft { key: string }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus, mutationReady, api, media, availableMedia }: Props) {
+export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus, mutationReady, api, media, availableMedia, onDirtyChange }: Props) {
   const { locale } = usePreferences();
   const copy = arAuthoringCopy[locale];
   const id = useId();
@@ -39,7 +40,14 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
   const config = current.data?.config;
   const persistedMedia = useQuery({ queryKey: ['private', actorId, 'media', config?.revealAssetId],
     queryFn: ({ signal }) => media.status(config!.revealAssetId, signal), enabled: Boolean(config), retry: false });
-  const body = draft?.body ?? { monthNumber: config?.monthNumber ?? 1, revealAssetId: config?.revealAssetId ?? '', readableText: config?.readableText ?? '' };
+  const savedBody = { monthNumber: config?.monthNumber ?? 1, revealAssetId: config?.revealAssetId ?? '', readableText: config?.readableText ?? '' };
+  const body = draft?.body ?? savedBody;
+  const dirty = Boolean(intent) || Boolean(draft && (body.monthNumber !== savedBody.monthNumber ||
+    body.revealAssetId !== savedBody.revealAssetId || body.readableText !== savedBody.readableText));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
   const candidates = Array.from(new Map([...availableMedia, ...items, ...(persistedMedia.data ? [persistedMedia.data] : [])].filter(item => item.status === 'READY').map(item => [item.id, item])).values());
   const chosen = candidates.find(item => item.id === body.revealAssetId);
   const versionMatches = current.data?.projectVersion === projectVersion;
@@ -49,7 +57,9 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
   const editingLocked = locked || Boolean(intent);
 
   function edit(patch: Partial<ARWrite>) {
-    setDraft({ body: { ...body, ...patch }, version: draft?.version ?? projectVersion });
+    const next = { ...body, ...patch };
+    setDraft(next.monthNumber === savedBody.monthNumber && next.revealAssetId === savedBody.revealAssetId && next.readableText === savedBody.readableText
+      ? undefined : { body: next, version: draft?.version ?? projectVersion });
     setNotice(''); setError('');
   }
   function addMedia(item: OwnedMedia) {
@@ -144,7 +154,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
           </select></div>
         <div className={styles.field}><label htmlFor={`${id}-text`}>{copy.text[chosen?.category ?? 'IMAGE']}</label>
           <textarea id={`${id}-text`} value={body.readableText} disabled={editingLocked} onChange={event => edit({ readableText: event.target.value })} /></div>
-        {draft && <p role="status">{copy.draft}</p>}
+        {dirty && <p role="status">{copy.draft}</p>}
         {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
         <Button type="submit" disabled={readOnly || busy || (!intent && (locked || needsReview || staleDraft))} loading={busy} loadingLabel={copy.busy}>{copy.save}</Button>
       </form>

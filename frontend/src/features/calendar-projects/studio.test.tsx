@@ -1,9 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { projectKeys, type ARRevision, type ProjectMonths, type SpecialDate } from '../../api/projects';
 import { PreferencesProvider } from '../../design-system/foundations/preferences-provider';
 import { studioCopy } from '../../i18n/studio';
-import { IdentityProvider } from '../identity/provider';
+import { arAuthoringCopy } from '../../i18n/ar-authoring';
+import { IdentityProvider, useIdentity } from '../identity/provider';
+import type { SessionManager } from '../identity/session-manager';
 import { Studio } from './studio';
 
 // The Studio guard navigates with the App Router; tests assert the push itself.
@@ -28,12 +32,13 @@ const monthData = { projectVersion: 3, months: Array.from({ length: 12 }, (_, in
   caption: index === 2 ? 'Birthday memories' : null, images: index === 2 ? [{ assetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', altText: 'Family photo', crop: null }] : [] })) };
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
-function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?: number; locale?: 'en' | 'vi';
+function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?: number; locale?: 'en' | 'vi'; projectReadStatus?: 404 | 503;
   putStatus?: number; putStatusOnce?: boolean; mediaStatus?: 'READY' | 'PENDING' | 'UNAVAILABLE'; availableImages?: number;
   patchPlan?: 'conflictOnce' | 'errorOnce' | 'rejectAlways';
   specialEvents?: { id: string; date: string; title: string; note: string | null }[];
   specialDateWriteStatus?: number; specialDateWriteFields?: { path: string; code: string; messageKey: string }[];
-  mismatchSpecialDatesAfterProjectWrite?: boolean; loseFirstSpecialDateResponse?: boolean } = {}) {
+  mismatchSpecialDatesAfterProjectWrite?: boolean; loseFirstSpecialDateResponse?: boolean;
+  arConfig?: ARRevision['config']; loseFirstARResponse?: boolean } = {}) {
   const project = { ...savedProject, status: options.status ?? 'WORKING' };
   let currentVersion = 3;
   let currentMonths = { ...monthData, months: monthData.months.map(item => ({ ...item, images: [...item.images] })) };
@@ -42,24 +47,62 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
   let servedStaleSpecialDates = false;
   let putAttempts = 0;
   let patchAttempts = 0;
+  let queryClient: QueryClient;
+  let identity: SessionManager;
+  let session: 'owner' | 'unavailable' | 'signedOut' | 'unauthorized' | 'otherOwner' = 'owner';
+  let sessionToken = 'c'.repeat(64);
+  let beforeWrite: (() => void) | undefined;
+  let failReviewReads = false;
+  function CaptureQueries() { queryClient = useQueryClient(); identity = useIdentity().manager; return null; }
   // P07/T19: the reveal configuration is persisted like any other child write,
   // so a Project with no Special Dates can still carry one.
-  let arConfig: { monthNumber: number; revealAssetId: string; readableText: string; status: 'PREPARING' } | null = null;
+  let arConfig: ARRevision['config'] = options.arConfig ?? null;
+  const arIntents = new Map<string, { data: object }>();
+  let lostARResponse = false;
   if ((options.availableImages ?? 1) > 1) currentMonths.months[1] = { ...currentMonths.months[1], images: imageIds.slice(1, options.availableImages)
     .map((assetId, index) => ({ assetId, altText: `Photo ${index + 2}`, crop: null })) };
   const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    if (url.endsWith('/auth/session')) {
+      if (method === 'DELETE') { session = 'signedOut'; return new Response(null, { status: 204 }); }
+      if (session === 'unavailable') return json({ error: { code: 'PROVIDER_UNAVAILABLE' } }, 503);
+      if (session === 'unauthorized') return json({ error: { code: 'UNAUTHENTICATED' } }, 401);
+      if (session === 'signedOut') return json({ data: { authenticated: false } });
+      return json({ data: { authenticated: true, principal: { id: session === 'otherOwner' ? '22222222-2222-4222-8222-222222222222' : ownerId,
+        email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: sessionToken } });
+    }
+    if (options.projectReadStatus && url.endsWith(`/projects/${projectId}`)) {
+      return json({ error: { code: options.projectReadStatus === 404 ? 'NOT_FOUND' : 'PROVIDER_UNAVAILABLE' } }, options.projectReadStatus);
+    }
+    if (session === 'otherOwner' && (url.includes(`/projects/${projectId}`) || url.includes('/media/'))) {
+      return json({ error: { code: 'NOT_FOUND' } }, 404);
+    }
+    if (method !== 'GET' && beforeWrite) { const work = beforeWrite; beforeWrite = undefined; work(); }
+    if (failReviewReads && method === 'GET' && [projectId, 'months', 'special-dates'].some(part => url.endsWith(`/${part}`))) {
+      return json({ error: { code: 'PROVIDER_UNAVAILABLE' } }, 503);
+    }
     if (url.endsWith(`/projects/${projectId}/ar/config`) && method === 'GET') return json({ data: { config: arConfig, projectVersion: currentVersion } });
     if (url.endsWith(`/projects/${projectId}/ar`) && method === 'PUT') {
+      const key = new Headers(init?.headers).get('Idempotency-Key')!;
+      const replay = arIntents.get(key);
+      if (replay) return json(replay);
+      if (new Headers(init?.headers).get('If-Match') !== `"${currentVersion}"`) {
+        return json({ error: { code: 'VERSION_CONFLICT', currentVersion } }, 412);
+      }
       const body = JSON.parse(String(init?.body)) as { monthNumber: number; revealAssetId: string; readableText: string };
       currentVersion += 1;
       project.version = currentVersion;
       arConfig = { ...body, status: 'PREPARING' };
-      return json({ data: { ...arConfig, projectVersion: currentVersion } });
+      const result = { data: { ...arConfig, projectVersion: currentVersion } };
+      arIntents.set(key, result);
+      if (options.loseFirstARResponse && !lostARResponse) { lostARResponse = true; throw new TypeError('lost AR response after commit'); }
+      return json(result);
     }
-    if (url.endsWith('/auth/session')) return json({ data: { authenticated: true,
-      principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
+    if (url.endsWith(`/projects/${projectId}/ar`) && method === 'DELETE') {
+      arConfig = null; currentVersion += 1; project.version = currentVersion;
+      return new Response(null, { status: 204, headers: { ETag: `"${currentVersion}"` } });
+    }
     if (/\/media\/[a-f0-9-]+$/.test(url) && imageIds.includes(url.split('/').at(-1)!)) {
       const assetId = url.split('/').at(-1)!;
       const status = options.mediaStatus ?? 'READY';
@@ -78,6 +121,9 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
         return json({ error: { code: options.putStatus === 409 ? 'MEDIA_UNAVAILABLE' : 'VALIDATION_FAILED' } }, options.putStatus);
       }
       const number = Number(url.split('/').at(-1));
+      if (new Headers(init?.headers).get('If-Match') !== `"${currentVersion}"`) {
+        return json({ error: { code: 'VERSION_CONFLICT', currentVersion } }, 412);
+      }
       const body = JSON.parse(String(init?.body)) as { caption: string | null; images: typeof monthData.months[number]['images'] };
       currentVersion += 1;
       project.version = currentVersion;
@@ -115,6 +161,10 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
     if (url.match(new RegExp(`/projects/${projectId}/special-dates/[a-f0-9-]+$`)) && method === 'PUT') {
       const eventId = url.split('/').at(-1)!;
       const body = JSON.parse(String(init?.body)) as { date: string; title: string; note: string | null };
+      if (new Headers(init?.headers).get('If-Match') !== `"${currentVersion}"`) {
+        return json({ error: { code: 'VERSION_CONFLICT', currentVersion } }, 412);
+      }
+      if (!currentSpecialEvents.some(event => event.id === eventId)) return json({ error: { code: 'NOT_FOUND' } }, 404);
       if (options.specialDateWriteStatus) return json({ error: {
         code: options.specialDateWriteStatus === 412 ? 'VERSION_CONFLICT' : options.specialDateWriteStatus === 409 ? 'IDEMPOTENCY_CONFLICT' : 'VALIDATION_FAILED',
         fieldErrors: options.specialDateWriteFields ?? [],
@@ -163,13 +213,30 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
   vi.stubGlobal('fetch', fetcher);
   const tree = <PreferencesProvider initial={{ locale: options.locale ?? 'en', theme: 'light' }}>
     <IdentityProvider initial={{ phase: 'authenticated', principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' } }}>
+      <CaptureQueries />
       <Studio id={projectId} />
     </IdentityProvider>
   </PreferencesProvider>;
   const view = render(tree);
   // P07/AC1: a reopen is a brand-new Studio tree (fresh query cache) whose
   // only source of truth is the same server answer the mock still holds.
-  return { ...view, fetcher, remount: () => render(tree) };
+  return { ...view, fetcher, remount: () => render(tree),
+    remote: (change: { month?: ProjectMonths['months'][number]; events?: SpecialDate[]; style?: string; status?: 'WORKING' | 'ARCHIVED' }) => {
+      currentVersion += 1; project.version = currentVersion;
+      if (change.month) currentMonths.months = currentMonths.months.map(month => month.monthNumber === change.month!.monthNumber ? change.month! : month);
+      if (change.events) currentSpecialEvents = change.events.map(event => ({ ...event, note: event.note ?? null }));
+      if (change.style) project.stylePresetId = change.style;
+      if (change.status) project.status = change.status;
+    },
+    refresh: () => act(async () => { await queryClient.invalidateQueries({ queryKey: projectKeys.all(ownerId) }); }),
+    beforeNextWrite: (work: () => void) => { beforeWrite = work; },
+    failReads: (fail: boolean) => { failReviewReads = fail; },
+    session: (value: typeof session) => { session = value; },
+    verifySession: () => act(async () => { await identity.bootstrap(); }),
+    logout: () => act(async () => { await identity.logout(); }),
+    privateQueries: () => queryClient.getQueryCache().getAll().filter(query => query.queryKey[0] === 'private'),
+    replaceSession: () => { sessionToken = 'd'.repeat(64); },
+  };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -177,6 +244,540 @@ beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new Event('close')); };
   routerPush.mockClear();
+});
+
+describe('Batch 3 unavailable accessibility', () => {
+  it.each([
+    ['en', 404], ['vi', 404], ['en', 503], ['vi', 503],
+  ] as const)('F06 renders a safe localized page heading for %s / %s', async (locale, projectReadStatus) => {
+    renderStudio({ locale, projectReadStatus });
+    const heading = await screen.findByRole('heading', { level: 1, name: studioCopy[locale].title }, { timeout: 4000 });
+    expect(heading).toBeVisible();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText(projectReadStatus === 404 ? studioCopy[locale].notFound : studioCopy[locale].error)).toBeVisible();
+    expect(screen.queryByText(savedProject.title)).not.toBeInTheDocument();
+    expect(screen.queryByText('Birthday memories')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: studioCopy[locale].retry })).toBeEnabled();
+  });
+});
+
+describe('Batch 2 draft preservation', () => {
+  const savedAR = { monthNumber: 1, revealAssetId: mediaId, readableText: 'Saved AR message', status: 'PREPARING' as const };
+  const unloadWarns = () => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; };
+  it('F04 protects an AR-only text draft on Back and beforeunload, then preserves it on Stay', async () => {
+    renderStudio();
+    const text = await screen.findByLabelText('Meaningful image message');
+    fireEvent.change(text, { target: { value: 'AR-only private draft' } });
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    fireEvent.click(screen.getByRole('link', { name: /Back to calendar/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' });
+    expect(routerPush).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stay and keep editing' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(text).toHaveValue('AR-only private draft');
+  });
+
+  it('F01 preserves a Month draft after temporary session verification failure and same-owner recovery', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Keep during session outage' } });
+    view.session('unavailable'); await view.verifySession();
+    view.session('owner'); await view.verifySession();
+    expect(await screen.findByLabelText(/Month message/)).toHaveValue('Keep during session outage');
+  });
+
+  it.each(['month', 'media', 'text'] as const)('guards an AR-only %s change and clears the warning after reverting', async field => {
+    renderStudio({ arConfig: savedAR, availableImages: 2 });
+    await screen.findByDisplayValue('Saved AR message');
+    const control = screen.getByLabelText(field === 'month' ? 'Reveal Month' : field === 'media' ? 'Ready reveal media' : 'Meaningful image message');
+    fireEvent.change(control, { target: { value: field === 'month' ? '2' : field === 'media' ? secondMediaId : 'Local readable text' } });
+    expect(unloadWarns()).toBe(true);
+    fireEvent.click(screen.getByRole('link', { name: /Back to calendar/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stay and keep editing' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.change(control, { target: { value: field === 'month' ? '1' : field === 'media' ? mediaId : savedAR.readableText } });
+    expect(unloadWarns()).toBe(false);
+    expect(screen.queryByText('Unsaved AR draft')).not.toBeInTheDocument();
+  });
+
+  it('navigates only after explicit Leave for a Vietnamese AR-only draft', async () => {
+    renderStudio({ locale: 'vi' });
+    fireEvent.change(await screen.findByLabelText(arAuthoringCopy.vi.text.IMAGE), { target: { value: 'Bản nháp AR chưa lưu' } });
+    fireEvent.click(screen.getByRole('link', { name: /Quay lại lịch/ }));
+    const dialog = await screen.findByRole('dialog', { name: studioCopy.vi.unsavedNav.title });
+    expect(routerPush).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: studioCopy.vi.unsavedNav.leave }));
+    expect(routerPush).toHaveBeenCalledExactlyOnceWith(`/projects/${projectId}`);
+  });
+
+  it('protects an uncertain AR intent even without a local edit, retaining its exact key/body/version through Stay and session recovery', async () => {
+    const view = renderStudio({ arConfig: savedAR, loseFirstARResponse: true });
+    const panel = await screen.findByRole('region', { name: 'AR reveal' });
+    const save = within(panel).getByRole('button', { name: 'Save AR reveal' });
+    await waitFor(() => expect(save).toBeEnabled());
+    fireEvent.click(save);
+    await within(panel).findByText(/Your draft is preserved/);
+    expect(unloadWarns()).toBe(true);
+    // Refetch can already show the committed result; the unresolved original intent still needs protection.
+    fireEvent.click(within(panel).getByRole('button', { name: 'Reload AR configuration' }));
+    await screen.findByText('Loaded saved version 4');
+    fireEvent.click(screen.getByRole('link', { name: /Back to calendar/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Leave with unsaved changes?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stay and keep editing' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    view.session('unavailable'); await view.verifySession();
+    view.session('owner'); await view.verifySession();
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Save AR reveal' })).toBeEnabled());
+    expect(unloadWarns()).toBe(true);
+    fireEvent.click(save);
+    await within(panel).findByText('AR configuration saved.');
+    const writes = view.fetcher.mock.calls.filter(([url, init]) => String(url).endsWith('/ar') && init?.method === 'PUT');
+    expect(writes).toHaveLength(2);
+    expect(writes[0][1]?.body).toBe(writes[1][1]?.body);
+    expect(writes.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['"3"', '"3"']);
+    expect(new Headers(writes[0][1]?.headers).get('Idempotency-Key')).toBe(new Headers(writes[1][1]?.headers).get('Idempotency-Key'));
+    expect(unloadWarns()).toBe(false);
+  });
+
+  it('clears AR dirty state after successful save or intentional configuration removal', async () => {
+    renderStudio({ arConfig: savedAR });
+    const text = await screen.findByLabelText('Meaningful image message');
+    fireEvent.change(text, { target: { value: 'Saved after editing' } });
+    expect(unloadWarns()).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Save AR reveal' }));
+    await screen.findByText('AR configuration saved.');
+    await screen.findByText('Loaded saved version 4');
+    expect(unloadWarns()).toBe(false);
+    fireEvent.change(text, { target: { value: 'Discarded by intentional removal' } });
+    expect(unloadWarns()).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove current AR reveal' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Remove current AR reveal' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove configuration' }));
+    await screen.findByText('Current AR configuration removed.');
+    await screen.findByText('Loaded saved version 5');
+    expect(unloadWarns()).toBe(false);
+  });
+
+  it('retains every editor in memory, hides private content, blocks mutations, and recovers through Retry for the same session', async () => {
+    const view = renderStudio();
+    const january = await screen.findByLabelText(/Month message/);
+    fireEvent.change(january, { target: { value: 'Private January draft' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'February' }));
+    fireEvent.change(january, { target: { value: 'Private February draft' } });
+    const style = screen.getByLabelText('Style preset');
+    fireEvent.change(style, { target: { value: 'minimal' } });
+    const dates = await screen.findByRole('region', { name: 'Special Dates' });
+    fireEvent.change(within(dates).getByLabelText('Date'), { target: { value: '2027-02-01' } });
+    fireEvent.change(within(dates).getByLabelText('Title'), { target: { value: 'Private event draft' } });
+    fireEvent.change(within(dates).getByLabelText(/Note/), { target: { value: 'Private event note' } });
+    const ar = await screen.findByRole('region', { name: 'AR reveal' });
+    fireEvent.change(within(ar).getByLabelText('Reveal Month'), { target: { value: '2' } });
+    fireEvent.change(within(ar).getByLabelText('Ready reveal media'), { target: { value: mediaId } });
+    fireEvent.change(within(ar).getByLabelText('Meaningful image message'), { target: { value: 'Private AR draft' } });
+    const saves = ['Save month', 'Save style', 'Save Special Date', 'Save AR reveal'].map(name => screen.getByRole('button', { name }));
+    view.session('unavailable'); await view.verifySession();
+    expect(january.isConnected).toBe(true);
+    expect(january.closest('[hidden]')).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Family calendar' })).not.toBeInTheDocument();
+    for (const save of saves) { expect(save).toBeDisabled(); fireEvent.click(save); }
+    fireEvent.submit(within(dates).getByLabelText('Title').closest('form')!);
+    fireEvent.submit(within(ar).getByLabelText('Meaningful image message').closest('form')!);
+    expect(view.fetcher.mock.calls.filter(([, init]) => ['PUT', 'PATCH', 'POST'].includes(init?.method ?? 'GET'))).toHaveLength(0);
+    view.session('owner');
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Try again' }));
+    await screen.findByRole('heading', { name: 'Family calendar' });
+    expect(january).toHaveValue('Private February draft');
+    expect(style).toHaveValue('minimal');
+    expect(within(dates).getByLabelText('Title')).toHaveValue('Private event draft');
+    expect(within(dates).getByLabelText(/Note/)).toHaveValue('Private event note');
+    expect(within(ar).getByLabelText('Reveal Month')).toHaveValue('2');
+    expect(within(ar).getByLabelText('Ready reveal media')).toHaveValue(mediaId);
+    expect(within(ar).getByLabelText('Meaningful image message')).toHaveValue('Private AR draft');
+    fireEvent.click(screen.getByRole('tab', { name: 'January' }));
+    expect(january).toHaveValue('Private January draft');
+    expect(unloadWarns()).toBe(true);
+  });
+
+  it('disposes private drafts on confirmed logout, including a later login by the same actor', async () => {
+    const view = renderStudio();
+    const caption = await screen.findByLabelText(/Month message/);
+    fireEvent.change(caption, { target: { value: 'Never restore after logout' } });
+    fireEvent.change(await screen.findByLabelText('Meaningful image message'), { target: { value: 'Private old AR text' } });
+    await view.logout();
+    expect(caption.isConnected).toBe(false);
+    expect(screen.queryByDisplayValue('Private old AR text')).not.toBeInTheDocument();
+    expect(view.privateQueries().filter(query => query.queryKey[1] === ownerId && query.state.data !== undefined)).toHaveLength(0);
+    view.session('owner'); await view.verifySession();
+    expect(await screen.findByLabelText(/Month message/)).toHaveValue('');
+    expect(await screen.findByLabelText('Meaningful image message')).toHaveValue('');
+    expect(unloadWarns()).toBe(false);
+  });
+
+  it.each(['signedOut', 'unauthorized'] as const)('clears drafts when verification confirms session revocation/disable (%s)', async session => {
+    const view = renderStudio();
+    const caption = await screen.findByLabelText(/Month message/);
+    fireEvent.change(caption, { target: { value: 'Private revoked-session draft' } });
+    view.session(session); await view.verifySession();
+    expect(caption.isConnected).toBe(false);
+    expect(view.privateQueries().filter(query => query.queryKey[1] === ownerId && query.state.data !== undefined)).toHaveLength(0);
+    view.session('owner'); await view.verifySession();
+    expect(await screen.findByLabelText(/Month message/)).toHaveValue('');
+  });
+
+  it('never restores another owner\'s drafts after an account switch during an outage', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Owner A only draft' } });
+    fireEvent.change(await screen.findByLabelText('Meaningful image message'), { target: { value: 'Owner A AR draft' } });
+    view.session('unavailable'); await view.verifySession();
+    view.session('otherOwner'); await view.verifySession();
+    await screen.findByText('This calendar is unavailable.');
+    expect(screen.queryByDisplayValue('Owner A only draft')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Owner A AR draft')).not.toBeInTheDocument();
+    expect(screen.queryByText('Family calendar')).not.toBeInTheDocument();
+    expect(view.privateQueries().filter(query => query.queryKey[1] === ownerId && query.state.data !== undefined)).toHaveLength(0);
+  });
+
+  it('respects Identity\'s new-session epoch even if the actor ID stays the same', async () => {
+    const view = renderStudio();
+    const caption = await screen.findByLabelText(/Month message/);
+    fireEvent.change(caption, { target: { value: 'Old session draft' } });
+    view.replaceSession(); await view.verifySession();
+    expect(caption.isConnected).toBe(false);
+    expect(await screen.findByLabelText(/Month message/)).toHaveValue('');
+  });
+
+  it('retains pinned Month content and required conflict review through a verification outage', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Keep pinned conflict draft' } });
+    view.remote({ month: { monthNumber: 1, caption: 'Current saved Month', images: [] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    let dialog = await screen.findByRole('dialog', { name: studioCopy.en.conflictReview.title });
+    await within(dialog).findByText('Current saved Month');
+    view.session('unavailable'); await view.verifySession();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    view.session('owner'); await view.verifySession();
+    dialog = await screen.findByRole('dialog', { name: studioCopy.en.conflictReview.title });
+    await within(dialog).findByText('Current saved Month');
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('Keep pinned conflict draft');
+    expect(screen.getByRole('button', { name: 'Save month' })).toBeDisabled();
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(dialog).toBeVisible();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    await screen.findByText('Month saved.');
+    const writes = view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(writes.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['"3"', '"4"']);
+  });
+});
+
+describe('Batch 1 concurrency recovery', () => {
+  const reviewName = 'Review the refreshed calendar before saving again';
+  const event = { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', date: '2027-02-01', title: 'Original event', note: 'Original note' };
+
+  it('F02 reviews a Month draft against real saved content after a refetch, before using a newer version', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Local January draft' } });
+    view.remote({ month: { monthNumber: 1, caption: 'Remote January caption', images: [] } });
+    await view.refresh();
+    await screen.findByText('Loaded saved version 4');
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Remote January caption');
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('Local January draft');
+    expect(view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    await screen.findByText('Month saved.');
+    const writes = view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(new Headers(writes[0][1]?.headers).get('If-Match')).toBe('"4"');
+  });
+
+  it('F07 keeps the original caption as a pinned draft when persisted Month content changed after refetch', async () => {
+    const view = renderStudio();
+    const original = 'Birthday memories'; // A: persisted March caption at v3.
+    fireEvent.click(await screen.findByRole('tab', { name: 'March' }));
+    const caption = screen.getByLabelText(/Month message/);
+    expect(caption).toHaveValue(original);
+    expect(screen.getByText('Loaded saved version 3')).toBeVisible();
+    fireEvent.change(caption, { target: { value: 'B: local draft' } });
+    view.remote({ month: { monthNumber: 3, caption: 'C: concurrent server update', images: monthData.months[2].images } });
+    await view.refresh();
+    await screen.findByText('Loaded saved version 4');
+    expect(caption).toHaveValue('B: local draft');
+
+    fireEvent.change(caption, { target: { value: original } });
+    expect(caption).toHaveValue(original);
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('C: concurrent server update');
+    expect(caption).toHaveValue(original);
+    const writes = () => view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(writes()).toHaveLength(0); // The v3 pin must require review of v4 first.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    await screen.findByText('Month saved.');
+    expect(writes()).toHaveLength(1);
+    expect(new Headers(writes()[0][1]?.headers).get('If-Match')).toBe('"4"');
+    expect(JSON.parse(String(writes()[0][1]?.body)).caption).toBe(original);
+  });
+
+  it('F03 preserves an existing event edit and requires review after a refetch', async () => {
+    const view = renderStudio({ specialEvents: [event] });
+    const editor = await screen.findByRole('region', { name: 'Special Dates' });
+    await waitFor(() => expect(within(editor).getByRole('button', { name: 'Edit' })).toBeEnabled());
+    fireEvent.click(within(editor).getByRole('button', { name: 'Edit' }));
+    fireEvent.change(within(editor).getByLabelText('Title'), { target: { value: 'Local event draft' } });
+    view.remote({ events: [{ ...event, title: 'Remote event title', note: 'Remote note' }] });
+    await view.refresh();
+    await screen.findByText('Loaded saved version 4');
+    await within(editor).findByRole('heading', { name: 'Remote event title' });
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save changes' }));
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Remote event title');
+    expect(dialog).toHaveTextContent('Remote note');
+    expect(within(editor).getByLabelText('Title')).toHaveValue('Local event draft');
+    expect(view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT')).toEqual([]);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save changes' }));
+    await within(editor).findByText('Special Date updated.');
+    const writes = view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(new Headers(writes[0][1]?.headers).get('If-Match')).toBe('"4"');
+  });
+
+  it('F05 shows refreshed Month caption and ordered image metadata inside the 412 review', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Keep this local draft' } });
+    view.remote({ month: { monthNumber: 1, caption: 'Persisted remote caption', images: [
+      { assetId: secondMediaId, altText: 'Remote second photo first', crop: null },
+      { assetId: mediaId, altText: 'Remote family photo last', crop: null },
+    ] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Persisted remote caption');
+    expect(dialog).toHaveTextContent(secondMediaId);
+    expect(dialog).toHaveTextContent('Remote second photo first');
+    expect(dialog).toHaveTextContent('Remote family photo last');
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('Keep this local draft');
+    expect(screen.getByRole('button', { name: 'Save month' })).toBeDisabled();
+  });
+
+  it('keeps two Month drafts and image metadata pinned independently across refresh and separate reviews', async () => {
+    const view = renderStudio({ availableImages: 3 });
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'January local' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'March' }));
+    fireEvent.change(screen.getByLabelText(/Month message/), { target: { value: 'March local' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Use a Ready image 1' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Use a Ready image 1' }));
+    fireEvent.change(screen.getByLabelText('Alternative text for image 1'), { target: { value: 'Local family alt' } });
+    fireEvent.change(screen.getByLabelText('Alternative text for image 2'), { target: { value: 'Local second alt' } });
+    fireEvent.click(screen.getByRole('button', { name: /Move up — Move image 2 earlier/ }));
+    view.remote({ month: { monthNumber: 1, caption: 'January remote', images: [] } });
+    await view.refresh();
+    await screen.findByText('Loaded saved version 4');
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    let dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Birthday memories');
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('March local');
+    expect(screen.getByLabelText('Alternative text for image 1')).toHaveValue('Local second alt');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    await screen.findByText('Month saved.');
+    await screen.findByText('Loaded saved version 5');
+    const writes = () => view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(JSON.parse(String(writes()[0][1]?.body))).toEqual({ caption: 'March local', images: [
+      { assetId: secondMediaId, altText: 'Local second alt', crop: null },
+      { assetId: mediaId, altText: 'Local family alt', crop: null },
+    ] });
+    fireEvent.click(screen.getByRole('tab', { name: 'January' }));
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('January local');
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('January remote');
+    expect(writes()).toHaveLength(1);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    await screen.findByText('Month saved.');
+    expect(writes().map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['"4"', '"5"']);
+  });
+
+  it('starts a fresh Month version pin after reverting or successfully saving a draft', async () => {
+    const view = renderStudio();
+    const caption = await screen.findByLabelText(/Month message/);
+    fireEvent.change(caption, { target: { value: 'Reverted local draft' } });
+    fireEvent.change(caption, { target: { value: '' } });
+    view.remote({ month: { monthNumber: 1, caption: 'New server baseline', images: [] } });
+    await view.refresh();
+    await waitFor(() => expect(caption).toHaveValue('New server baseline'));
+    fireEvent.change(caption, { target: { value: 'Fresh draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    await screen.findByText('Month saved.');
+    await screen.findByText('Loaded saved version 5');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    view.remote({ month: { monthNumber: 1, caption: 'Another server baseline', images: [] } });
+    await view.refresh();
+    await waitFor(() => expect(caption).toHaveValue('Another server baseline'));
+    fireEvent.change(caption, { target: { value: 'Fresh draft after save' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    await screen.findByText('Loaded saved version 7');
+    const writes = view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(writes.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['"4"', '"6"']);
+  });
+
+  it('requires real current-event review after server 412 and retries the unchanged draft with the reviewed version', async () => {
+    const view = renderStudio({ specialEvents: [event] });
+    const editor = await screen.findByRole('region', { name: 'Special Dates' });
+    await waitFor(() => expect(within(editor).getByRole('button', { name: 'Edit' })).toBeEnabled());
+    fireEvent.click(within(editor).getByRole('button', { name: 'Edit' }));
+    fireEvent.change(within(editor).getByLabelText('Date'), { target: { value: '2027-03-02' } });
+    fireEvent.change(within(editor).getByLabelText('Title'), { target: { value: 'Local title' } });
+    fireEvent.change(within(editor).getByLabelText(/Note/), { target: { value: 'Local note' } });
+    view.beforeNextWrite(() => view.remote({ events: [{ ...event, title: 'Remote title', date: '2027-04-03', note: 'Remote note' }] }));
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save changes' }));
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Remote title');
+    expect(dialog).toHaveTextContent('2027-04-03');
+    expect(dialog).toHaveTextContent('Remote note');
+    expect(within(editor).getByLabelText('Date')).toHaveValue('2027-03-02');
+    expect(within(editor).getByLabelText('Title')).toHaveValue('Local title');
+    expect(within(editor).getByLabelText(/Note/)).toHaveValue('Local note');
+    expect(within(editor).getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(dialog).toBeVisible();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save changes' }));
+    await within(editor).findByText('Special Date updated.');
+    const writes = view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(writes.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['"3"', '"4"']);
+    expect(writes[0][1]?.body).toBe(writes[1][1]?.body);
+  });
+
+  it.each(['refetch', '412'] as const)('keeps a remotely deleted event draft without recreating it (%s)', async path => {
+    const view = renderStudio({ specialEvents: [event] });
+    const editor = await screen.findByRole('region', { name: 'Special Dates' });
+    await waitFor(() => expect(within(editor).getByRole('button', { name: 'Edit' })).toBeEnabled());
+    fireEvent.click(within(editor).getByRole('button', { name: 'Edit' }));
+    fireEvent.change(within(editor).getByLabelText('Title'), { target: { value: 'Keep removed event draft' } });
+    if (path === 'refetch') {
+      view.remote({ events: [] }); await view.refresh();
+      await within(editor).findByText(/This Special Date was removed elsewhere/);
+      expect(within(editor).getByRole('button', { name: 'Save changes' })).toBeDisabled();
+      fireEvent.click(within(editor).getByRole('button', { name: 'Review current saved content' }));
+    } else {
+      view.beforeNextWrite(() => view.remote({ events: [] }));
+      fireEvent.click(within(editor).getByRole('button', { name: 'Save changes' }));
+    }
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText(/This Special Date has been removed from the saved calendar/);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(within(editor).getByLabelText('Title')).toHaveValue('Keep removed event draft');
+    expect(within(editor).getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    fireEvent.submit(within(editor).getByLabelText('Title').closest('form')!);
+    expect(view.fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+    expect(view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(path === '412' ? 1 : 0);
+    fireEvent.click(within(editor).getByRole('button', { name: 'Cancel edit' }));
+    expect(within(editor).getByLabelText('Title')).toHaveValue('');
+  });
+
+  it.each(['failed request', 'mixed versions'] as const)('cannot acknowledge an unsuccessful refresh (%s)', async failure => {
+    const options: Parameters<typeof renderStudio>[0] = failure === 'mixed versions' ? { monthVersion: 3 } : {};
+    const view = renderStudio(options);
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Draft kept through failed review' } });
+    view.remote({ month: { monthNumber: 1, caption: 'Current caption after retry', images: [] } });
+    if (failure === 'failed request') view.failReads(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText(/Could not refresh a consistent saved version/);
+    const acknowledge = within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' });
+    expect(acknowledge).toBeDisabled();
+    expect(within(dialog).queryByText(/The server is now on saved version/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('Draft kept through failed review');
+    fireEvent(dialog, new Event('cancel', { cancelable: true })); fireEvent.click(dialog);
+    expect(dialog).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Save month' })).toBeDisabled();
+    view.failReads(false); options.monthVersion = 4;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Try again' }));
+    await within(dialog).findByText('Current caption after retry');
+    expect(acknowledge).toBeEnabled();
+  });
+
+  it('acknowledges only the displayed snapshot version even if another refresh arrives during review', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Local pinned draft' } });
+    view.remote({ month: { monthNumber: 1, caption: 'Review version four', images: [] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    let dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Review version four');
+    view.remote({ month: { monthNumber: 1, caption: 'New version five', images: [] } });
+    await view.refresh(); await screen.findByText('Loaded saved version 5');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('New version five');
+    expect(view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(1);
+  });
+
+  it('shows the current saved Style inside Vietnamese review without changing the local selection', async () => {
+    const view = renderStudio({ locale: 'vi' });
+    fireEvent.change(await screen.findByLabelText('Phong cách'), { target: { value: 'minimal' } });
+    view.remote({});
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu phong cách' }));
+    const dialog = await screen.findByRole('dialog', { name: studioCopy.vi.conflictReview.title });
+    await within(dialog).findByRole('region', { name: 'Nội dung hiện đang lưu' });
+    expect(dialog).toHaveTextContent('Cổ điển (classic)');
+    expect(screen.getByLabelText('Phong cách')).toHaveValue('minimal');
+    expect(screen.getByRole('button', { name: 'Lưu phong cách' })).toBeDisabled();
+  });
+
+  it('does not rebind an unrelated Style draft when a Month review is acknowledged', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText('Style preset'), { target: { value: 'minimal' } });
+    fireEvent.change(screen.getByLabelText(/Month message/), { target: { value: 'Month draft' } });
+    view.remote({ month: { monthNumber: 1, caption: 'Remote Month', images: [] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    let dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Remote Month');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save style' }));
+    dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText('Classic (classic)');
+    const patches = view.fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(new Headers(patches[0][1]?.headers).get('If-Match')).toBe('"3"');
+    expect(screen.getByLabelText('Style preset')).toHaveValue('minimal');
+  });
+
+  it('keeps mutations disabled after a conflict refresh discovers the Project was archived', async () => {
+    const view = renderStudio();
+    fireEvent.change(await screen.findByLabelText(/Month message/), { target: { value: 'Kept archived draft' } });
+    view.remote({ status: 'ARCHIVED' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save month' }));
+    const dialog = await screen.findByRole('dialog', { name: reviewName });
+    await within(dialog).findByText(studioCopy.en.archived);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Save month' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save style' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save Special Date' })).toBeDisabled();
+    expect(screen.getByLabelText(/Month message/)).toHaveValue('Kept archived draft');
+  });
 });
 
 describe('guided Studio shell', () => {
@@ -268,6 +869,8 @@ describe('guided Studio shell', () => {
   });
 
   it('keeps every one of the twelve edited Months after the Studio is reopened (P07 AC1)', async () => {
+    // 12 conditional saves and 12 reopen checks take about 10s in jsdom.
+    // Keep the extra budget on this integration scenario, not the whole suite.
     const user = userEvent.setup();
     const view = renderStudio();
     const tabs = await screen.findByRole('tablist', { name: 'Choose a month' });
@@ -290,7 +893,7 @@ describe('guided Studio shell', () => {
       const paper = screen.getByRole('article', { name: /Calendar preview/ });
       expect(within(paper).getByText(`P07 note ${monthNumber}`)).toBeVisible();
     }
-  });
+  }, 15_000);
 
   it('saves an emptied Month with null caption and zero images', async () => {
     const user = userEvent.setup();
@@ -572,7 +1175,7 @@ describe('P06 curated style, conflict review and the leave guard', () => {
     await user.selectOptions(await screen.findByLabelText('Style preset'), 'minimal');
     await user.click(screen.getByRole('button', { name: 'Save style' }));
     const dialog = await screen.findByRole('dialog', { name: 'Review the refreshed calendar before saving again' });
-    expect(dialog).toHaveTextContent('The server is now on saved version 4; you loaded an older one.');
+    await waitFor(() => expect(dialog).toHaveTextContent('The server is now on saved version 4; you loaded an older one.'));
     expect(dialog).toHaveTextContent('Your draft was kept and was never written over the saved content.');
     // The refresh really happened: both queries now serve the concurrent version.
     expect(await screen.findByText('Loaded saved version 4')).toBeVisible();
@@ -596,7 +1199,7 @@ describe('P06 curated style, conflict review and the leave guard', () => {
     await user.type(screen.getByLabelText(/Month message/), 'Keep reviewing me');
     await user.click(screen.getByRole('button', { name: 'Save month' }));
     const dialog = await screen.findByRole('dialog', { name: 'Review the refreshed calendar before saving again' });
-    expect(dialog).toHaveTextContent('The server is now on saved version 4');
+    await waitFor(() => expect(dialog).toHaveTextContent('The server is now on saved version 4'));
     expect(await screen.findByText('Loaded saved version 4')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save month' })).toBeDisabled();
     expect(screen.getByLabelText(/Month message/)).toHaveValue('Keep reviewing me');
@@ -657,6 +1260,7 @@ describe('P06 curated style, conflict review and the leave guard', () => {
     expect(screen.getByRole('button', { name: 'Save style' })).toBeDisabled();
     expect(screen.getByLabelText('Style preset')).toHaveValue('minimal');
     // Only the explicit acknowledgment may release the lock.
+    await within(dialog).findByRole('region', { name: 'Current saved content' });
     await user.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Save style' })).toBeEnabled();
@@ -678,7 +1282,7 @@ describe('P06 curated style, conflict review and the leave guard', () => {
     // The conditional write still targets the pinned version 3, so the server can refuse it.
     expect(new Headers(patches()[0][1]?.headers).get('If-Match')).toBe('"3"');
     const dialog = await screen.findByRole('dialog', { name: 'Review the refreshed calendar before saving again' });
-    expect(dialog).toHaveTextContent('The server is now on saved version 4');
+    await waitFor(() => expect(dialog).toHaveTextContent('The server is now on saved version 4'));
     expect(screen.getByRole('button', { name: 'Save style' })).toBeDisabled();
     await user.click(within(dialog).getByRole('button', { name: 'I have reviewed — allow saving' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

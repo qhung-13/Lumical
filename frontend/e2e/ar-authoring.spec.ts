@@ -1,17 +1,22 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { arAuthoringCopy } from '../src/i18n/ar-authoring';
+import { studioCopy } from '../src/i18n/studio';
 
 const id = '33333333-3333-4333-8333-333333333333';
 const asset = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 for (const locale of ['en', 'vi'] as const) test(`owner AR save/reopen/remove and compact accessibility (${locale})`, async ({ page, baseURL }) => {
   let version = 2;
+  let sessionUnavailable = false;
   let config: null | { monthNumber: number; revealAssetId: string; readableText: string; status: 'PREPARING' } = null;
   await page.context().addCookies([{ name: 'lumical_locale', value: locale, url: baseURL! }, { name: 'lumical_theme', value: 'dark', url: baseURL! }]);
   await page.route('**/api/v1/**', async route => {
     const request = route.request(); const path = new URL(request.url()).pathname;
     const reply = (data: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data }) });
-    if (path.endsWith('/auth/session')) return reply({ authenticated: true, principal: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) });
+    if (path.endsWith('/auth/session')) {
+      if (sessionUnavailable) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'PROVIDER_UNAVAILABLE' } }) });
+      return reply({ authenticated: true, principal: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) });
+    }
     if (path.endsWith(`/projects/${id}/ar/config`) && request.method() === 'GET') return reply({ config, projectVersion: version });
     if (path.endsWith(`/projects/${id}/ar`)) {
       if (request.method() === 'PUT') {
@@ -39,6 +44,24 @@ for (const locale of ['en', 'vi'] as const) test(`owner AR save/reopen/remove an
   const panel = page.getByRole('region', { name: copy.region, exact: true });
   await panel.getByLabel(copy.existing).fill(asset); await panel.getByRole('button', { name: copy.check, exact: true }).click();
   await panel.getByLabel(copy.text).fill('A meaningful family message');
+  // Same-session outage keeps AR inputs and verified media in memory, while hiding private UI.
+  sessionUnavailable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  const unavailable = page.getByRole('alert').filter({ hasText: studioCopy[locale].error });
+  await expect(unavailable).toBeVisible();
+  await expect(panel).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Synthetic calendar' })).toHaveCount(0);
+  sessionUnavailable = false;
+  await unavailable.getByRole('button', { name: studioCopy[locale].retry, exact: true }).click();
+  await expect(panel.getByLabel(copy.text)).toHaveValue('A meaningful family message');
+  const back = page.getByRole('link', { name: new RegExp(studioCopy[locale].back) });
+  await back.click();
+  const guard = page.getByRole('dialog', { name: studioCopy[locale].unsavedNav.title });
+  await expect(guard).toBeVisible();
+  await guard.getByRole('button', { name: studioCopy[locale].unsavedNav.stay }).click();
+  await expect(guard).toBeHidden();
+  await expect(back).toBeFocused();
+  await expect(panel.getByLabel(copy.text)).toHaveValue('A meaningful family message');
   const save = panel.getByRole('button', { name: copy.save, exact: true });
   await save.focus(); await page.keyboard.press('Enter');
   await expect(panel.getByText(/PREPARING/)).toBeVisible();

@@ -71,6 +71,11 @@
 .projectDetails { margin-block-start: var(--space-5); border-block-start: 1px solid var(--color-border); padding-block-start: var(--space-3); }
 .projectDetails summary { min-height: var(--control-md); font-weight: 600; cursor: pointer; }
 .projectDetails dl { margin-block-start: var(--space-3); }
+.reviewContent { min-width: 0; overflow-wrap: anywhere; }
+.reviewContent dl { margin-block: var(--space-3); }
+.reviewContent dt { font-weight: 600; }
+.reviewContent dd { margin-inline-start: 0; white-space: pre-wrap; }
+.reviewContent ol { padding-inline-start: var(--space-5); }
 .archived, .versionWarning, .message { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-block: 0 var(--space-5); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
 .archived { border-inline-start: 4px solid var(--color-warning); }
 .versionWarning { border-inline-start: 4px solid var(--color-danger); }

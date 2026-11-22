@@ -124,3 +124,24 @@ it('runs controlled without a trigger: the parent opens it, hears every close an
   rerender(<Dialog {...base} open />);
   expect(dialog).toHaveAttribute('open');
 });
+
+it('holds an acknowledgment until its content is available and then supports keyboard activation', async () => {
+  const user = userEvent.setup();
+  const onOpenChange = vi.fn();
+  const props = { open: true, dismissible: false, title: 'Review saved content', description: 'Loading',
+    cancelLabel: 'Acknowledge', onOpenChange };
+  const { rerender } = render(<Dialog {...props} cancelDisabled />);
+  const dialog = screen.getByRole('dialog');
+  expect(screen.getByRole('heading', { name: 'Review saved content' })).toHaveFocus();
+  const action = screen.getByRole('button', { name: 'Acknowledge' });
+  expect(action).toBeDisabled();
+  await user.click(action);
+  fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  fireEvent.click(dialog);
+  expect(onOpenChange).not.toHaveBeenCalled();
+  rerender(<Dialog {...props} description="Saved content available" cancelDisabled={false} />);
+  await user.tab();
+  expect(action).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+});

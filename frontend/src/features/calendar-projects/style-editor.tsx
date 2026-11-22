@@ -21,17 +21,15 @@ interface Props {
   mutationReady: boolean;
   /** True while a conflict review or a version mismatch holds every save. */
   blocked: boolean;
-  /** Incremented when the shared conflict review is acknowledged; lets this draft move its pinned version forward. */
-  reviewAck: number;
   api: ProjectApi;
   onDirtyChange: (dirty: boolean) => void;
-  onConflict: (currentVersion?: number) => void;
+  onConflict: (acknowledge: (reviewedVersion: number) => void) => void;
 }
 
 type Status = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'versionConflict' | 'validation';
 
 export function StyleEditor({ actorId, projectId, presets, savedPresetId, version, projectStatus,
-  mutationReady, blocked, reviewAck, api, onDirtyChange, onConflict }: Props) {
+  mutationReady, blocked, api, onDirtyChange, onConflict }: Props) {
   const { locale } = usePreferences();
   const copy = studioCopy[locale].style;
   const queryClient = useQueryClient();
@@ -42,7 +40,6 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
   // never as a silently newer If-Match that skips it. A ref is enough: only
   // save() reads it, so no re-render is needed.
   const draftVersion = useRef<number | null>(null);
-  const lastAck = useRef(0);
   const dirty = selected !== savedPresetId;
   const readOnly = projectStatus === 'ARCHIVED' || !mutationReady;
   const fieldId = 'studio-style-preset';
@@ -53,14 +50,6 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
     onDirtyChange(dirty);
     return () => onDirtyChange(false);
   }, [dirty, onDirtyChange]);
-
-  // Only an acknowledged conflict review may move the pin forward, and only to
-  // the refreshed version the review just displayed.
-  useEffect(() => {
-    if (reviewAck === lastAck.current) return;
-    lastAck.current = reviewAck;
-    if (dirty) draftVersion.current = version;
-  }, [reviewAck, version, dirty]);
 
   async function refresh() {
     await Promise.all([
@@ -96,11 +85,10 @@ export function StyleEditor({ actorId, projectId, presets, savedPresetId, versio
     } catch (error) {
       const failure = error instanceof ProjectApiError ? error : undefined;
       if (failure?.status === 412 || failure?.code === 'VERSION_CONFLICT') {
-        // AC3: refresh the truth first, hand the version to the review dialog,
-        // and leave `selected` untouched — the draft is never overwritten.
+        // The shared review loads saved content; only its acknowledgment can
+        // adopt that exact snapshot version. Other editors' reviews cannot rebind this draft.
         setStatus('versionConflict');
-        await refresh();
-        onConflict(failure.currentVersion);
+        onConflict(reviewedVersion => { draftVersion.current = reviewedVersion; setStatus('dirty'); });
         return;
       }
       if (failure?.status === 422) { setStatus('validation'); return; }

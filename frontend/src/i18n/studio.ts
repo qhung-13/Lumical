@@ -25,7 +25,7 @@ export const studioCopy = {
       save: 'Save month', saving: 'Saving month…', saved: 'Month saved.', draft: 'Unsaved changes', unchanged: 'All changes are saved.',
       saveError: 'Could not save this month. Your draft is still here; you can retry.', mediaError: 'One or more images are not available. Remove unavailable images or choose another Ready image.',
       writeConflict: 'The server could not apply this update. Your draft is preserved; refresh the saved Project data and review before retrying.',
-      versionConflict: 'This Project changed elsewhere. We refreshed saved data; your draft is preserved. Review it before saving again.',
+      versionConflict: 'This Project changed elsewhere. Your draft is preserved; review the current saved content before saving again.',
       validation: 'Check the highlighted fields and try again.', archived: 'Archived Projects are read-only.', upload: 'Upload a private image',
     },
     specialDates: {
@@ -42,7 +42,9 @@ export const studioCopy = {
       deleteConfirm: 'Delete date', deleteCancel: 'Keep date',
       created: 'Special Date added.', updated: 'Special Date updated.', deleted: 'Special Date deleted from this calendar.',
       archived: 'This calendar is archived and read-only.', loading: 'Loading Special Dates…', error: 'Special Dates could not be loaded.', retry: 'Try again',
-      versionLoading: 'Checking the current saved version before editing dates…', versionConflict: 'The calendar changed elsewhere. We refreshed its saved data; review the form before saving again.',
+      versionLoading: 'Checking the current saved version before editing dates…', versionConflict: 'The calendar changed elsewhere. Your form is preserved; review the current saved content before saving again.',
+      removedWhileEditing: 'This Special Date was removed elsewhere. Your draft is kept, but it cannot update or recreate the removed date. Cancel editing to start a new date.',
+      reviewCurrent: 'Review current saved content',
       saveError: 'Could not save this date. Your form is still here; you can retry.', deleteError: 'Could not delete this date. It is still shown if it remains on the server.',
       validationError: 'The server could not accept this date request. Review the form and try again.', serverFieldError: 'The server rejected this value. Review it and try again.',
       conflictError: 'The server rejected this change because the saved calendar state changed. Review the refreshed dates before trying again.',
@@ -65,8 +67,15 @@ export const studioCopy = {
       serverVersion: (currentVersion: number | undefined) => currentVersion === undefined
         ? 'The server holds a newer saved version than the one you loaded.'
         : `The server is now on saved version ${currentVersion}; you loaded an older one.`,
-      description: 'Your draft was kept and was never written over the saved content. Look at the refreshed months and style below, then save again if your choice is still what you want.',
+      description: 'Your draft was kept and was never written over the saved content. Review the current saved content here before deciding whether to save your draft again.',
       acknowledge: 'I have reviewed — allow saving',
+      loading: 'Loading current saved content…',
+      failed: 'Could not refresh a consistent saved version. Your draft is still here. Retry before acknowledging.',
+      savedContent: 'Current saved content',
+      localDraft: 'These are saved server values. Your unsaved draft remains in the editor and is not replaced by this review.',
+      mediaId: 'Media ID', crop: 'Crop', emptyAlt: 'No alternative text saved.',
+      eventRemoved: 'This Special Date has been removed from the saved calendar. Your draft cannot recreate it.',
+      noNote: 'No note saved.',
     },
     unsavedNav: {
       title: 'Leave with unsaved changes?',
@@ -112,7 +121,7 @@ export const studioCopy = {
       save: 'Lưu tháng', saving: 'Đang lưu tháng…', saved: 'Đã lưu tháng.', draft: 'Thay đổi chưa lưu', unchanged: 'Mọi thay đổi đã được lưu.',
       saveError: 'Chưa thể lưu tháng. Bản nháp vẫn được giữ để bạn thử lại.', mediaError: 'Có ảnh không khả dụng. Hãy bỏ ảnh đó hoặc chọn ảnh Ready khác.',
       writeConflict: 'Máy chủ chưa thể áp dụng thay đổi. Bản nháp vẫn được giữ; hãy tải lại dữ liệu Project đã lưu và kiểm tra trước khi thử lại.',
-      versionConflict: 'Project đã thay đổi ở nơi khác. Dữ liệu đã lưu được tải lại; bản nháp vẫn được giữ. Hãy kiểm tra trước khi lưu lại.',
+      versionConflict: 'Project đã thay đổi ở nơi khác. Bản nháp vẫn được giữ; hãy kiểm tra nội dung đang lưu trước khi lưu tiếp.',
       validation: 'Kiểm tra các trường được đánh dấu rồi thử lại.', archived: 'Project đã lưu trữ và chỉ có thể xem.', upload: 'Tải ảnh riêng tư lên',
     },
     specialDates: {
@@ -129,7 +138,9 @@ export const studioCopy = {
       deleteConfirm: 'Xóa ngày', deleteCancel: 'Giữ ngày',
       created: 'Đã thêm ngày đặc biệt.', updated: 'Đã cập nhật ngày đặc biệt.', deleted: 'Đã xóa ngày khỏi lịch hiện tại.',
       archived: 'Lịch đã lưu trữ và chỉ có thể xem.', loading: 'Đang tải ngày đặc biệt…', error: 'Chưa tải được ngày đặc biệt.', retry: 'Thử lại',
-      versionLoading: 'Đang kiểm tra phiên bản lịch đã lưu trước khi sửa ngày…', versionConflict: 'Lịch đã thay đổi ở nơi khác. Dữ liệu đã lưu được tải lại; hãy kiểm tra form trước khi lưu tiếp.',
+      versionLoading: 'Đang kiểm tra phiên bản lịch đã lưu trước khi sửa ngày…', versionConflict: 'Lịch đã thay đổi ở nơi khác. Form vẫn được giữ; hãy kiểm tra nội dung đang lưu trước khi lưu tiếp.',
+      removedWhileEditing: 'Ngày đặc biệt này đã bị xóa ở nơi khác. Bản nháp vẫn được giữ nhưng không thể cập nhật hoặc tạo lại ngày đã xóa. Hủy chỉnh sửa để thêm ngày mới.',
+      reviewCurrent: 'Kiểm tra nội dung đang lưu',
       saveError: 'Chưa thể lưu ngày này. Form vẫn được giữ để bạn thử lại.', deleteError: 'Chưa thể xóa ngày này. Ngày vẫn được hiển thị nếu còn trên máy chủ.',
       validationError: 'Máy chủ chưa thể chấp nhận yêu cầu ngày này. Hãy kiểm tra lại biểu mẫu rồi thử lại.', serverFieldError: 'Máy chủ từ chối giá trị này. Hãy kiểm tra và thử lại.',
       conflictError: 'Máy chủ từ chối thay đổi vì trạng thái lịch đã đổi. Hãy kiểm tra danh sách ngày mới tải lại trước khi thử tiếp.',
@@ -152,8 +163,15 @@ export const studioCopy = {
       serverVersion: (currentVersion: number | undefined) => currentVersion === undefined
         ? 'Máy chủ đang giữ phiên bản lưu mới hơn phiên bản bạn đã tải.'
         : `Máy chủ giờ đang ở phiên bản lưu ${currentVersion}; bạn đang giữ phiên bản cũ hơn.`,
-      description: 'Bản nháp của bạn được giữ và không bao giờ ghi đè lên nội dung đã lưu. Hãy xem các tháng và phong cách mới tải lại bên dưới, rồi lưu lại nếu lựa chọn vẫn là điều bạn muốn.',
+      description: 'Bản nháp của bạn được giữ và không bao giờ ghi đè lên nội dung đã lưu. Hãy kiểm tra nội dung đang lưu tại đây trước khi quyết định lưu lại bản nháp.',
       acknowledge: 'Tôi đã kiểm tra — cho phép lưu',
+      loading: 'Đang tải nội dung hiện đang lưu…',
+      failed: 'Chưa tải được dữ liệu đã lưu cùng một phiên bản. Bản nháp vẫn còn. Hãy thử tải lại trước khi xác nhận.',
+      savedContent: 'Nội dung hiện đang lưu',
+      localDraft: 'Đây là giá trị đã lưu trên máy chủ. Bản nháp chưa lưu vẫn nằm trong trình chỉnh sửa và không bị thay thế khi kiểm tra.',
+      mediaId: 'ID nội dung', crop: 'Cắt ảnh', emptyAlt: 'Chưa lưu văn bản thay thế.',
+      eventRemoved: 'Ngày đặc biệt này đã bị xóa khỏi lịch đã lưu. Bản nháp không thể tạo lại ngày đó.',
+      noNote: 'Chưa lưu ghi chú.',
     },
     unsavedNav: {
       title: 'Rời đi khi còn thay đổi chưa lưu?',

@@ -9,6 +9,8 @@ interface DialogProps {
   title: string;
   description: string;
   cancelLabel: string;
+  /** Hold the sole acknowledgment action while required content is loading. */
+  cancelDisabled?: boolean;
   confirmLabel?: string;
   onConfirm?: () => void;
   destructive?: boolean;
@@ -20,7 +22,7 @@ interface DialogProps {
   onOpenChange?: (open: boolean) => void;
 }
 export function Dialog({ triggerLabel, title, description, cancelLabel, confirmLabel, onConfirm,
-  destructive = false, dismissible = true, disabled = false, children, open: controlledOpen, onOpenChange }: DialogProps) {
+  destructive = false, dismissible = true, disabled = false, cancelDisabled = false, children, open: controlledOpen, onOpenChange }: DialogProps) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLSpanElement>(null);
@@ -104,7 +106,7 @@ export function Dialog({ triggerLabel, title, description, cancelLabel, confirmL
       <p id={`${id}-description`}>{description}</p>
       <div className={styles.body}>{children}</div>
       <div className={styles.actions} ref={cancel}>
-        <Button onClick={close}>{cancelLabel}</Button>
+        <Button disabled={cancelDisabled} onClick={close}>{cancelLabel}</Button>
         {confirmLabel && <Button disabled={disabled} variant={destructive ? 'destructive' : 'primary'} onClick={() => { onConfirm?.(); close(); }}>{confirmLabel}</Button>}
       </div>
     </dialog>

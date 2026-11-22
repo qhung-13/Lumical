@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MediaApiError, mediaApi, type OwnedMedia } from '../../api/media';
@@ -19,6 +19,9 @@ import { countVisibleCharacters, monthContentDraft, sameMonthContent, type Month
 import { SpecialDatesEditor } from './special-dates-editor';
 import { ARAuthoring } from './ar-authoring';
 import { StyleEditor } from './style-editor';
+import { ProjectConflictReview, type ConflictReviewRequest, type ConflictSnapshot } from './project-conflict-review';
+
+interface PinnedMonthDraft { content: MonthContentDraft; baseVersion: number; original: MonthContentDraft }
 
 function calendarWeeks(year: number, monthNumber: number): (number | null)[][] {
   const first = new Date(0); first.setFullYear(year, monthNumber - 1, 1); first.setHours(0, 0, 0, 0);
@@ -31,16 +34,18 @@ function calendarWeeks(year: number, monthNumber: number): (number | null)[][] {
 }
 
 export function Studio({ id }: { id: string }) {
-  const { state } = useIdentity();
-  const actorId = state.principal?.id ?? 'anonymous';
-  return <StudioWorkspace key={`${actorId}:${id}`} id={id} />;
+  const { manager, state } = useIdentity();
+  const actorId = (state.principal ?? state.unverifiedPrincipal)?.id ?? 'anonymous';
+  // A transient verification failure keeps this actor's memory. Confirmed
+  // session transitions still remount, including a new session for the same actor.
+  return <StudioWorkspace key={`${actorId}:${manager.requestEpoch()}:${id}`} id={id} />;
 }
 
 function StudioWorkspace({ id }: { id: string }) {
   const { manager, state } = useIdentity();
   const { locale } = usePreferences();
   const copy = studioCopy[locale];
-  const actorId = state.principal?.id ?? 'anonymous';
+  const actorId = (state.principal ?? state.unverifiedPrincipal)?.id ?? 'anonymous';
   const scope = `${actorId}:${id}`;
   const queryClient = useQueryClient();
   const [selection, setSelection] = useState({ actorId, projectId: id, month: 1 });
@@ -48,22 +53,39 @@ function StudioWorkspace({ id }: { id: string }) {
   const api = useMemo(() => projectApi({ csrf: manager.csrfToken, epoch: manager.requestEpoch, unauthorized: () => manager.bootstrap() }), [manager]);
   const media = useMemo(() => mediaApi({ csrf: manager.csrfToken, epoch: manager.requestEpoch, unauthorized: () => manager.bootstrap() }), [manager]);
   const enabled = state.phase === 'authenticated';
+  const verified = enabled && state.mutationReady;
   const project = useQuery({ ...projectDetailOptions(actorId, id, api), enabled });
   const months = useQuery({ ...projectMonthsOptions(actorId, id, api), enabled: enabled && Boolean(project.data) });
   const specialDates = useQuery({ ...projectSpecialDatesOptions(actorId, id, api), enabled: enabled && Boolean(project.data) });
-  const [draftState, setDraftState] = useState<{ scope: string; months: Record<number, MonthContentDraft> }>({ scope, months: {} });
+  const [draftState, setDraftState] = useState<{ scope: string; months: Record<number, PinnedMonthDraft> }>({ scope, months: {} });
   const [sessionMediaState, setSessionMediaState] = useState<{ scope: string; items: OwnedMedia[] }>({ scope, items: [] });
   const [saveState, setSaveState] = useState<{ scope: string; months: Record<number, 'dirty' | 'saving' | 'saved' | 'error' | 'media' | 'conflict' | 'versionConflict' | 'validation'> }>({ scope, months: {} });
   // P06: one project-level conflict review gates every save until it is acknowledged.
-  const [conflictReview, setConflictReview] = useState<{ currentVersion?: number } | null>(null);
-  // P06 review: acknowledging the review is what may move a pinned draft version forward.
-  const [reviewAck, setReviewAck] = useState(0);
+  const [conflictReview, setConflictReview] = useState<(ConflictReviewRequest & { sequence: number }) | null>(null);
+  const reviewSequence = useRef(0);
   const [styleDirty, setStyleDirty] = useState(false);
   const [specialDirty, setSpecialDirty] = useState(false);
+  const [arDirty, setARDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<string | null>(null);
   const reportStyleDirty = useCallback((dirty: boolean) => setStyleDirty(dirty), []);
   const reportSpecialDirty = useCallback((dirty: boolean) => setSpecialDirty(dirty), []);
+  const reportARDirty = useCallback((dirty: boolean) => setARDirty(dirty), []);
   const router = useRouter();
+  function requestReview(request: ConflictReviewRequest) {
+    setConflictReview({ ...request, sequence: ++reviewSequence.current });
+  }
+  const applyReviewSnapshot = useCallback(async (snapshot: ConflictSnapshot) => {
+    await Promise.all([
+      queryClient.cancelQueries({ queryKey: projectKeys.detail(actorId, id) }),
+      queryClient.cancelQueries({ queryKey: projectKeys.months(actorId, id) }),
+      queryClient.cancelQueries({ queryKey: projectKeys.specialDates(actorId, id) }),
+    ]);
+    queryClient.setQueryData(projectKeys.detail(actorId, id), snapshot.project);
+    queryClient.setQueryData(projectKeys.months(actorId, id), snapshot.months);
+    queryClient.setQueryData(projectKeys.specialDates(actorId, id), snapshot.specialDates);
+    void queryClient.invalidateQueries({ queryKey: projectKeys.ar(actorId, id) });
+    void queryClient.invalidateQueries({ queryKey: projectKeys.lists(actorId) });
+  }, [queryClient, actorId, id]);
 
   const returnTo = `/projects/${encodeURIComponent(id)}`;
   const month = months.data?.months.find(item => item.monthNumber === selectedMonth);
@@ -79,13 +101,14 @@ function StudioWorkspace({ id }: { id: string }) {
   const sessionMedia = sessionMediaState.scope === scope ? sessionMediaState.items : [];
   const availableMedia = Array.from(new Map([...projectMedia, ...sessionMedia].map(item => [item.id, item])).values());
   const drafts = draftState.scope === scope ? draftState.months : {};
-  const draft = month ? drafts[selectedMonth] ?? monthContentDraft(month) : undefined;
+  const draft = month ? drafts[selectedMonth]?.content ?? monthContentDraft(month) : undefined;
   const saveStatuses = saveState.scope === scope ? saveState.months : {};
   const monthSaveStatus = saveStatuses[selectedMonth];
   const weeks = calendarWeeks(project.data?.year ?? new Date().getFullYear(), selectedMonth);
-  const loading = state.phase === 'loading' || (enabled && (project.isPending || (Boolean(project.data) && months.isPending)));
+  const loading = state.phase === 'loading' || (enabled && (!state.mutationReady || project.isPending || (Boolean(project.data) && months.isPending)));
   const notFound = project.error && 'status' in project.error && project.error.status === 404;
   const failed = state.phase === 'unavailable' || (project.isError && !notFound) || months.isError;
+  const workspaceAvailable = verified && !failed && !notFound;
   const projectVersion = project.isSuccess ? project.data.version : undefined;
   const monthsVersion = months.isSuccess ? months.data.projectVersion : undefined;
   const versionsLoaded = projectVersion !== undefined && monthsVersion !== undefined;
@@ -96,13 +119,35 @@ function StudioWorkspace({ id }: { id: string }) {
       : project.data && months.isPending ? copy.checkingVersion : copy.versionUnavailable;
 
   function updateDraft(update: (current: MonthContentDraft) => MonthContentDraft) {
-    if (!month || !draft) return;
+    if (!month || !draft || !project.data) return;
+    const persisted = monthContentDraft(month);
+    const version = project.data.version;
     setDraftState(current => {
       const saved = current.scope === scope ? current.months : {};
-      const currentDraft = saved[selectedMonth] ?? monthContentDraft(month);
-      return { scope, months: { ...saved, [selectedMonth]: update(currentDraft) } };
+      const existing = saved[selectedMonth];
+      const pinned = existing && !sameMonthContent(existing.content, persisted) ? existing
+        : { content: persisted, original: persisted, baseVersion: version };
+      const content = update(pinned.content);
+      const next = { ...saved };
+      if (sameMonthContent(content, persisted)) delete next[selectedMonth];
+      else next[selectedMonth] = { ...pinned, content };
+      return { scope, months: next };
     });
     setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'dirty' } }));
+  }
+
+  function reviewMonth(number: number) {
+    requestReview({ target: { kind: 'month', monthNumber: number }, acknowledge: snapshot => {
+      const saved = snapshot.months.months.find(month => month.monthNumber === number);
+      if (!saved) return;
+      setDraftState(current => {
+        const pinned = current.scope === scope ? current.months[number] : undefined;
+        if (!pinned) return current;
+        return { scope, months: { ...current.months, [number]: { ...pinned,
+          baseVersion: snapshot.project.version, original: monthContentDraft(saved) } } };
+      });
+      setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [number]: 'dirty' } }));
+    } });
   }
 
   function addReadyMedia(item: OwnedMedia) {
@@ -117,10 +162,13 @@ function StudioWorkspace({ id }: { id: string }) {
   }
 
   async function saveMonth() {
-    if (!enabled || !project.data || !month || !draft || project.data.status !== 'WORKING' || versionMismatch || monthSaveStatus === 'saving' || conflictReview) return;
+    if (!enabled || !state.mutationReady || !project.data || !month || !draft || project.data.status !== 'WORKING' || !versionsMatch || monthSaveStatus === 'saving' || conflictReview) return;
     if (countVisibleCharacters(draft.caption) > 300) { setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'validation' } })); return; }
     const saved = monthContentDraft(month);
     if (sameMonthContent(draft, saved)) { setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saved' } })); return; }
+    const pinned = drafts[selectedMonth];
+    if (!pinned) return;
+    if (pinned.baseVersion !== project.data.version) { reviewMonth(selectedMonth); return; }
     setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saving' } }));
     try {
       const verified = await Promise.all(draft.images.map(image => media.status(image.assetId)));
@@ -130,15 +178,18 @@ function StudioWorkspace({ id }: { id: string }) {
       }
       const body: MonthPatch = { caption: draft.caption.trim().normalize('NFC') || null,
         images: draft.images.map(image => ({ assetId: image.assetId, altText: image.altText.trim().normalize('NFC'), crop: null })) };
-      const result = await api.updateMonth(id, selectedMonth, body, project.data.version);
+      const result = await api.updateMonth(id, selectedMonth, body, pinned.baseVersion);
       const updatedMonths = { ...months.data!, projectVersion: result.projectVersion,
         months: months.data!.months.map(item => item.monthNumber === selectedMonth ? {
           monthNumber: result.monthNumber, caption: result.caption, images: result.images,
         } : item) };
       queryClient.setQueryData(projectKeys.months(actorId, id), updatedMonths);
       queryClient.setQueryData(projectKeys.detail(actorId, id), { ...project.data, version: result.projectVersion });
-      setDraftState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}),
-        [selectedMonth]: monthContentDraft({ monthNumber: result.monthNumber, caption: result.caption, images: result.images }) } }));
+      setDraftState(current => {
+        const next = { ...(current.scope === scope ? current.months : {}) };
+        delete next[selectedMonth];
+        return { scope, months: next };
+      });
       setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: 'saved' } }));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: projectKeys.ar(actorId, id), refetchType: 'active' }),
@@ -154,16 +205,7 @@ function StudioWorkspace({ id }: { id: string }) {
           : status === 422 ? 'validation' : 'error';
       setSaveState(current => ({ scope, months: { ...(current.scope === scope ? current.months : {}), [selectedMonth]: nextStatus } }));
       if (nextStatus === 'versionConflict') {
-        // AC3/G4: version honesty — really refresh the saved data the message
-        // promises, then require the explicit review before saving may resume.
-        // The local draft in draftState is never overwritten by this refresh.
-        const currentVersion = error instanceof ProjectApiError ? error.currentVersion : undefined;
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id) }),
-          queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id) }),
-          queryClient.invalidateQueries({ queryKey: projectKeys.specialDates(actorId, id) }),
-        ]);
-        setConflictReview({ currentVersion });
+        reviewMonth(selectedMonth);
       } else if (nextStatus === 'conflict') await Promise.all([
         queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, id) }),
         queryClient.invalidateQueries({ queryKey: projectKeys.months(actorId, id) }),
@@ -184,16 +226,15 @@ function StudioWorkspace({ id }: { id: string }) {
         : effectiveSaveStatus === 'error' ? copy.editor.saveError : copy.editor.unchanged;
   const captionCount = draft ? countVisibleCharacters(draft.caption) : 0;
   const archived = project.data?.status === 'ARCHIVED';
-  const editorReadOnly = archived || !versionsMatch;
+  const editorReadOnly = archived || !versionsMatch || !verified;
   const saveDisabled = editorReadOnly || !draftChanged || captionCount > 300 || monthSaveStatus === 'saving' || conflictReview !== null ||
     Boolean(draft?.images.some(image => !mediaById.has(image.assetId) || mediaById.get(image.assetId)?.status !== 'READY'));
-  // G5: one guard covers every unsaved source — any Month draft (not only the
-  // selected one), the style choice and the special-date form.
+  // One guard covers all editors, including AR drafts and uncertain save intents.
   const anyDraftChanged = Object.entries(drafts).some(([monthNumber, value]) => {
     const saved = months.data?.months.find(item => item.monthNumber === Number(monthNumber));
-    return saved ? !sameMonthContent(value, monthContentDraft(saved)) : true;
+    return saved ? !sameMonthContent(value.content, monthContentDraft(saved)) : true;
   });
-  const hasUnsaved = anyDraftChanged || styleDirty || specialDirty;
+  const hasUnsaved = anyDraftChanged || styleDirty || specialDirty || arDirty;
   useEffect(() => {
     if (!hasUnsaved) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -209,9 +250,12 @@ function StudioWorkspace({ id }: { id: string }) {
           // SPA navigation cannot use beforeunload; intercept the only in-Studio exit.
           if (!hasUnsaved) return;
           event.preventDefault();
+          // WebKit does not focus a pointer-activated link; give the native
+          // dialog an explicit return target before it enters the top layer.
+          event.currentTarget.focus();
           setPendingNav(returnTo);
         }}>← {copy.back}</Link>
-        {project.data && <div className={styles.projectHeading}>
+        {workspaceAvailable && project.data && <div className={styles.projectHeading}>
           <div><p className={styles.eyebrow}>{copy.status[project.data.status]}</p><h1>{project.data.title}</h1></div>
           <p className={styles.saveStatus} role="status">{versionStatus}</p>
         </div>}
@@ -222,9 +266,13 @@ function StudioWorkspace({ id }: { id: string }) {
       {!enabled && state.phase === 'unauthenticated' && <section className={styles.message}><p>{copy.signIn}</p><Link href={`/login?next=${encodeURIComponent(returnTo + '/studio')}`}>{locale === 'vi' ? 'Đăng nhập' : 'Sign in'}</Link></section>}
       {loading && <p role="status" className={styles.message}>{copy.loading}</p>}
       {(failed || notFound) && <section className={styles.message} role={notFound ? 'status' : 'alert'}>
-        <p>{notFound ? copy.notFound : copy.error}</p><Button onClick={() => { void project.refetch(); if (project.data) void months.refetch(); }}>{copy.retry}</Button>
+        <h1>{copy.title}</h1>
+        <p>{notFound ? copy.notFound : copy.error}</p><Button onClick={() => {
+          if (!verified) { void manager.bootstrap(); return; }
+          void project.refetch(); if (project.data) void months.refetch();
+        }}>{copy.retry}</Button>
       </section>}
-      {enabled && project.data && months.data && !failed && <>
+      {project.data && months.data && <div hidden={!workspaceAvailable} inert={!workspaceAvailable}>
         {project.data.status === 'ARCHIVED' && <p className={styles.archived} role="status">{copy.archived}</p>}
         {versionMismatch && <p className={styles.versionWarning} role="alert">{copy.versionMismatch}</p>}
         <section className={styles.monthNavigation} aria-label={copy.monthNavigation}>
@@ -345,9 +393,10 @@ function StudioWorkspace({ id }: { id: string }) {
             </>}
             <StyleEditor actorId={actorId} projectId={id} presets={project.data.stylePresets}
               savedPresetId={project.data.stylePresetId} version={project.data.version}
-              projectStatus={project.data.status} mutationReady={state.mutationReady}
-              blocked={versionMismatch || conflictReview !== null} reviewAck={reviewAck} api={api}
-              onDirtyChange={reportStyleDirty} onConflict={currentVersion => setConflictReview({ currentVersion })} />
+              projectStatus={project.data.status} mutationReady={verified}
+              blocked={versionMismatch || conflictReview !== null} api={api}
+              onDirtyChange={reportStyleDirty} onConflict={acknowledge => requestReview({ target: { kind: 'style' },
+                acknowledge: snapshot => acknowledge(snapshot.project.version) })} />
             <details className={styles.projectDetails}>
               <summary>{copy.savedContent}</summary>
               <dl>
@@ -362,26 +411,23 @@ function StudioWorkspace({ id }: { id: string }) {
               </dl>
             </details>
             {project.data && <SpecialDatesEditor actorId={actorId} projectId={id} projectYear={project.data.year}
-              projectVersion={project.data.version} projectStatus={project.data.status} mutationReady={state.mutationReady}
+              projectVersion={project.data.version} projectStatus={project.data.status} mutationReady={verified}
               api={api} events={specialDates.data} loading={specialDates.isPending} fetching={specialDates.isFetching}
               failed={specialDates.isError} onDirtyChange={reportSpecialDirty}
+              blocked={conflictReview !== null} onConflict={(eventId, acknowledge) => requestReview({
+                target: { kind: 'specialDate', eventId }, acknowledge: snapshot => acknowledge(snapshot.project.version) })}
               onRetry={() => { void Promise.all([project.refetch(), specialDates.refetch()]); }} />}
             <ARAuthoring actorId={actorId} projectId={id} projectVersion={project.data.version} projectStatus={project.data.status}
-              mutationReady={state.mutationReady} api={api} media={media} availableMedia={availableMedia} />
-            {/* Only the explicit acknowledge closes this one: Escape/backdrop must
-                never clear the review and re-enable saving behind the owner's back. */}
-            <Dialog open={conflictReview !== null} onOpenChange={open => { if (!open) { setConflictReview(null); setReviewAck(count => count + 1); } }}
-              dismissible={false}
-              title={copy.conflictReview.title}
-              description={`${copy.conflictReview.serverVersion(conflictReview?.currentVersion)} ${copy.conflictReview.description}`}
-              cancelLabel={copy.conflictReview.acknowledge} />
-            <Dialog open={pendingNav !== null} onOpenChange={open => { if (!open) setPendingNav(null); }}
-              title={copy.unsavedNav.title} description={copy.unsavedNav.description}
-              cancelLabel={copy.unsavedNav.stay} confirmLabel={copy.unsavedNav.leave}
-              onConfirm={() => { const href = pendingNav; setPendingNav(null); if (href) router.push(href); }} />
+              mutationReady={verified} api={api} media={media} availableMedia={availableMedia} onDirtyChange={reportARDirty} />
           </aside>
         </div>
-      </>}
+      </div>}
+      <Dialog open={pendingNav !== null} onOpenChange={open => { if (!open) setPendingNav(null); }}
+        title={copy.unsavedNav.title} description={copy.unsavedNav.description}
+        cancelLabel={copy.unsavedNav.stay} confirmLabel={copy.unsavedNav.leave}
+        onConfirm={() => { const href = pendingNav; setPendingNav(null); if (href) router.push(href); }} />
+      {workspaceAvailable && conflictReview && <ProjectConflictReview key={conflictReview.sequence} projectId={id} api={api} request={conflictReview}
+        onRefresh={applyReviewSnapshot} onAcknowledged={() => setConflictReview(null)} />}
     </main>
   </div>;
 }

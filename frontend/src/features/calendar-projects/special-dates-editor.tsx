@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog } from '../../design-system/composites/dialog';
 import { Button } from '../../design-system/primitives/button';
@@ -24,6 +24,8 @@ interface Props {
   fetching: boolean;
   failed: boolean;
   onRetry: () => void;
+  blocked: boolean;
+  onConflict: (eventId: string | undefined, acknowledge: (reviewedVersion: number) => void) => void;
   /** G5: tells the Studio guard when this form holds input that leaving would lose. */
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -37,13 +39,14 @@ function errorDetails(error: unknown): { status: number; code: string; retryable
 }
 
 export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVersion, projectStatus, mutationReady,
-  api, events, loading, fetching, failed, onRetry, onDirtyChange }: Props) {
+  api, events, loading, fetching, failed, onRetry, onDirtyChange, blocked, onConflict }: Props) {
   const { locale } = usePreferences();
   const copy = studioCopy[locale].specialDates;
   const queryClient = useQueryClient();
   const formId = useId();
   const [draft, setDraft] = useState<SpecialDateDraft>(emptySpecialDateDraft);
   const [editingId, setEditingId] = useState<string>();
+  const editingVersion = useRef<number | undefined>(undefined);
   const [pendingIntent, setPendingIntent] = useState<CreateIntent>();
   const [operation, setOperation] = useState<Operation>();
   const [submitted, setSubmitted] = useState(false);
@@ -60,7 +63,8 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
 
   const versionMatches = events?.projectVersion === projectVersion;
   const readOnly = projectStatus === 'ARCHIVED' || !mutationReady;
-  const canWrite = !readOnly && !loading && !fetching && !failed && versionMatches && operation === undefined;
+  const canWrite = !readOnly && !blocked && !loading && !fetching && !failed && versionMatches && operation === undefined;
+  const editingMissing = Boolean(editingId && versionMatches && !events?.events.some(event => event.id === editingId));
   const formLocked = !canWrite || Boolean(pendingIntent);
   const orderedEvents = [...(events?.events ?? [])].sort((left, right) => left.date.localeCompare(right.date));
   const titleCount = countVisibleCharacters(draft.title);
@@ -93,16 +97,24 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
   function resetForm() {
     setDraft(emptySpecialDateDraft());
     setEditingId(undefined);
+    editingVersion.current = undefined;
     setErrors({});
     setSubmitted(false);
   }
 
-  function showError(error: unknown, fallback: string) {
+  function reviewEvent(eventId = editingId) {
+    setErrorMessage(copy.versionConflict);
+    onConflict(eventId, reviewedVersion => {
+      if (eventId === editingId) editingVersion.current = reviewedVersion;
+      setErrorMessage('');
+    });
+  }
+
+  function showError(error: unknown, fallback: string, eventId = editingId) {
     const details = errorDetails(error);
     setMessage('');
     if (details.status === 412 || details.code === 'VERSION_CONFLICT') {
-      setErrorMessage(copy.versionConflict);
-      void refreshProjectData();
+      reviewEvent(eventId);
       return 'conflict';
     }
     if (details.status === 409 || details.code === 'CONFLICT' || details.code === 'IDEMPOTENCY_CONFLICT') {
@@ -120,6 +132,10 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
       setSubmitted(false);
       setErrorMessage(copy.validationError);
       return 'validation';
+    }
+    if (details.code === 'NOT_FOUND' && eventId) {
+      reviewEvent(eventId);
+      return 'known';
     }
     if (details.code === 'FORBIDDEN' || details.code === 'NOT_FOUND') {
       setErrorMessage(copy.requestError);
@@ -152,7 +168,7 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canWrite || pendingIntent) return;
+    if (!canWrite || pendingIntent || editingMissing) return;
     setSubmitted(true);
     setMessage('');
     setErrorMessage('');
@@ -161,9 +177,10 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
     if (Object.keys(validation).length) return;
     const body = specialDateWrite(draft);
     if (editingId) {
+      if (editingVersion.current !== projectVersion) { reviewEvent(); return; }
       setOperation('update');
       try {
-        const result = await api.updateSpecialDate(projectId, editingId, body, projectVersion);
+        const result = await api.updateSpecialDate(projectId, editingId, body, editingVersion.current);
         commitRevision(result, 'update');
         resetForm();
         setMessage(copy.updated);
@@ -189,12 +206,13 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
       if (editingId === event.id) resetForm();
       setMessage(copy.deleted);
       await refreshProjectData();
-    } catch (error) { showError(error, copy.deleteError); }
+    } catch (error) { showError(error, copy.deleteError, event.id); }
     finally { setOperation(undefined); }
   }
 
   function editEvent(event: SpecialDate) {
     setEditingId(event.id);
+    editingVersion.current = projectVersion;
     setDraft({ date: event.date, title: event.title, note: event.note ?? '' });
     setErrors({});
     setSubmitted(false);
@@ -249,6 +267,8 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
 
       <form className={styles.form} noValidate onSubmit={submit}>
         <h3>{editingId ? copy.edit : copy.add}</h3>
+        {editingMissing && <div role="alert"><p>{copy.removedWhileEditing}</p>
+          <Button variant="secondary" disabled={!canWrite} onClick={() => reviewEvent()}>{copy.reviewCurrent}</Button></div>}
         <div className={styles.field}>
           <label htmlFor={`${formId}-date`}>{copy.date}</label>
           <Input id={`${formId}-date`} type="date" value={draft.date} disabled={formLocked}
@@ -285,7 +305,7 @@ export function SpecialDatesEditor({ actorId, projectId, projectYear, projectVer
             cancelLabel={copy.abandonCancel} confirmLabel={copy.abandonConfirm} onConfirm={() => setPendingIntent(undefined)} />
         </div> : <div className={styles.formActions}>
           {editingId && <Button variant="secondary" disabled={operation !== undefined} onClick={resetForm}>{copy.cancelEdit}</Button>}
-          <Button variant="primary" type="submit" disabled={!canWrite} loading={operation === 'create' || operation === 'update'}
+          <Button variant="primary" type="submit" disabled={!canWrite || editingMissing} loading={operation === 'create' || operation === 'update'}
             loadingLabel={editingId ? copy.saveEdit : copy.saveNew}>{editingId ? copy.saveEdit : copy.saveNew}</Button>
         </div>}
       </form>

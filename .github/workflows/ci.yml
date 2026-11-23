@@ -38,7 +38,7 @@ jobs:
         run: npm install --global pnpm@11.22.0
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Check peer dependencies
         run: pnpm peers check
@@ -76,7 +76,7 @@ jobs:
       - name: Install pnpm and dependencies
         run: |
           npm install --global pnpm@11.22.0
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build images and smoke isolated PostgreSQL stack
         run: pnpm test:docker
@@ -94,7 +94,7 @@ jobs:
       - name: Install pnpm and dependencies
         run: |
           npm install --global pnpm@11.22.0
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
       - name: Install visual browser runtime
         run: pnpm --dir frontend exec playwright install --only-shell chromium
       - name: Build and compare reviewed Windows visual baselines

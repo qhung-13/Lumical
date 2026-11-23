@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import type { TransactionContext } from '../../../platform/database/application/transactions';
+import type { ReadinessRepository } from './readiness-repository';
 import type { OwnerMediaRepository } from '../../media/application/owner-media';
 import { ActiveAccounts, Clock } from '../../identity/application/ports';
 import type { ActiveAccountPrincipal } from '../../identity/domain/identity';
@@ -52,6 +53,7 @@ const service = (accounts: ActiveAccounts): ProjectOwnerService =>
     { list: async () => [] } as unknown as ProjectRepository,
     {} as CreateProject,
     {} as OwnerMediaRepository,
+    {} as ReadinessRepository,
   );
 
 const ownedRecord: ProjectRecord = {
@@ -81,6 +83,7 @@ describe('Project child write boundary', () => {
       repository as unknown as ProjectRepository,
       {} as CreateProject,
       {} as OwnerMediaRepository,
+      {} as ReadinessRepository,
     );
     return { app, ...repository };
   }
@@ -134,6 +137,7 @@ describe('Project restart boundary', () => {
       repository,
       {} as CreateProject,
       {} as OwnerMediaRepository,
+      {} as ReadinessRepository,
     );
     await expect(app.get(ownedRecord.id, {})).resolves.toMatchObject({ id: ownedRecord.id, deletionEligible: eligible });
   });
@@ -189,6 +193,7 @@ describe('Project detail curated preset projection', () => {
       } as unknown as ProjectRepository,
       {} as CreateProject,
       {} as OwnerMediaRepository,
+      {} as ReadinessRepository,
     );
 
   it('serves exactly the presets the captured revision approved, bilingual', async () => {

@@ -1,0 +1,64 @@
+{
+  "status": "PROPOSED — LEAD CONTRACT REVIEW, not a published schema",
+  "emptySavedProject": {
+    "data": {
+      "projectVersion": 1,
+      "previewReady": true,
+      "arReady": false,
+      "orderReady": false,
+      "finalizationReady": false,
+      "arPreparation": "NOT_CONFIGURED",
+      "issues": {
+        "preview": [],
+        "ar": ["AR_NOT_CONFIGURED"],
+        "finalization": ["FINALIZATION_PERSONAL_IMAGE_REQUIRED", "FINALIZATION_AR_REQUIRED", "FINALIZATION_REVIEW_REQUIRED"]
+      }
+    }
+  },
+  "oneImagePendingPreparation": {
+    "data": {
+      "projectVersion": 3,
+      "previewReady": true,
+      "arReady": false,
+      "orderReady": false,
+      "finalizationReady": false,
+      "arPreparation": "PENDING",
+      "issues": {
+        "preview": [],
+        "ar": ["AR_PREPARATION_PENDING"],
+        "finalization": ["FINALIZATION_AR_REQUIRED", "FINALIZATION_REVIEW_REQUIRED"]
+      }
+    }
+  },
+  "unverifiedReadyDatabaseRow": {
+    "data": {
+      "projectVersion": 3,
+      "previewReady": true,
+      "arReady": false,
+      "orderReady": false,
+      "finalizationReady": false,
+      "arPreparation": "UNVERIFIED",
+      "issues": {
+        "preview": [],
+        "ar": ["AR_PREPARATION_UNVERIFIED", "AR_MAPPING_INVALID", "AR_FALLBACK_UNVERIFIED", "AR_MAPPING_REVIEW_REQUIRED"],
+        "finalization": ["FINALIZATION_AR_REQUIRED", "FINALIZATION_REVIEW_REQUIRED"]
+      }
+    }
+  },
+  "futureVerifiedPreparationWithoutFullReview": {
+    "note": "Synthetic future P02/P04 mapping proof, not reachable through the current persistence adapter; P05 full preview review is still absent.",
+    "data": {
+      "projectVersion": 7,
+      "previewReady": true,
+      "arReady": true,
+      "orderReady": false,
+      "finalizationReady": false,
+      "arPreparation": "VERIFIED",
+      "issues": {
+        "preview": [],
+        "ar": [],
+        "finalization": ["FINALIZATION_REVIEW_REQUIRED"]
+      }
+    }
+  }
+}

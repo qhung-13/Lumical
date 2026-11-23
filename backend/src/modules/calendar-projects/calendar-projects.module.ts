@@ -13,6 +13,8 @@ import { ProjectRepository } from './application/project-repository';
 import { PrismaProjectCreation } from './infrastructure/prisma-project-creation';
 import { PrismaProjectRepository } from './infrastructure/prisma-project';
 import { ProjectController } from './interface/project.controller';
+import { ReadinessRepository } from './application/readiness-repository';
+import { PrismaReadinessRepository } from './infrastructure/prisma-readiness';
 
 @Module({
   imports: [DatabaseModule, IdentityModule, TemplatesModule, MediaModule],
@@ -36,6 +38,7 @@ import { ProjectController } from './interface/project.controller';
     },
     { provide: ProjectCreationRepository, useClass: PrismaProjectCreation },
     { provide: ProjectRepository, useClass: PrismaProjectRepository },
+    { provide: ReadinessRepository, useClass: PrismaReadinessRepository },
   ],
   exports: [CreateProject],
 })

@@ -14,6 +14,10 @@ const CONTENT_TYPES: Record<MediaCategory, readonly string[]> = {
   AUDIO: ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm'],
 };
 
+export function isSupportedMediaContentType(category: MediaCategory, contentType: string | null): boolean {
+  return contentType !== null && CONTENT_TYPES[category].includes(contentType);
+}
+
 export interface MediaBinding {
   readonly assetId: string;
   readonly ownerId: string;
@@ -63,7 +67,7 @@ export function assessReadiness(
     binding.uploadIntentId !== expected.uploadIntentId ||
     !facts.object.storageKey.trim() || !facts.object.contentVersion.trim() ||
     facts.category !== category || !facts.privateOriginal || !facts.privateDerivatives ||
-    !CONTENT_TYPES[category].includes(facts.contentType) ||
+    !isSupportedMediaContentType(category, facts.contentType) ||
     !Number.isSafeInteger(facts.bytes) || facts.bytes <= 0 || facts.bytes > limit.maxBytes ||
     (category !== 'IMAGE' && (duration === null || !Number.isFinite(duration) ||
       duration <= 0 || duration > limit.maxDurationSeconds!))

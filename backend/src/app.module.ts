@@ -5,6 +5,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { MediaModule } from './modules/media/media.module';
 import { MediaCleanup } from './modules/media/application/media-cleanup';
+import { PrepareTarget } from './modules/calendar-projects/application/prepare-target';
 import {
   DURABLE_JOB_HANDLERS,
   DurableJobRunner,
@@ -22,8 +23,8 @@ import {
     DurableJobRunner,
     {
       provide: DURABLE_JOB_HANDLERS,
-      useFactory: (media: MediaCleanup) => [media],
-      inject: [MediaCleanup],
+      useFactory: (media: MediaCleanup, ar: PrepareTarget) => [media, ar],
+      inject: [MediaCleanup, PrepareTarget],
     },
   ],
 })

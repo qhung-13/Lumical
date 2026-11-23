@@ -7,6 +7,8 @@ import { PrismaTransactions } from '../../../platform/database/infrastructure/pr
 import { ReadinessRepository } from '../application/readiness-repository';
 import type { ProjectRecord } from '../application/project-repository';
 import type { ReadinessMedia, ReadinessSnapshot } from '../domain/readiness';
+import { sha256 } from '../application/prepare-target';
+import { MINDAR_COMPILER, SOURCE_TRANSFORM } from './mindar-compiler';
 
 @Injectable()
 export class PrismaReadinessRepository extends ReadinessRepository {
@@ -51,6 +53,11 @@ export class PrismaReadinessRepository extends ReadinessRepository {
             sourceRevision: true,
             targetId: true,
             status: true,
+            id: true,
+            preparedAt: true,
+            artifactBytes: true,
+            artifactReference: true,
+            adapterMetadata: true,
           },
         },
       },
@@ -100,6 +107,58 @@ export class PrismaReadinessRepository extends ReadinessRepository {
         },
       ]),
     );
+    const artifact = ar?.artifact;
+    const metadata = artifact?.adapterMetadata;
+    const source =
+      ar &&
+      media.get(
+        months.find((month) => month.monthNumber === ar.monthNumber)
+          ?.projectMonthMedia_month[0]?.assetId ?? '',
+      );
+    const reveal = ar && media.get(ar.revealAssetId);
+    let proof = null;
+    if (
+      ar &&
+      artifact?.status === 'READY' &&
+      artifact.preparedAt &&
+      artifact.sourceRevision === project.version &&
+      artifact.artifactBytes?.length &&
+      metadata &&
+      typeof metadata === 'object' &&
+      !Array.isArray(metadata) &&
+      metadata.compiler === MINDAR_COMPILER &&
+      metadata.transform === SOURCE_TRANSFORM &&
+      source?.status === 'READY' &&
+      source.verified &&
+      source.hasStorage &&
+      !source.deleted &&
+      reveal?.status === 'READY' &&
+      reveal.verified &&
+      reveal.hasStorage &&
+      !reveal.deleted &&
+      metadata.monthNumber === ar.monthNumber &&
+      metadata.sourceAssetId === source.id &&
+      metadata.sourceContentVersion === source.contentVersion &&
+      metadata.revealAssetId === reveal.id &&
+      metadata.revealContentVersion === reveal.contentVersion &&
+      typeof metadata.sourceDigest === 'string' &&
+      /^[a-f0-9]{64}$/.test(metadata.sourceDigest) &&
+      typeof metadata.pixelDigest === 'string' &&
+      /^[a-f0-9]{64}$/.test(metadata.pixelDigest)
+    ) {
+      const artifactDigest = sha256(artifact.artifactBytes);
+      if (
+        artifact.artifactReference === `db:ar:${artifact.id}:${artifactDigest}`
+      ) {
+        proof = {
+          artifactDigest,
+          sourceDigest: metadata.sourceDigest,
+          revealAssetId: reveal.id,
+          revealContentVersion: reveal.contentVersion,
+          fallback: null,
+        };
+      }
+    }
     return {
       project: {
         id: project.id,
@@ -125,10 +184,16 @@ export class PrismaReadinessRepository extends ReadinessRepository {
             sourceRevision: ar.sourceRevision,
             status: ar.preparationStatus,
             reveal: media.get(ar.revealAssetId) ?? null,
-            // No reviewed metadata/provenance verifier exists. A READY row, even
-            // with reference/timestamp/adapterMetadata, must never become proof.
-            target: ar.artifact
-              ? { ...ar.artifact, monthNumber: null, proof: null }
+            target: artifact
+              ? {
+                  projectId: artifact.projectId,
+                  ownerId: artifact.ownerId,
+                  sourceRevision: artifact.sourceRevision,
+                  targetId: artifact.targetId,
+                  status: artifact.status,
+                  monthNumber: proof ? ar.monthNumber : null,
+                  proof,
+                }
               : null,
             mappingReview: null,
           }

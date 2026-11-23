@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -20,6 +21,14 @@ const { Test } = require('@nestjs/testing');
 const { AppModule } = require('../dist/app.module.js');
 const { configureApp } = require('../dist/config/configure-app.js');
 const { Clock } = require('../dist/modules/identity/application/ports.js');
+const {
+  MediaContent,
+} = require('../dist/modules/media/application/owner-media.js');
+const {
+  PrepareTarget,
+  PreparationJobs,
+  sha256,
+} = require('../dist/modules/calendar-projects/application/prepare-target.js');
 const {
   ProjectOwnerService,
 } = require('../dist/modules/calendar-projects/application/project-owner.js');
@@ -79,11 +88,34 @@ await withDisposablePostgres(async ({ url }) => {
     { cwd: backend },
   );
   const db = await connect(process.env.DATABASE_URL);
+  const targetImage = await readFile(
+    new URL('../../spikes/ar/fixtures/targets/version-a.png', import.meta.url),
+  );
+  let fetchBarrier;
+  let failFetch = false;
   let app;
   try {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(Clock)
       .useValue({ now: () => now })
+      .overrideProvider(MediaContent)
+      .useValue({
+        async fetch() {
+          if (failFetch) return { kind: 'UNAVAILABLE', retryable: true };
+          if (fetchBarrier) {
+            fetchBarrier.entered.release();
+            await fetchBarrier.resume.promise;
+          }
+          return {
+            kind: 'CONTENT',
+            status: 200,
+            contentType: 'image/png',
+            contentLength: targetImage.length,
+            totalBytes: targetImage.length,
+            body: [targetImage],
+          };
+        },
+      })
       .compile();
     app = module.createNestApplication({ logger: false });
     configureApp(app);
@@ -425,6 +457,156 @@ await withDisposablePostgres(async ({ url }) => {
         const result = await evaluate();
         assert.equal(result.preview.ready, true);
         assert(result.finalization.issues.includes('FINALIZATION_NOT_WORKING'));
+      },
+    );
+    await check(
+      'DB12: one worker claims a revision and late compilation cannot replace current or historical bytes',
+      async () => {
+        const currentProject = await projectFixture(
+          db,
+          owner.id,
+          syntheticIds.revision,
+        );
+        const asset = await mediaFixture(db, owner.id, 'READY', {
+          contentType: 'image/png',
+          verifiedBytes: targetImage.length,
+        });
+        await db.query(
+          `INSERT INTO lumical.calendar_months (id,project_id,month_number)
+         VALUES (gen_random_uuid(),$1,1)`,
+          [currentProject],
+        );
+        const mutate = async (work) =>
+          transactions.run(async (context) =>
+            work(
+              await repository.lock(owner.id, currentProject, context),
+              context,
+            ),
+          );
+        const save = () =>
+          mutate((root, context) =>
+            repository.saveAR(
+              root,
+              {
+                monthNumber: 1,
+                revealAssetId: asset,
+                readableText: 'Synthetic target memory',
+              },
+              now,
+              context,
+            ),
+          );
+        await mutate((root, context) =>
+          repository.replaceMonth(
+            root,
+            1,
+            {
+              caption: null,
+              images: [{ assetId: asset, altText: 'Synthetic calendar image' }],
+            },
+            context,
+          ),
+        );
+        const jobs = app.get(PreparationJobs);
+        const worker = app.get(PrepareTarget);
+        const signal = new AbortController().signal;
+        // Drain stale intents created by the preceding scenarios.
+        while (await worker.runBatch(1, signal)) {
+          // All remaining intents from the earlier scenarios are stale.
+        }
+        const revision = (await save()).projectVersion;
+        failFetch = true;
+        await worker.runBatch(1, signal);
+        failFetch = false;
+        const jobState = async (version) =>
+          (
+            await db.query(
+              'SELECT condition,attempts,safe_error_code FROM lumical.job_records WHERE operation_identity=$1',
+              [`AR_PREPARE:${currentProject}:${version}`],
+            )
+          ).rows[0];
+        assert.deepEqual(await jobState(revision), {
+          condition: 'PENDING',
+          attempts: 1,
+          safe_error_code: 'AR_PREPARATION_RETRY',
+        });
+        await db.query(
+          'UPDATE lumical.job_records SET due_at=now() WHERE operation_identity=$1',
+          [`AR_PREPARE:${currentProject}:${revision}`],
+        );
+
+        const entered = barrier();
+        const resume = barrier();
+        fetchBarrier = { entered, resume };
+        const processing = worker.runBatch(1, signal);
+        try {
+          await Promise.race([
+            entered.promise,
+            processing.then(() => {
+              throw new Error('Worker finished before reading source.');
+            }),
+          ]);
+          assert.equal(await jobs.claim(), null);
+          await save();
+        } finally {
+          fetchBarrier = undefined;
+          resume.release();
+          await processing;
+        }
+        assert.equal((await jobState(revision)).condition, 'CANCELLED');
+        const artifacts = async () =>
+          (
+            await db.query(
+              'SELECT id,source_revision,artifact_reference,artifact_bytes,adapter_metadata FROM lumical.ar_target_artifacts WHERE project_id=$1 ORDER BY source_revision',
+              [currentProject],
+            )
+          ).rows;
+        assert.deepEqual(await artifacts(), []);
+        assert.equal(await worker.runBatch(1, signal), 1);
+        const [prepared] = await artifacts();
+        assert.equal(prepared.source_revision, revision + 1);
+        assert.equal(
+          prepared.adapter_metadata.sourceDigest,
+          sha256(targetImage),
+        );
+        assert.equal(
+          prepared.artifact_reference,
+          `db:ar:${prepared.id}:${sha256(prepared.artifact_bytes)}`,
+        );
+        assert.equal((await jobState(revision + 1)).condition, 'COMPLETED');
+        await save();
+        assert.equal(await worker.runBatch(1, signal), 1);
+        const [previous, replacement] = await artifacts();
+        assert.deepEqual(previous, prepared);
+        assert.notEqual(replacement.id, previous.id);
+
+        const failedRevision = (await save()).projectVersion;
+        const identity = `AR_PREPARE:${currentProject}:${failedRevision}`;
+        failFetch = true;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          await db.query(
+            'UPDATE lumical.job_records SET due_at=now() WHERE operation_identity=$1',
+            [identity],
+          );
+          assert.equal(await worker.runBatch(1, signal), 1);
+        }
+        failFetch = false;
+        assert.deepEqual(await jobState(failedRevision), {
+          condition: 'FAILED',
+          attempts: 3,
+          safe_error_code: 'AR_PREPARATION_UNAVAILABLE',
+        });
+        const config = await db.query(
+          'SELECT preparation_status, target_artifact_id FROM lumical.project_ar_experiences WHERE project_id=$1',
+          [currentProject],
+        );
+        assert.deepEqual(config.rows, [
+          {
+            preparation_status: 'UNAVAILABLE',
+            target_artifact_id: null,
+          },
+        ]);
+        assert.deepEqual(await artifacts(), [previous, replacement]);
       },
     );
   } finally {

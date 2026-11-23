@@ -318,6 +318,7 @@ model ARTargetArtifact {
   targetId                     String                @unique @default(uuid()) @map("target_id") @db.Uuid
   status                       ARReadiness           @default(PREPARING)
   artifactReference            String?               @unique @map("artifact_reference")
+  artifactBytes                Bytes?                @map("artifact_bytes")
   adapterMetadata              Json?                 @map("adapter_metadata")
   preparedAt                   DateTime?             @map("prepared_at") @db.Timestamptz(3)
   createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)

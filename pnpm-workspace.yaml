@@ -8,3 +8,9 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+overrides:
+  # The server adapter uses only the image compiler with Sharp and the TF.js CPU backend.
+  mind-ar@1.2.5>canvas: '-'
+  mind-ar@1.2.5>@mediapipe/tasks-vision: '-'
+  mind-ar@1.2.5>@vitejs/plugin-basic-ssl: '-'
+  mind-ar@1.2.5>three: '-'

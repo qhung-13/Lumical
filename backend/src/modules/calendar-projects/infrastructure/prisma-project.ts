@@ -297,7 +297,7 @@ export class PrismaProjectRepository extends ProjectRepository {
   private async cancelARPreparation(client: Prisma.TransactionClient, projectId: string, now?: Date) {
     await client.jobRecord.updateMany({
       where: { kind: 'AR_PREPARE', objectId: projectId, condition: 'PENDING' },
-      data: { condition: 'CANCELLED', ...(now && { updatedAt: now }) },
+      data: { condition: 'CANCELLED', claimedBy: null, leaseUntil: null, ...(now && { updatedAt: now }) },
     });
   }
 

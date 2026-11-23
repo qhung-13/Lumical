@@ -47,9 +47,12 @@
     "@nestjs/swagger": "12.0.2",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "@tensorflow/tfjs": "4.22.0",
+    "mind-ar": "1.2.5",
     "pg": "8.23.1",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

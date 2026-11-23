@@ -8,6 +8,8 @@ import {
   type ActiveAccountPrincipal,
 } from '../../identity/domain/identity';
 import { CreateProject } from './create-project';
+import { ReadinessRepository } from './readiness-repository';
+import { projectReadiness } from '../domain/readiness';
 import {
   ProjectError,
   applyProjectPatch,
@@ -115,6 +117,7 @@ export class ProjectOwnerService {
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(CreateProject) private readonly creation: CreateProject,
     @Inject(OwnerMediaRepository) private readonly media: OwnerMediaRepository,
+    @Inject(ReadinessRepository) private readonly readinessRepository: ReadinessRepository,
   ) {}
 
   // Authentication, CSRF and Origin are re-checked on every attempt because a
@@ -134,6 +137,17 @@ export class ProjectOwnerService {
         if (attempt >= 3 || !restartable(error)) throw error;
       }
     }
+  }
+
+  // Internal application query only. The proposed wire vocabulary and review
+  // handoff are withheld pending LEAD contract review; no new HTTP surface.
+  async readiness(id: string, browser: ProjectBrowserContext) {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      return projectReadiness(await this.readinessRepository.read(project, context));
+    });
   }
 
   async list(

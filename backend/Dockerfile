@@ -19,6 +19,7 @@ COPY frontend/package.json ./frontend/package.json
 
 RUN pnpm install \
   --frozen-lockfile \
+  --ignore-scripts \
   --filter @lumical/backend...
 
 
@@ -46,6 +47,7 @@ COPY frontend/package.json ./frontend/package.json
 
 RUN pnpm install \
   --frozen-lockfile \
+  --ignore-scripts \
   --prod \
   --filter @lumical/backend...
 

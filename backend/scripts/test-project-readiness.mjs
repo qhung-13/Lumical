@@ -547,13 +547,34 @@ await withDisposablePostgres(async ({ url }) => {
             }),
           ]);
           assert.equal(await jobs.claim(), null);
-          await save();
+          // Invalidate the source while compilation is outside the transaction.
+          // The Project revision remains current, so this must become UNAVAILABLE.
+          await db.query(
+            "UPDATE lumical.media_assets SET status='UNAVAILABLE',deleted_at=now() WHERE id=$1",
+            [asset],
+          );
         } finally {
           fetchBarrier = undefined;
           resume.release();
           await processing;
         }
-        assert.equal((await jobState(revision)).condition, 'CANCELLED');
+        assert.deepEqual(await jobState(revision), {
+          condition: 'FAILED',
+          attempts: 2,
+          safe_error_code: 'AR_PREPARATION_UNAVAILABLE',
+        });
+        const invalidConfig = await db.query(
+          'SELECT preparation_status,target_artifact_id FROM lumical.project_ar_experiences WHERE project_id=$1',
+          [currentProject],
+        );
+        assert.deepEqual(invalidConfig.rows, [
+          { preparation_status: 'UNAVAILABLE', target_artifact_id: null },
+        ]);
+        await db.query(
+          "UPDATE lumical.media_assets SET status='READY',deleted_at=null WHERE id=$1",
+          [asset],
+        );
+        await save();
         const artifacts = async () =>
           (
             await db.query(

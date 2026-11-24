@@ -174,11 +174,20 @@ export class PrismaPreparationJobs extends PreparationJobs {
         source === null ||
         outcome.kind === 'STALE' ||
         (outcome.kind === 'READY' &&
+          source !== 'INVALID' &&
           !isDeepStrictEqual(source, outcome.target.source));
+      const invalid = source === 'INVALID';
       let condition = 'CANCELLED';
       let safeErrorCode: string | null = 'AR_SOURCE_STALE';
       let dueAt = now;
-      if (!stale) {
+      if (invalid) {
+        condition = 'FAILED';
+        safeErrorCode = 'AR_PREPARATION_UNAVAILABLE';
+        await db.projectARExperience.update({
+          where: { projectId: claim.objectId },
+          data: { preparationStatus: 'UNAVAILABLE', targetArtifactId: null },
+        });
+      } else if (!stale) {
         if (outcome.kind === 'READY') {
           const artifact = await this.publish(db, outcome.target, now);
           await db.projectARExperience.update({

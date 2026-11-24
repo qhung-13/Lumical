@@ -570,9 +570,17 @@ await withDisposablePostgres(async ({ url }) => {
         assert.deepEqual(invalidConfig.rows, [
           { preparation_status: 'UNAVAILABLE', target_artifact_id: null },
         ]);
+        const replacementAsset = await mediaFixture(db, owner.id, 'READY', {
+          contentType: 'image/png',
+          verifiedBytes: targetImage.length,
+        });
         await db.query(
-          "UPDATE lumical.media_assets SET status='READY',deleted_at=null WHERE id=$1",
-          [asset],
+          'UPDATE lumical.project_month_media SET asset_id=$2 WHERE project_id=$1 AND asset_id=$3',
+          [currentProject, replacementAsset, asset],
+        );
+        await db.query(
+          'UPDATE lumical.project_ar_experiences SET reveal_asset_id=$2 WHERE project_id=$1 AND reveal_asset_id=$3',
+          [currentProject, replacementAsset, asset],
         );
         await save();
         const artifacts = async () =>

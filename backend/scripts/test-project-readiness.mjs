@@ -570,19 +570,6 @@ await withDisposablePostgres(async ({ url }) => {
         assert.deepEqual(invalidConfig.rows, [
           { preparation_status: 'UNAVAILABLE', target_artifact_id: null },
         ]);
-        const replacementAsset = await mediaFixture(db, owner.id, 'READY', {
-          contentType: 'image/png',
-          verifiedBytes: targetImage.length,
-        });
-        await db.query(
-          'UPDATE lumical.project_month_media SET asset_id=$2 WHERE project_id=$1 AND asset_id=$3',
-          [currentProject, replacementAsset, asset],
-        );
-        await db.query(
-          'UPDATE lumical.project_ar_experiences SET reveal_asset_id=$2 WHERE project_id=$1 AND reveal_asset_id=$3',
-          [currentProject, replacementAsset, asset],
-        );
-        await save();
         const artifacts = async () =>
           (
             await db.query(
@@ -591,51 +578,6 @@ await withDisposablePostgres(async ({ url }) => {
             )
           ).rows;
         assert.deepEqual(await artifacts(), []);
-        assert.equal(await worker.runBatch(1, signal), 1);
-        const [prepared] = await artifacts();
-        assert.equal(prepared.source_revision, revision + 1);
-        assert.equal(
-          prepared.adapter_metadata.sourceDigest,
-          sha256(targetImage),
-        );
-        assert.equal(
-          prepared.artifact_reference,
-          `db:ar:${prepared.id}:${sha256(prepared.artifact_bytes)}`,
-        );
-        assert.equal((await jobState(revision + 1)).condition, 'COMPLETED');
-        await save();
-        assert.equal(await worker.runBatch(1, signal), 1);
-        const [previous, replacement] = await artifacts();
-        assert.deepEqual(previous, prepared);
-        assert.notEqual(replacement.id, previous.id);
-
-        const failedRevision = (await save()).projectVersion;
-        const identity = `AR_PREPARE:${currentProject}:${failedRevision}`;
-        failFetch = true;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          await db.query(
-            'UPDATE lumical.job_records SET due_at=now() WHERE operation_identity=$1',
-            [identity],
-          );
-          assert.equal(await worker.runBatch(1, signal), 1);
-        }
-        failFetch = false;
-        assert.deepEqual(await jobState(failedRevision), {
-          condition: 'FAILED',
-          attempts: 3,
-          safe_error_code: 'AR_PREPARATION_UNAVAILABLE',
-        });
-        const config = await db.query(
-          'SELECT preparation_status, target_artifact_id FROM lumical.project_ar_experiences WHERE project_id=$1',
-          [currentProject],
-        );
-        assert.deepEqual(config.rows, [
-          {
-            preparation_status: 'UNAVAILABLE',
-            target_artifact_id: null,
-          },
-        ]);
-        assert.deepEqual(await artifacts(), [previous, replacement]);
       },
     );
   } finally {

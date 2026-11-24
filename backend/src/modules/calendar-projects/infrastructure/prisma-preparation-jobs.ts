@@ -198,7 +198,6 @@ export class PrismaPreparationJobs extends PreparationJobs {
           safeErrorCode = null;
         } else if (
           outcome.kind === 'RETRY' &&
-          source !== 'INVALID' &&
           claim.attempts < MAX_PREPARATION_ATTEMPTS
         ) {
           condition = 'PENDING';

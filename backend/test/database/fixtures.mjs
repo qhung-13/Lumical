@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 // TEST ONLY. Fake facts exercise persistence constraints and are never seeded
 // into development/demo or described as provider acceptance evidence.
-export async function mediaFixture(client, ownerId, status = 'PENDING') {
+export async function mediaFixture(client, ownerId, status = 'PENDING', {
+  contentType = 'image/png', verifiedBytes = 42,
+} = {}) {
   const id = randomUUID();
   await client.query(
     `INSERT INTO lumical.media_assets
@@ -14,8 +16,8 @@ export async function mediaFixture(client, ownerId, status = 'PENDING') {
       status,
       randomUUID(),
       status === 'READY' ? `test-only:${id}` : null,
-      status === 'READY' ? 42 : null,
-      status === 'READY' ? 'image/png' : null,
+      status === 'READY' ? verifiedBytes : null,
+      status === 'READY' ? contentType : null,
       status === 'READY' ? new Date() : null,
     ],
   );

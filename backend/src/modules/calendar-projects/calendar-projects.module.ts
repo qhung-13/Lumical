@@ -15,6 +15,10 @@ import { PrismaProjectRepository } from './infrastructure/prisma-project';
 import { ProjectController } from './interface/project.controller';
 import { ReadinessRepository } from './application/readiness-repository';
 import { PrismaReadinessRepository } from './infrastructure/prisma-readiness';
+import { PreparationJobs, PrepareTarget } from './application/prepare-target';
+import { TargetCompiler } from './application/target-compiler';
+import { MindARTargetCompiler } from './infrastructure/mindar-compiler';
+import { PrismaPreparationJobs } from './infrastructure/prisma-preparation-jobs';
 
 @Module({
   imports: [DatabaseModule, IdentityModule, TemplatesModule, MediaModule],
@@ -22,6 +26,9 @@ import { PrismaReadinessRepository } from './infrastructure/prisma-readiness';
   providers: [
     CreateProject,
     ProjectOwnerService,
+    PrepareTarget,
+    { provide: PreparationJobs, useClass: PrismaPreparationJobs },
+    { provide: TargetCompiler, useClass: MindARTargetCompiler },
     {
       provide: CALENDAR_TIME_ZONE,
       useFactory: () => {
@@ -40,6 +47,6 @@ import { PrismaReadinessRepository } from './infrastructure/prisma-readiness';
     { provide: ProjectRepository, useClass: PrismaProjectRepository },
     { provide: ReadinessRepository, useClass: PrismaReadinessRepository },
   ],
-  exports: [CreateProject],
+  exports: [CreateProject, PrepareTarget],
 })
 export class CalendarProjectsModule {}

@@ -27,7 +27,6 @@ const {
 const {
   PrepareTarget,
   PreparationJobs,
-  sha256,
 } = require('../dist/modules/calendar-projects/application/prepare-target.js');
 const {
   ProjectOwnerService,

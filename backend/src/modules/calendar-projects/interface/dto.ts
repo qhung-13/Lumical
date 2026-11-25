@@ -6,7 +6,8 @@ import {
 import { MonthImageDto } from './personalization-dto';
 import type { ProjectMonthRecord } from '../application/project-repository';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
-import type { ProjectDetailView } from '../application/project-owner';
+import type { ProjectDetailView, ProjectPreviewView } from '../application/project-owner';
+import type { PublicPreviewIssue } from '../domain/public-preview-readiness';
 
 const titleSchema: ApiPropertyOptions = {
   type: 'string',
@@ -171,6 +172,89 @@ export class ProjectMonthsDataDto {
 
 export class ProjectMonthsResponseDto {
   @ApiProperty({ type: ProjectMonthsDataDto }) data: ProjectMonthsDataDto;
+}
+
+const publicPreviewIssueCodes: PublicPreviewIssue[] = [
+  'PROJECT_STRUCTURE_INVALID', 'PROJECT_MONTHS_INVALID', 'AR_SETUP_REQUIRED', 'AR_SETUP_INVALID',
+  'AR_MEDIA_UNAVAILABLE', 'AR_PROCESSING', 'AR_PROCESSING_FAILED', 'AR_PREPARATION_REQUIRED',
+  'AR_CONTENT_INVALID', 'AR_OWNER_CONFIRMATION_REQUIRED', 'PROJECT_CONTENT_INVALID', 'PROJECT_ARCHIVED',
+  'CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED',
+];
+
+export class ProjectPreviewReadinessIssuesDto {
+  @ApiProperty({ type: [String], enum: publicPreviewIssueCodes, description: 'Public, localized-by-client issue codes for preview structure.' })
+  preview: PublicPreviewIssue[];
+  @ApiProperty({ type: [String], enum: publicPreviewIssueCodes, description: 'Public AR setup issue codes.' })
+  ar: PublicPreviewIssue[];
+  @ApiProperty({ type: [String], enum: publicPreviewIssueCodes, description: 'Public content-preparation issues. Does not authorize checkout.' })
+  order: PublicPreviewIssue[];
+}
+
+export class ProjectPreviewReadinessDto {
+  @ApiProperty({ description: 'Whether the saved calendar structure can be previewed.' }) previewReady: boolean;
+  @ApiProperty({ description: 'Whether verified AR preparation is currently available.' }) arReady: boolean;
+  @ApiProperty({ description: 'Compatibility alias for content/finalization preparation only; never checkout permission.' }) orderReady: boolean;
+  @ApiProperty({ type: ProjectPreviewReadinessIssuesDto }) issues: ProjectPreviewReadinessIssuesDto;
+}
+
+export class ProjectPreviewImageDto {
+  @ApiProperty({ type: String, format: 'uuid' }) assetId: string;
+  @ApiProperty({ type: String }) altText: string;
+  @ApiProperty({ type: 'string', nullable: true, enum: [null], description: 'Current approved crop is null (default crop).' }) crop: null;
+  @ApiProperty({ type: String, example: '/api/v1/media/{assetId}/content', description: 'Owner-authorized private media route; never a public delivery URL.' }) contentPath: string;
+}
+
+export class ProjectPreviewMonthDto {
+  @ApiProperty({ type: Number, minimum: 1, maximum: 12 }) monthNumber: number;
+  @ApiProperty({ type: String, nullable: true, description: 'Persisted message, or null when this Month has none.' }) caption: string | null;
+  @ApiProperty({ type: [ProjectPreviewImageDto], maxItems: 4 }) images: ProjectPreviewImageDto[];
+}
+
+export class ProjectPreviewSpecialDateDto {
+  @ApiProperty({ type: String, format: 'uuid' }) id: string;
+  @ApiProperty({ type: String, format: 'date', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Gregorian civil date in the saved Project year.' }) date: string;
+  @ApiProperty({ type: String, minLength: 1, maxLength: 80 }) title: string;
+  @ApiProperty({ type: String, nullable: true, maxLength: 300 }) note: string | null;
+}
+
+export class ProjectPreviewDataDto {
+  @ApiProperty({ type: Number, minimum: 1, description: 'One SERIALIZABLE persisted Project revision for all returned content and readiness.' }) projectVersion: number;
+  @ApiProperty({ type: ProjectDataDto }) project: ProjectDataDto;
+  @ApiProperty({ type: [ProjectPreviewMonthDto], minItems: 12, maxItems: 12 }) months: ProjectPreviewMonthDto[];
+  @ApiProperty({ type: [ProjectPreviewSpecialDateDto], description: 'Persisted civil Special Dates; may be empty.' }) specialDates: ProjectPreviewSpecialDateDto[];
+  @ApiProperty({ type: ProjectPreviewReadinessDto }) readiness: ProjectPreviewReadinessDto;
+
+  static from(view: ProjectPreviewView): ProjectPreviewDataDto {
+    return {
+      projectVersion: view.projectVersion,
+      project: ProjectDataDto.from(view.project),
+      months: view.months.map(month => ({
+        monthNumber: month.monthNumber,
+        caption: month.caption,
+        images: month.images.map(image => ({
+          assetId: image.assetId,
+          altText: image.altText,
+          crop: null,
+          contentPath: `/api/v1/media/${image.assetId}/content`,
+        })),
+      })),
+      specialDates: view.specialDates.map(event => ({ id: event.id, date: event.date, title: event.title, note: event.note ?? null })),
+      readiness: {
+        previewReady: view.readiness.previewReady,
+        arReady: view.readiness.arReady,
+        orderReady: view.readiness.orderReady,
+        issues: {
+          preview: [...view.readiness.issues.preview],
+          ar: [...view.readiness.issues.ar],
+          order: [...view.readiness.issues.order],
+        },
+      },
+    };
+  }
+}
+
+export class ProjectPreviewResponseDto {
+  @ApiProperty({ type: ProjectPreviewDataDto }) data: ProjectPreviewDataDto;
 }
 
 export class FieldErrorDto {

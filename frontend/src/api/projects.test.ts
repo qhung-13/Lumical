@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { projectApi, projectDetailOptions, projectKeys, projectListOptions, projectSpecialDatesOptions, ProjectApiError, type Project } from './projects';
+import { projectApi, projectDetailOptions, projectKeys, projectListOptions, projectPreviewOptions, projectSpecialDatesOptions, ProjectApiError, type Project, type ProjectPreview } from './projects';
 
 const project: Project = { id: '11111111-1111-4111-8111-111111111111', title: 'For Mom', year: 2026, recipientName: 'Mom',
   status: 'WORKING', version: 1, stylePresetId: 'classic', baseline: { name: { vi: 'Mẫu', en: 'Design' }, layout: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 } },
@@ -12,6 +12,12 @@ const capturedPresets = [
 ];
 const detail: Project & { deletionEligible: boolean; stylePresets: typeof capturedPresets } =
   { ...project, stylePresets: capturedPresets, deletionEligible: true };
+const preview: ProjectPreview = { projectVersion: 1, project: { ...project, year: 2028 }, months: Array.from({ length: 12 }, (_, index) => ({
+  monthNumber: index + 1, caption: null, images: [],
+})), specialDates: [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', date: '2028-02-29', title: 'Birthday', note: null }],
+readiness: { previewReady: true, arReady: false, orderReady: false, issues: {
+  preview: [], ar: ['AR_SETUP_REQUIRED'], order: ['CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED'],
+} } };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const keys: string[] = [];
 afterEach(() => { keys.length = 0; });
@@ -102,6 +108,26 @@ describe('Project HTTP API and private query contract', () => {
     expect(projectKeys.detail('actor-a', project.id)).not.toEqual(projectKeys.detail('actor-b', project.id));
     expect(projectListOptions('actor-a', { cursor: 'x' }, api).queryKey).toEqual(projectKeys.list('actor-a', { cursor: 'x' }));
     expect(projectDetailOptions('actor-a', project.id, api).queryKey).toEqual(projectKeys.detail('actor-a', project.id));
+  });
+  it('reads one typed saved preview revision privately and keeps its query cache actor-scoped', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: preview }));
+    const api = projectApi({ csrf: () => undefined, fetcher });
+    expect(await api.preview(project.id)).toEqual(preview);
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/projects/${project.id}/preview`);
+    expect(fetcher.mock.calls[0][1]).toMatchObject({ method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+    expect(projectKeys.preview('actor-a', project.id)).not.toEqual(projectKeys.preview('actor-b', project.id));
+    expect(projectPreviewOptions('actor-a', project.id, api).queryKey).toEqual(projectKeys.preview('actor-a', project.id));
+  });
+  it.each([
+    (value: ProjectPreview) => ({ ...value, projectVersion: 2 }),
+    (value: ProjectPreview) => ({ ...value, readiness: { ...value.readiness, issues: { ...value.readiness.issues, preview: ['PREVIEW_INVALID_PROJECT'] } } as unknown as ProjectPreview['readiness'] }),
+    (value: ProjectPreview) => ({ ...value, months: value.months.slice(1) }),
+    (value: ProjectPreview) => ({ ...value, specialDates: [{ ...value.specialDates[0], date: '2029-02-29' }] }),
+    (value: ProjectPreview) => ({ ...value, months: value.months.map((month, index) => index === 0 ? { ...month, images: [{ assetId: project.id, altText: '', crop: null, contentPath: 'https://example.test/photo' }] } : month) }),
+  ])('rejects malformed or non-public Preview DTOs', async mutate => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: mutate(preview) }));
+    await expect(projectApi({ csrf: () => undefined, fetcher }).preview(project.id))
+      .rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', status: 502 });
   });
   it('reads all twelve ordered Month summaries and sends conditional lifecycle requests', async () => {
     const monthRows = Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null, images: [] }));

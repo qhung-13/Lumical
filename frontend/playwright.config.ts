@@ -11,7 +11,7 @@ const runKind = liveBackend ? (i05Live ? 'i05-live' : 'i04-live') : 'mocked';
 export default defineConfig({
   testDir: './e2e',
   outputDir: `test-results/${runKind}`,
-  testMatch: ['**/foundation.spec.ts', '**/product-home.spec.ts', '**/admin-templates.spec.ts', '**/project-creation.spec.ts', '**/project-lifecycle.spec.ts', '**/media-upload.spec.ts', '**/studio.spec.ts', '**/ar-authoring.spec.ts'],
+  testMatch: ['**/foundation.spec.ts', '**/product-home.spec.ts', '**/admin-templates.spec.ts', '**/project-creation.spec.ts', '**/project-lifecycle.spec.ts', '**/project-preview.spec.ts', '**/media-upload.spec.ts', '**/studio.spec.ts', '**/ar-authoring.spec.ts'],
   snapshotPathTemplate: '{testDir}/__screenshots__/{platform}/{arg}{ext}',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -28,7 +28,7 @@ export default defineConfig({
     { name: 'chromium-visual', testMatch: '**/visual.spec.ts', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    command: liveBackend ? 'node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3211' : 'pnpm start --hostname 127.0.0.1 --port 3210',
+    command: liveBackend ? 'node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3211' : 'node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210',
     url: baseURL,
     reuseExistingServer: false,
     timeout: 60000,

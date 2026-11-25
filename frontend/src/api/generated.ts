@@ -253,6 +253,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one owner-authorized saved Project snapshot and public readiness. */
+        get: operations["getProjectPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{id}/ar/config": {
         parameters: {
             query?: never;
@@ -702,6 +719,67 @@ export interface components {
         };
         ProjectMonthsResponseDto: {
             data: components["schemas"]["ProjectMonthsDataDto"];
+        };
+        ProjectPreviewImageDto: {
+            /** Format: uuid */
+            assetId: string;
+            altText: string;
+            /**
+             * @description Current approved crop is null (default crop).
+             * @enum {string|null}
+             */
+            crop: null;
+            /**
+             * @description Owner-authorized private media route; never a public delivery URL.
+             * @example /api/v1/media/{assetId}/content
+             */
+            contentPath: string;
+        };
+        ProjectPreviewMonthDto: {
+            monthNumber: number;
+            /** @description Persisted message, or null when this Month has none. */
+            caption: string | null;
+            images: components["schemas"]["ProjectPreviewImageDto"][];
+        };
+        ProjectPreviewSpecialDateDto: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date
+             * @description Gregorian civil date in the saved Project year.
+             */
+            date: string;
+            title: string;
+            note: string | null;
+        };
+        ProjectPreviewReadinessIssuesDto: {
+            /** @description Public, localized-by-client issue codes for preview structure. */
+            preview: ("PROJECT_STRUCTURE_INVALID" | "PROJECT_MONTHS_INVALID" | "AR_SETUP_REQUIRED" | "AR_SETUP_INVALID" | "AR_MEDIA_UNAVAILABLE" | "AR_PROCESSING" | "AR_PROCESSING_FAILED" | "AR_PREPARATION_REQUIRED" | "AR_CONTENT_INVALID" | "AR_OWNER_CONFIRMATION_REQUIRED" | "PROJECT_CONTENT_INVALID" | "PROJECT_ARCHIVED" | "CALENDAR_IMAGE_REQUIRED" | "AR_REQUIREMENTS_INCOMPLETE" | "PROJECT_REVIEW_REQUIRED")[];
+            /** @description Public AR setup issue codes. */
+            ar: ("PROJECT_STRUCTURE_INVALID" | "PROJECT_MONTHS_INVALID" | "AR_SETUP_REQUIRED" | "AR_SETUP_INVALID" | "AR_MEDIA_UNAVAILABLE" | "AR_PROCESSING" | "AR_PROCESSING_FAILED" | "AR_PREPARATION_REQUIRED" | "AR_CONTENT_INVALID" | "AR_OWNER_CONFIRMATION_REQUIRED" | "PROJECT_CONTENT_INVALID" | "PROJECT_ARCHIVED" | "CALENDAR_IMAGE_REQUIRED" | "AR_REQUIREMENTS_INCOMPLETE" | "PROJECT_REVIEW_REQUIRED")[];
+            /** @description Public content-preparation issues. Does not authorize checkout. */
+            order: ("PROJECT_STRUCTURE_INVALID" | "PROJECT_MONTHS_INVALID" | "AR_SETUP_REQUIRED" | "AR_SETUP_INVALID" | "AR_MEDIA_UNAVAILABLE" | "AR_PROCESSING" | "AR_PROCESSING_FAILED" | "AR_PREPARATION_REQUIRED" | "AR_CONTENT_INVALID" | "AR_OWNER_CONFIRMATION_REQUIRED" | "PROJECT_CONTENT_INVALID" | "PROJECT_ARCHIVED" | "CALENDAR_IMAGE_REQUIRED" | "AR_REQUIREMENTS_INCOMPLETE" | "PROJECT_REVIEW_REQUIRED")[];
+        };
+        ProjectPreviewReadinessDto: {
+            /** @description Whether the saved calendar structure can be previewed. */
+            previewReady: boolean;
+            /** @description Whether verified AR preparation is currently available. */
+            arReady: boolean;
+            /** @description Compatibility alias for content/finalization preparation only; never checkout permission. */
+            orderReady: boolean;
+            issues: components["schemas"]["ProjectPreviewReadinessIssuesDto"];
+        };
+        ProjectPreviewDataDto: {
+            /** @description One SERIALIZABLE persisted Project revision for all returned content and readiness. */
+            projectVersion: number;
+            project: components["schemas"]["ProjectDataDto"];
+            months: components["schemas"]["ProjectPreviewMonthDto"][];
+            /** @description Persisted civil Special Dates; may be empty. */
+            specialDates: components["schemas"]["ProjectPreviewSpecialDateDto"][];
+            readiness: components["schemas"]["ProjectPreviewReadinessDto"];
+        };
+        ProjectPreviewResponseDto: {
+            data: components["schemas"]["ProjectPreviewDataDto"];
         };
         ARCurrentConfigDto: {
             monthNumber: number;
@@ -2581,6 +2659,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectMonthsResponseDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    getProjectPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectPreviewResponseDto"];
                 };
             };
             401: {

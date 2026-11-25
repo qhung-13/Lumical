@@ -9,7 +9,8 @@ import {
 } from '../../identity/domain/identity';
 import { CreateProject } from './create-project';
 import { ReadinessRepository } from './readiness-repository';
-import { projectReadiness } from '../domain/readiness';
+import { projectReadiness, type ProjectReadiness } from '../domain/readiness';
+import { publicPreviewReadiness, type PublicPreviewReadiness } from '../domain/public-preview-readiness';
 import {
   ProjectError,
   applyProjectPatch,
@@ -37,6 +38,7 @@ import {
   type ProjectIntentResult,
   type ProjectMonthRecord,
   type ProjectRecord,
+  type SpecialDateRecord,
 } from './project-repository';
 
 // The authentication boundary's request shape. Identity owns cookies, CSRF and
@@ -62,6 +64,14 @@ export interface ProjectDetailView extends ProjectView {
   // so a curated control never has to guess what the baseline allows.
   readonly stylePresets: readonly CapturedStylePreset[];
   readonly deletionEligible: boolean;
+}
+
+export interface ProjectPreviewView {
+  readonly projectVersion: number;
+  readonly project: ProjectView;
+  readonly months: readonly ProjectMonthRecord[];
+  readonly specialDates: readonly SpecialDateRecord[];
+  readonly readiness: PublicPreviewReadiness;
 }
 
 // A race is worth restarting; a refusal from Identity, the domain or the
@@ -139,14 +149,34 @@ export class ProjectOwnerService {
     }
   }
 
-  // Internal application query only. The proposed wire vocabulary and review
-  // handoff are withheld pending LEAD contract review; no new HTTP surface.
+  // Internal policy query. Wire consumers use `preview`, which applies only
+  // the explicitly mapped public issue vocabulary.
   async readiness(id: string, browser: ProjectBrowserContext) {
     return this.run(browser, false, async (actor, context) => {
       const project = await this.repository.find(actor.id, id, context);
       if (!project) throw new ProjectError('NOT_FOUND');
       assertProjectOwner(actor, project);
       return projectReadiness(await this.readinessRepository.read(project, context));
+    });
+  }
+
+  async preview(id: string, browser: ProjectBrowserContext): Promise<ProjectPreviewView> {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      // Every read shares Identity's SERIALIZABLE transaction. A single root
+      // revision therefore covers project metadata, child content and readiness.
+      const months = await this.repository.months(actor.id, id, context);
+      const specialDates = await this.repository.specialDates(project, context);
+      const policy: ProjectReadiness = projectReadiness(await this.readinessRepository.read(project, context));
+      return {
+        projectVersion: project.version,
+        project: projectView(project),
+        months,
+        specialDates,
+        readiness: publicPreviewReadiness(policy),
+      };
     });
   }
 

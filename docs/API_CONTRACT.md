@@ -143,9 +143,13 @@ Actors: **G** Guest; **U** active User; **O** owner of requested object; **A** a
 | POST `/projects/{id}/archive` | O; archive | Empty | 200 Project | BR-PRJ-005 | 412 | V; repeated desired state safe, no automatic share revoke |
 | POST `/projects/{id}/restore` | O; restore | Empty | 200 Project | BR-PRJ-005 | 412 | V; no automatic new share |
 | DELETE `/projects/{id}` | O; confirmed never-ordered deletion | `{confirmed:true}` | 204 | BR-PRJ-006 | PROJECT_HAS_ORDERS 409/version 412 | V; protect snapshot dependencies |
-| GET `/projects/{id}/preview` | O; current preview/readiness | None | 200 Project preview + Readiness + reviewed version | BR-RDY-001/003 | — | Empty content previewable; no-store |
+| GET `/projects/{id}/preview` | O; current saved preview/readiness | None | 200 `{data:{projectVersion,project,months[12],specialDates,readiness}}` | BR-RDY-001/003 | unknown/foreign 404 | One owner-authorized SERIALIZABLE snapshot; empty content previewable; private/no-store; `ETag` labels projectVersion only and is not a readiness cache validator; never records review/acknowledgement |
 | GET `/projects/{id}/readiness` | O; separate preview/AR/Order criteria | None | 200 Readiness + projectVersion | BR-RDY-001..003 | — | Current Project version only; share readiness belongs to own Order response |
 | GET `/projects/{id}/checkout-preview` | O; price estimate/context | quantity 1–10 | 200 current Project version + exact USD quote + readiness | BR-PRICE-001..003 | invalid quantity 422 | Read only; quote not an Order/snapshot |
+
+`GET /projects/{id}/preview` returns persisted `ProjectDataDto`, twelve ordered Months (each with saved caption and 0–4 ordered images), saved Special Dates as Gregorian civil dates, the shared `projectVersion`, and `{previewReady,arReady,orderReady,issues:{preview,ar,order}}`. Each image carries only its asset ID/alt text/default crop and the owner-authorized relative `/api/v1/media/{id}/content` route; it never returns a public provider URL. Archived Projects remain owner-previewable and read-only. `orderReady` is a compatibility name for content/finalization preparation and **does not authorize or imply checkout**. GET does not acknowledge that the owner reviewed the Project; review evidence belongs to I08-P05.
+
+Public preview issue codes are a stable boundary mapping, not the internal readiness policy vocabulary: `PROJECT_STRUCTURE_INVALID`, `PROJECT_MONTHS_INVALID`, `AR_SETUP_REQUIRED`, `AR_SETUP_INVALID`, `AR_MEDIA_UNAVAILABLE`, `AR_PROCESSING`, `AR_PROCESSING_FAILED`, `AR_PREPARATION_REQUIRED`, `AR_CONTENT_INVALID`, `AR_OWNER_CONFIRMATION_REQUIRED`, `PROJECT_CONTENT_INVALID`, `PROJECT_ARCHIVED`, `CALENDAR_IMAGE_REQUIRED`, `AR_REQUIREMENTS_INCOMPLETE`, `PROJECT_REVIEW_REQUIRED`. The response groups these codes by preview, AR and order/content-preparation policy. Clients localize known codes and must not infer actions or permissions from them.
 
 ### Months, personal dates, media and AR
 

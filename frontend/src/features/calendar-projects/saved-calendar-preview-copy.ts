@@ -1,0 +1,61 @@
+import type { ProjectPreview } from '../../api/projects';
+export type PublicPreviewIssueCode = ProjectPreview['readiness']['issues']['preview'][number];
+
+export const savedCalendarPreviewCopy = {
+  en: {
+    year: 'Whole year', month: 'Selected month', readable: 'Readable calendar list', style: 'Curated style', layout: 'Layout',
+    presets: { classic: 'Classic', minimal: 'Minimal', vibrant: 'Vibrant' },
+    customStyle: 'Saved custom style',
+    photoFocus: 'Photo focus', collage: 'Collage', noImage: 'No saved photo yet', noCaption: 'No saved message yet',
+    noEvents: 'No special dates saved', image: (count: number) => `${count} saved ${count === 1 ? 'photo' : 'photos'}`,
+    version: (version: number) => `Saved revision ${version}`, preview: 'Saved calendar preview', unavailablePhoto: 'Saved photo is currently unavailable',
+    archivedReadOnly: 'Archived · read-only',
+    readiness: 'Saved revision checks', previewCanBeViewed: 'Saved calendar can be previewed', previewNeedsAttention: 'Saved calendar structure needs attention',
+    arAvailable: 'AR preparation is available', arNeedsWork: 'AR preparation is incomplete', projectChecksPassed: 'Project preparation checks currently pass',
+    projectChecksRemain: 'Some project preparation checks remain', notPermission: 'These checks are informational. They do not confirm finalization or checkout eligibility.',
+    issue: {
+      PROJECT_STRUCTURE_INVALID: 'Project information needs attention', PROJECT_MONTHS_INVALID: 'The twelve-month structure needs attention',
+      AR_SETUP_REQUIRED: 'AR content has not been set up', AR_SETUP_INVALID: 'AR setup needs correction', AR_MEDIA_UNAVAILABLE: 'AR media is unavailable',
+      AR_PROCESSING: 'AR content is still processing', AR_PROCESSING_FAILED: 'AR processing is unavailable', AR_PREPARATION_REQUIRED: 'AR preparation needs review',
+      AR_CONTENT_INVALID: 'AR content needs review', AR_OWNER_CONFIRMATION_REQUIRED: 'Owner confirmation is required for AR mapping',
+      PROJECT_CONTENT_INVALID: 'Saved calendar structure needs review', PROJECT_ARCHIVED: 'Archived projects cannot continue project preparation',
+      CALENDAR_IMAGE_REQUIRED: 'Add a saved calendar photo to meet this project requirement', AR_REQUIREMENTS_INCOMPLETE: 'AR requirements are incomplete',
+      PROJECT_REVIEW_REQUIRED: 'Review the current saved project revision',
+    } satisfies Record<PublicPreviewIssueCode, string>,
+    previewStatus: 'Calendar preview', arStatus: 'AR preparation', contentStatus: 'Project content preparation',
+  },
+  vi: {
+    year: 'Cả năm', month: 'Tháng đã chọn', readable: 'Danh sách nội dung lịch', style: 'Phong cách đã chọn',
+    presets: { classic: 'Cổ điển', minimal: 'Tối giản', vibrant: 'Rực rỡ' },
+    customStyle: 'Phong cách đã lưu',
+    layout: 'Bố cục', photoFocus: 'Tập trung ảnh', collage: 'Ảnh ghép', noImage: 'Chưa có ảnh được lưu', noCaption: 'Chưa có lời nhắn được lưu',
+    noEvents: 'Chưa có ngày đặc biệt được lưu', image: (count: number) => `${count} ảnh đã lưu`,
+    version: (version: number) => `Bản lưu lần ${version}`, preview: 'Bản xem trước lịch đã lưu', unavailablePhoto: 'Ảnh đã lưu hiện không khả dụng',
+    archivedReadOnly: 'Đã lưu trữ · chỉ đọc',
+    readiness: 'Thông tin kiểm tra bản lưu', previewCanBeViewed: 'Có thể xem trước cấu trúc lịch đã lưu', previewNeedsAttention: 'Cấu trúc lịch đã lưu cần được kiểm tra',
+    arAvailable: 'Nội dung chuẩn bị AR hiện khả dụng', arNeedsWork: 'Nội dung chuẩn bị AR chưa hoàn tất', projectChecksPassed: 'Các kiểm tra nội dung lịch hiện đã đạt',
+    projectChecksRemain: 'Lịch vẫn còn yêu cầu nội dung cần hoàn thành', notPermission: 'Đây chỉ là thông tin. Trạng thái này không xác nhận đủ điều kiện hoàn tất hoặc thanh toán.',
+    issue: {
+      PROJECT_STRUCTURE_INVALID: 'Thông tin lịch cần được kiểm tra', PROJECT_MONTHS_INVALID: 'Cấu trúc đủ mười hai tháng cần được kiểm tra',
+      AR_SETUP_REQUIRED: 'Chưa thiết lập nội dung AR', AR_SETUP_INVALID: 'Thiết lập AR cần được chỉnh sửa', AR_MEDIA_UNAVAILABLE: 'Media AR hiện không khả dụng',
+      AR_PROCESSING: 'Nội dung AR vẫn đang được xử lý', AR_PROCESSING_FAILED: 'Hiện không thể xử lý AR', AR_PREPARATION_REQUIRED: 'Phần chuẩn bị AR cần được kiểm tra',
+      AR_CONTENT_INVALID: 'Nội dung AR cần được kiểm tra', AR_OWNER_CONFIRMATION_REQUIRED: 'Cần chủ sở hữu xác nhận ánh xạ AR',
+      PROJECT_CONTENT_INVALID: 'Cấu trúc lịch đã lưu cần được kiểm tra', PROJECT_ARCHIVED: 'Lịch lưu trữ không thể tiếp tục hoàn thiện nội dung',
+      CALENDAR_IMAGE_REQUIRED: 'Cần thêm ảnh đã lưu vào lịch để đáp ứng yêu cầu nội dung', AR_REQUIREMENTS_INCOMPLETE: 'Các yêu cầu AR chưa hoàn tất',
+      PROJECT_REVIEW_REQUIRED: 'Hãy kiểm tra phiên bản lịch đã lưu hiện tại',
+    } satisfies Record<PublicPreviewIssueCode, string>,
+    previewStatus: 'Bản xem trước lịch', arStatus: 'Chuẩn bị AR', contentStatus: 'Chuẩn bị nội dung lịch',
+  },
+} as const;
+export const savedCalendarPreviewMonthNames = {
+  en: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+  vi: ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'],
+} as const;
+export const savedCalendarPreviewWeekdays = {
+  en: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+  vi: ['Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy','Chủ Nhật'],
+} as const;
+export const savedCalendarPreviewWeekdayLabels = {
+  en: ['Mo','Tu','We','Th','Fr','Sa','Su'],
+  vi: ['T2','T3','T4','T5','T6','T7','CN'],
+} as const;

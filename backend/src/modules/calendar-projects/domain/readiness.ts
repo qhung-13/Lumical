@@ -7,8 +7,8 @@ import {
   isSupportedMediaContentType,
 } from '../../media/domain/media';
 
-// I08-P01 INTERNAL proposal vocabulary. Do not publish through HTTP until the
-// LEAD contract review in evidence/I08-P01-contract-review.md has settled it.
+// I08-P01 internal policy vocabulary. HTTP responses must pass through the
+// explicit public mapping in public-preview-readiness.ts.
 export type ReadinessIssue =
   | 'PREVIEW_INVALID_PROJECT'
   | 'PREVIEW_MONTHS_INVALID'

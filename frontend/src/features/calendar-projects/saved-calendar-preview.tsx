@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import type { SavedCalendarPreview, SavedPreviewMonth } from './saved-calendar-preview-model';
-import { savedCalendarPreviewCopy, savedCalendarPreviewMonthNames, savedCalendarPreviewWeekdays, type PublicPreviewIssueCode } from './saved-calendar-preview-copy';
+import { savedCalendarPreviewCopy, savedCalendarPreviewMonthNames, savedCalendarPreviewWeekdayLabels, savedCalendarPreviewWeekdays, type PublicPreviewIssueCode } from './saved-calendar-preview-copy';
 import styles from './saved-calendar-preview.module.css';
 
 function daysInMonth(year: number, month: number) { return new Date(year, month, 0).getDate(); }
@@ -25,7 +25,7 @@ function MonthCalendar({ data, snapshot, locale }: { data: SavedPreviewMonth; sn
         : <div key={`${image.assetId}-${index}`} className={styles.photoPlaceholder} role="img" aria-label={text.unavailablePhoto}>{text.unavailablePhoto}</div>)
         : <p className={styles.photoPlaceholder}>{text.noImage}</p>}
     </div>
-    <table className={styles.calendar}><caption>{monthName} {snapshot.year}</caption><thead><tr>{savedCalendarPreviewWeekdays[locale].map(day => <th key={day} scope="col" aria-label={day}>{day.slice(0, 2)}</th>)}</tr></thead>
+    <table className={styles.calendar}><caption>{monthName} {snapshot.year}</caption><thead><tr>{savedCalendarPreviewWeekdays[locale].map((day, index) => <th key={day} scope="col" aria-label={day}>{savedCalendarPreviewWeekdayLabels[locale][index]}</th>)}</tr></thead>
       <tbody>{Array.from({ length: total / 7 }, (_, week) => <tr key={week}>{Array.from({ length: 7 }, (_, col) => {
         const day = week * 7 + col - offset + 1; if (day < 1 || day > count) return <td key={col} />;
         const date = `${snapshot.year}-${String(data.monthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -46,7 +46,7 @@ export function SavedCalendarPreview({ snapshot, locale }: { snapshot: SavedCale
     <header className={styles.heading}><div><h1>{snapshot.title}</h1><p>{snapshot.recipientName} · {snapshot.year}</p><p>{text.version(snapshot.projectVersion)}</p>
       {snapshot.status === 'ARCHIVED' && <p role="status">{text.archivedReadOnly}</p>}
     </div>
-      <dl><div><dt>{text.style}</dt><dd>{text.presets[snapshot.stylePresetId as keyof typeof text.presets] ?? snapshot.stylePresetId}</dd></div><div><dt>{text.layout}</dt><dd>{snapshot.layout === 'PHOTO_FOCUS' ? text.photoFocus : text.collage}</dd></div></dl></header>
+      <dl><div><dt>{text.style}</dt><dd>{text.presets[snapshot.stylePresetId as keyof typeof text.presets] ?? text.customStyle}</dd></div><div><dt>{text.layout}</dt><dd>{snapshot.layout === 'PHOTO_FOCUS' ? text.photoFocus : text.collage}</dd></div></dl></header>
     <div className={styles.controls} role="group" aria-label={text.preview}>
       <button type="button" aria-pressed={mode === 'year'} onClick={() => setMode('year')}>{text.year}</button>
       <button type="button" aria-pressed={mode === 'month'} onClick={() => setMode('month')}>{text.month}</button>

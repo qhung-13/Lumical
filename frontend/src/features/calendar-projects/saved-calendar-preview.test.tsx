@@ -36,7 +36,7 @@ describe('saved calendar preview', () => {
   });
 
   it('renders all twelve persisted months, saved details and truthful empty placeholders', () => {
-    render(<Preview snapshot={snapshot()} locale="en" />);
+    const { rerender } = render(<Preview snapshot={snapshot()} locale="en" />);
     expect(screen.getByRole('heading', { name: 'Family memories' })).toBeVisible();
     expect(screen.getByText('Saved revision 4')).toBeVisible();
     expect(screen.getByText('Archived · read-only')).toBeVisible();
@@ -49,6 +49,15 @@ describe('saved calendar preview', () => {
     expect(screen.getByText('Saved revision checks')).toBeVisible();
     expect(screen.getByText('AR content has not been set up')).toBeVisible();
     expect(screen.getByText(/do not confirm finalization or checkout eligibility/i)).toBeVisible();
+    rerender(<Preview snapshot={snapshot()} locale="vi" />);
+    const january = screen.getByRole('article', { name: 'Tháng 1 2028' });
+    expect(within(january).getByRole('columnheader', { name: 'Thứ Hai' })).toHaveTextContent('T2');
+    expect(within(january).getByRole('columnheader', { name: 'Thứ Ba' })).toHaveTextContent('T3');
+    expect(within(january).getByRole('columnheader', { name: 'Thứ Tư' })).toHaveTextContent('T4');
+    expect(within(january).getByRole('columnheader', { name: 'Thứ Năm' })).toHaveTextContent('T5');
+    expect(within(january).getByRole('columnheader', { name: 'Thứ Sáu' })).toHaveTextContent('T6');
+    expect(within(january).getByRole('columnheader', { name: 'Thứ Bảy' })).toHaveTextContent('T7');
+    expect(within(january).getByRole('columnheader', { name: 'Chủ Nhật' })).toHaveTextContent('CN');
   });
 
   it('offers keyboard-operable year/month selection and a separate ordered readable list', async () => {
@@ -75,5 +84,15 @@ describe('saved calendar preview', () => {
   it('rejects more than four persisted photos instead of silently truncating', () => {
     const tooMany = { ...months, months: months.months.map((month, index) => index === 0 ? { ...month, images: Array.from({ length: 5 }, (_, i) => ({ assetId: `id-${i}`, altText: '' })) } : month) };
     expect(() => createSavedCalendarPreview(project, tooMany, events, readiness)).toThrow(PreviewSnapshotError);
+  });
+
+  it('uses a neutral localized label for an unrecognized saved style preset', () => {
+    const custom = { ...snapshot(), stylePresetId: 'internal-style-id' };
+    const { rerender } = render(<Preview snapshot={custom} locale="vi" />);
+    expect(screen.getByText('Phong cách đã lưu')).toBeVisible();
+    expect(screen.queryByText('internal-style-id')).not.toBeInTheDocument();
+    rerender(<Preview snapshot={custom} locale="en" />);
+    expect(screen.getByText('Saved custom style')).toBeVisible();
+    expect(screen.queryByText('internal-style-id')).not.toBeInTheDocument();
   });
 });

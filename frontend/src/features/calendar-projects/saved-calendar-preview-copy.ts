@@ -5,6 +5,7 @@ export const savedCalendarPreviewCopy = {
   en: {
     year: 'Whole year', month: 'Selected month', readable: 'Readable calendar list', style: 'Curated style', layout: 'Layout',
     presets: { classic: 'Classic', minimal: 'Minimal', vibrant: 'Vibrant' },
+    customStyle: 'Saved custom style',
     photoFocus: 'Photo focus', collage: 'Collage', noImage: 'No saved photo yet', noCaption: 'No saved message yet',
     noEvents: 'No special dates saved', image: (count: number) => `${count} saved ${count === 1 ? 'photo' : 'photos'}`,
     version: (version: number) => `Saved revision ${version}`, preview: 'Saved calendar preview', unavailablePhoto: 'Saved photo is currently unavailable',
@@ -26,6 +27,7 @@ export const savedCalendarPreviewCopy = {
   vi: {
     year: 'Cả năm', month: 'Tháng đã chọn', readable: 'Danh sách nội dung lịch', style: 'Phong cách đã chọn',
     presets: { classic: 'Cổ điển', minimal: 'Tối giản', vibrant: 'Rực rỡ' },
+    customStyle: 'Phong cách đã lưu',
     layout: 'Bố cục', photoFocus: 'Tập trung ảnh', collage: 'Ảnh ghép', noImage: 'Chưa có ảnh được lưu', noCaption: 'Chưa có lời nhắn được lưu',
     noEvents: 'Chưa có ngày đặc biệt được lưu', image: (count: number) => `${count} ảnh đã lưu`,
     version: (version: number) => `Bản lưu lần ${version}`, preview: 'Bản xem trước lịch đã lưu', unavailablePhoto: 'Ảnh đã lưu hiện không khả dụng',
@@ -52,4 +54,8 @@ export const savedCalendarPreviewMonthNames = {
 export const savedCalendarPreviewWeekdays = {
   en: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
   vi: ['Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy','Chủ Nhật'],
+} as const;
+export const savedCalendarPreviewWeekdayLabels = {
+  en: ['Mo','Tu','We','Th','Fr','Sa','Su'],
+  vi: ['T2','T3','T4','T5','T6','T7','CN'],
 } as const;

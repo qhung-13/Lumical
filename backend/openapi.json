@@ -2832,6 +2832,140 @@
         ]
       }
     },
+    "/api/v1/projects/{id}/preview": {
+      "get": {
+        "operationId": "getProjectPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPreviewResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Read one owner-authorized saved Project snapshot and public readiness.",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/api/v1/projects/{id}/ar/config": {
       "get": {
         "operationId": "getProjectARConfig",
@@ -6601,6 +6735,252 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ProjectMonthsDataDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ProjectPreviewImageDto": {
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "altText": {
+            "type": "string"
+          },
+          "crop": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              null
+            ],
+            "description": "Current approved crop is null (default crop)."
+          },
+          "contentPath": {
+            "type": "string",
+            "example": "/api/v1/media/{assetId}/content",
+            "description": "Owner-authorized private media route; never a public delivery URL."
+          }
+        },
+        "required": [
+          "assetId",
+          "altText",
+          "crop",
+          "contentPath"
+        ]
+      },
+      "ProjectPreviewMonthDto": {
+        "type": "object",
+        "properties": {
+          "monthNumber": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "caption": {
+            "type": "string",
+            "nullable": true,
+            "description": "Persisted message, or null when this Month has none."
+          },
+          "images": {
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectPreviewImageDto"
+            }
+          }
+        },
+        "required": [
+          "monthNumber",
+          "caption",
+          "images"
+        ]
+      },
+      "ProjectPreviewSpecialDateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Gregorian civil date in the saved Project year."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "title",
+          "note"
+        ]
+      },
+      "ProjectPreviewReadinessIssuesDto": {
+        "type": "object",
+        "properties": {
+          "preview": {
+            "type": "array",
+            "description": "Public, localized-by-client issue codes for preview structure.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PROJECT_STRUCTURE_INVALID",
+                "PROJECT_MONTHS_INVALID",
+                "AR_SETUP_REQUIRED",
+                "AR_SETUP_INVALID",
+                "AR_MEDIA_UNAVAILABLE",
+                "AR_PROCESSING",
+                "AR_PROCESSING_FAILED",
+                "AR_PREPARATION_REQUIRED",
+                "AR_CONTENT_INVALID",
+                "AR_OWNER_CONFIRMATION_REQUIRED",
+                "PROJECT_CONTENT_INVALID",
+                "PROJECT_ARCHIVED",
+                "CALENDAR_IMAGE_REQUIRED",
+                "AR_REQUIREMENTS_INCOMPLETE",
+                "PROJECT_REVIEW_REQUIRED"
+              ]
+            }
+          },
+          "ar": {
+            "type": "array",
+            "description": "Public AR setup issue codes.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PROJECT_STRUCTURE_INVALID",
+                "PROJECT_MONTHS_INVALID",
+                "AR_SETUP_REQUIRED",
+                "AR_SETUP_INVALID",
+                "AR_MEDIA_UNAVAILABLE",
+                "AR_PROCESSING",
+                "AR_PROCESSING_FAILED",
+                "AR_PREPARATION_REQUIRED",
+                "AR_CONTENT_INVALID",
+                "AR_OWNER_CONFIRMATION_REQUIRED",
+                "PROJECT_CONTENT_INVALID",
+                "PROJECT_ARCHIVED",
+                "CALENDAR_IMAGE_REQUIRED",
+                "AR_REQUIREMENTS_INCOMPLETE",
+                "PROJECT_REVIEW_REQUIRED"
+              ]
+            }
+          },
+          "order": {
+            "type": "array",
+            "description": "Public content-preparation issues. Does not authorize checkout.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PROJECT_STRUCTURE_INVALID",
+                "PROJECT_MONTHS_INVALID",
+                "AR_SETUP_REQUIRED",
+                "AR_SETUP_INVALID",
+                "AR_MEDIA_UNAVAILABLE",
+                "AR_PROCESSING",
+                "AR_PROCESSING_FAILED",
+                "AR_PREPARATION_REQUIRED",
+                "AR_CONTENT_INVALID",
+                "AR_OWNER_CONFIRMATION_REQUIRED",
+                "PROJECT_CONTENT_INVALID",
+                "PROJECT_ARCHIVED",
+                "CALENDAR_IMAGE_REQUIRED",
+                "AR_REQUIREMENTS_INCOMPLETE",
+                "PROJECT_REVIEW_REQUIRED"
+              ]
+            }
+          }
+        },
+        "required": [
+          "preview",
+          "ar",
+          "order"
+        ]
+      },
+      "ProjectPreviewReadinessDto": {
+        "type": "object",
+        "properties": {
+          "previewReady": {
+            "type": "boolean",
+            "description": "Whether the saved calendar structure can be previewed."
+          },
+          "arReady": {
+            "type": "boolean",
+            "description": "Whether verified AR preparation is currently available."
+          },
+          "orderReady": {
+            "type": "boolean",
+            "description": "Compatibility alias for content/finalization preparation only; never checkout permission."
+          },
+          "issues": {
+            "$ref": "#/components/schemas/ProjectPreviewReadinessIssuesDto"
+          }
+        },
+        "required": [
+          "previewReady",
+          "arReady",
+          "orderReady",
+          "issues"
+        ]
+      },
+      "ProjectPreviewDataDto": {
+        "type": "object",
+        "properties": {
+          "projectVersion": {
+            "type": "number",
+            "minimum": 1,
+            "description": "One SERIALIZABLE persisted Project revision for all returned content and readiness."
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectDataDto"
+          },
+          "months": {
+            "minItems": 12,
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectPreviewMonthDto"
+            }
+          },
+          "specialDates": {
+            "description": "Persisted civil Special Dates; may be empty.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectPreviewSpecialDateDto"
+            }
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/ProjectPreviewReadinessDto"
+          }
+        },
+        "required": [
+          "projectVersion",
+          "project",
+          "months",
+          "specialDates",
+          "readiness"
+        ]
+      },
+      "ProjectPreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectPreviewDataDto"
           }
         },
         "required": [

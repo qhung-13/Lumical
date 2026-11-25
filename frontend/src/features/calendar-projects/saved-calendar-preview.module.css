@@ -1,0 +1,43 @@
+.page { width: min(100%, 78rem); margin-inline: auto; padding: clamp(1rem, 3vw, 2rem) var(--layout-gutter) 4rem; }
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; margin-block-end: 1.25rem; }
+.heading h1 { margin: 0; font: 700 var(--type-h1)/var(--type-h1-line) var(--font-heading); overflow-wrap: anywhere; }
+.heading p { margin: .3rem 0 0; color: var(--color-text-secondary); }
+.heading dl { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; }
+.heading dl div { padding: .55rem .75rem; background: var(--color-surface-subtle); border-radius: var(--radius-control); }
+.heading dt { color: var(--color-text-muted); font-size: var(--type-body-sm); }
+.heading dd { margin: 0; font-weight: 650; }
+.controls, .monthNav { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: 1rem; }
+.controls button, .monthNav button { min-height: 2.75rem; padding: .5rem .75rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); color: var(--color-text-primary); background: var(--color-surface); font: inherit; cursor: pointer; }
+.controls button[aria-pressed="true"], .monthNav button[aria-pressed="true"] { background: var(--color-selected-bg); border-color: var(--color-selected-border); color: var(--color-selected-text); font-weight: 700; }
+.yearGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.singleMonth { max-width: 48rem; margin-inline: auto; }
+.month { min-width: 0; padding: clamp(.7rem, 2vw, 1.1rem); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-large); }
+.monthHeader { display: flex; align-items: start; justify-content: space-between; gap: .5rem; margin-block-end: .65rem; }
+.monthHeader h2 { margin: 0; font: 700 var(--type-h2)/var(--type-h2-line) var(--font-heading); }
+.monthHeader span { color: var(--color-text-secondary); }
+.savedCount { font-size: var(--type-body-sm); text-align: end; }
+.photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; margin-block-end: .65rem; }
+.photos[data-layout="PHOTO_FOCUS"] img:first-child { grid-column: 1 / -1; aspect-ratio: 2 / 1; }
+.photos img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; border-radius: var(--radius-control); }
+.photoPlaceholder { display: grid; place-items: center; min-height: 3.5rem; grid-column: 1 / -1; margin: 0; padding: .5rem; color: var(--color-text-secondary); background: var(--color-surface-subtle); text-align: center; border-radius: var(--radius-control); }
+.calendar { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .85rem; }
+.calendar caption { text-align: start; font-weight: 700; padding-block: .35rem; }
+.calendar th, .calendar td { border: 1px solid var(--color-border); vertical-align: top; padding: .2rem; overflow-wrap: anywhere; }
+.calendar th { color: var(--color-text-secondary); }
+.calendar td { height: 2.6rem; }
+.event { display: block; margin-block-start: .15rem; color: var(--color-brand-text); font-size: .7rem; }
+.caption, .emptyEvents { color: var(--color-text-secondary); margin-block: .65rem 0; overflow-wrap: anywhere; }
+.eventList { padding-inline-start: 1.1rem; }
+.readable { margin-block-start: 1.25rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
+.readiness { margin-block-start: 1.25rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface-subtle); }
+.readiness h2, .readiness h3 { margin-block: 0 .5rem; }
+.readiness > p { color: var(--color-text-secondary); }
+.readinessGroup { padding-block: .65rem; border-block-start: 1px solid var(--color-border); }
+.readinessGroup p { margin-block: .25rem; }
+.readinessGroup ul { margin-block: .4rem 0; padding-inline-start: 1.25rem; }
+.readable summary { min-height: 2.75rem; display: flex; align-items: center; font-weight: 700; cursor: pointer; }
+.readable li { overflow-wrap: anywhere; }
+.readable h2 { font: 700 var(--type-h2)/var(--type-h2-line) var(--font-heading); }
+@media (min-width: 640px) { .yearGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .yearGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 360px) { .calendar { font-size: .75rem; } .calendar td { height: 2.1rem; padding: .1rem; } .monthHeader { flex-direction: column; } }

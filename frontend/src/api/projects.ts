@@ -3,6 +3,7 @@ import type { operations } from './generated';
 export type Project = operations['createProject']['responses'][201]['content']['application/json']['data'];
 export type ProjectDetail = operations['getProject']['responses'][200]['content']['application/json']['data'];
 export type ProjectMonths = operations['getProjectMonths']['responses'][200]['content']['application/json']['data'];
+export type ProjectPreview = operations['getProjectPreview']['responses'][200]['content']['application/json']['data'];
 export type ProjectCreate = operations['createProject']['requestBody']['content']['application/json'];
 export type ProjectPatch = operations['patchProject']['requestBody']['content']['application/json'];
 export type MonthPatch = operations['replaceProjectMonth']['requestBody']['content']['application/json'];
@@ -101,6 +102,34 @@ function parseSpecialDates(value: unknown): SpecialDatesRevision {
   }
   return { projectVersion: data.projectVersion, events: data.events.map(parseSpecialDate) };
 }
+const publicPreviewIssueCodes = new Set([
+  'PROJECT_STRUCTURE_INVALID', 'PROJECT_MONTHS_INVALID', 'AR_SETUP_REQUIRED', 'AR_SETUP_INVALID',
+  'AR_MEDIA_UNAVAILABLE', 'AR_PROCESSING', 'AR_PROCESSING_FAILED', 'AR_PREPARATION_REQUIRED',
+  'AR_CONTENT_INVALID', 'AR_OWNER_CONFIRMATION_REQUIRED', 'PROJECT_CONTENT_INVALID', 'PROJECT_ARCHIVED',
+  'CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED',
+]);
+function parseProjectPreview(value: unknown): ProjectPreview {
+  const data = record(record(value).data); const project = record(data.project); const readiness = record(data.readiness);
+  const issues = record(readiness.issues);
+  if (!Number.isSafeInteger(data.projectVersion) || Number(data.projectVersion) < 1 ||
+      !validProject(project) || project.version !== data.projectVersion ||
+      typeof readiness.previewReady !== 'boolean' || typeof readiness.arReady !== 'boolean' || typeof readiness.orderReady !== 'boolean' ||
+      !Array.isArray(issues.preview) || !Array.isArray(issues.ar) || !Array.isArray(issues.order) ||
+      [issues.preview, issues.ar, issues.order].some(list => list.some(code => typeof code !== 'string' || !publicPreviewIssueCodes.has(code))) ||
+      !Array.isArray(data.months) || data.months.length !== 12 || !Array.isArray(data.specialDates)) {
+    throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  }
+  const months = data.months.map(item => record(item));
+  if (months.some((month, index) => month.monthNumber !== index + 1 || !(month.caption === null || typeof month.caption === 'string') ||
+      !Array.isArray(month.images) || month.images.length > 4 || month.images.some(raw => {
+        const image = record(raw);
+        return typeof image.assetId !== 'string' || !uuid.test(image.assetId) || typeof image.altText !== 'string' ||
+          image.crop !== null || image.contentPath !== `/api/v1/media/${image.assetId}/content`;
+      }))) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  const events = data.specialDates.map(parseSpecialDate);
+  if (events.some(event => !validCivilDate(event.date) || Number(event.date.slice(0, 4)) !== project.year)) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  return data as unknown as ProjectPreview;
+}
 function parseSpecialDateRevision(value: unknown): SpecialDateRevision {
   const data = record(record(value).data);
   const event = parseSpecialDate(data);
@@ -183,6 +212,7 @@ export function projectApi(options: ProjectApiOptions) {
       return request(`/projects${params.size ? `?${params}` : ''}`, 'GET', parsePage, signal);
     },
     detail: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}`, 'GET', value => parseProject(value, true) as ProjectDetail, signal),
+    preview: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/preview`, 'GET', parseProjectPreview, signal),
     months: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/months`, 'GET', value => {
       const data = record(record(value).data);
       if (typeof data.projectVersion !== 'number' || !Number.isSafeInteger(data.projectVersion) || data.projectVersion < 1 || !Array.isArray(data.months) || data.months.length !== 12) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
@@ -224,6 +254,7 @@ export const projectKeys = {
   lists: (actorId: string) => [...projectKeys.all(actorId), 'list'] as const,
   list: (actorId: string, query: ProjectListQuery = {}) => [...projectKeys.lists(actorId), query.state ?? null, query.cursor ?? null, query.limit ?? null] as const,
   detail: (actorId: string, id: string) => [...projectKeys.all(actorId), 'detail', id] as const,
+  preview: (actorId: string, id: string) => [...projectKeys.all(actorId), 'preview', id] as const,
   months: (actorId: string, id: string) => [...projectKeys.all(actorId), 'months', id] as const,
   specialDates: (actorId: string, id: string) => [...projectKeys.all(actorId), 'special-dates', id] as const,
   ar: (actorId: string, id: string) => [...projectKeys.all(actorId), 'ar', id] as const,
@@ -234,6 +265,9 @@ export function projectListOptions(actorId: string, query: ProjectListQuery, api
 }
 export function projectDetailOptions(actorId: string, id: string, api: ProjectApi) {
   return { queryKey: projectKeys.detail(actorId, id), queryFn: ({ signal }: { signal: AbortSignal }) => api.detail(id, signal), staleTime: 15_000, retry: retryTransient } as const;
+}
+export function projectPreviewOptions(actorId: string, id: string, api: ProjectApi) {
+  return { queryKey: projectKeys.preview(actorId, id), queryFn: ({ signal }: { signal: AbortSignal }) => api.preview(id, signal), staleTime: 0, retry: retryTransient } as const;
 }
 export function projectMonthsOptions(actorId: string, id: string, api: ProjectApi) {
   return { queryKey: projectKeys.months(actorId, id), queryFn: ({ signal }: { signal: AbortSignal }) => api.months(id, signal), staleTime: 15_000, retry: retryTransient } as const;

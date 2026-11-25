@@ -21,6 +21,9 @@ const project = {
   title: 'Memories',
   recipientName: 'Family',
   year: 2000,
+  stylePresetId: 'classic', baselineNameVi: 'Mẫu', baselineNameEn: 'Design',
+  baselineStyle: { version: 1, type: 'COLLAGE', monthCount: 12, maxImagesPerMonth: 4 },
+  createdAt: new Date('2026-01-01T00:00:00.000Z'), updatedAt: new Date('2026-01-02T00:00:00.000Z'),
 } as ProjectRecord;
 
 function setup() {
@@ -40,6 +43,8 @@ function setup() {
     },
   );
   const find = jest.fn().mockResolvedValue(project);
+  const months = jest.fn().mockResolvedValue(Array.from({ length: 12 }, (_, index) => ({ monthNumber: index + 1, caption: null, images: [] })));
+  const specialDates = jest.fn().mockResolvedValue([]);
   const read = jest
     .fn()
     .mockResolvedValue({
@@ -54,15 +59,34 @@ function setup() {
   const service = new ProjectOwnerService(
     { withActiveAccount: auth } as unknown as ActiveAccounts,
     {} as Clock,
-    { find } as unknown as ProjectRepository,
+    { find, months, specialDates } as unknown as ProjectRepository,
     {} as CreateProject,
     {} as OwnerMediaRepository,
     { read } as ReadinessRepository,
   );
-  return { auth, find, read, service, contexts };
+  return { auth, find, months, specialDates, read, service, contexts };
 }
 
 describe('internal Project readiness query', () => {
+  it('Q06: composes content and mapped readiness inside one owner transaction and one Project revision', async () => {
+    const { service, auth, find, months, specialDates, read, contexts } = setup();
+    const browser = { secret: 'preview-cookie' };
+    const result = await service.preview(project.id, browser);
+    expect(result).toMatchObject({
+      projectVersion: 3,
+      project: { id: 'project', version: 3, title: 'Memories', baseline: { layout: { type: 'COLLAGE' } } },
+      months: { length: 12 },
+      specialDates: [],
+      readiness: { previewReady: true, arReady: false, orderReady: false,
+        issues: { preview: [], ar: ['AR_SETUP_REQUIRED'], order: ['CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED'] } },
+    });
+    expect(auth).toHaveBeenCalledWith(browser, false, expect.any(Function));
+    expect(find).toHaveBeenCalledWith(actor.id, project.id, contexts[0]);
+    expect(months).toHaveBeenCalledWith(actor.id, project.id, contexts[0]);
+    expect(specialDates).toHaveBeenCalledWith(project, contexts[0]);
+    expect(read).toHaveBeenCalledWith(project, contexts[0]);
+  });
+
   it('Q01: authenticates as read, scopes root by owner and uses the same transaction for every fact', async () => {
     const { service, auth, find, read, contexts } = setup();
     const browser = { secret: 'not-a-real-cookie' };

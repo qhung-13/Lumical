@@ -110,7 +110,10 @@ await withDisposablePostgres(async ({ url }) => {
     };
     const owner = await register('readiness-owner');
     const other = await register('readiness-other');
-    const project = await projectFixture(db, owner.id, syntheticIds.revision);
+    const project = await projectFixture(db, owner.id, syntheticIds.revision, {
+      nameVi: 'Mẫu', nameEn: 'Synthetic', presetId: 'synthetic-neutral', unitPriceMinor: 1450,
+      style: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 },
+    });
     await db.query(
       `INSERT INTO lumical.calendar_months (id,project_id,month_number)
       SELECT gen_random_uuid(),$1,n FROM generate_series(1,12) n`,
@@ -174,6 +177,35 @@ await withDisposablePostgres(async ({ url }) => {
           .set('Cookie', other.cookie)
           .expect(401);
         const third = await register('readiness-third');
+        const preview = await api
+          .get(`${base}/preview`)
+          .set('Cookie', owner.cookie);
+        assert.equal(preview.status, 200, JSON.stringify(preview.body));
+        assert.match(preview.headers['cache-control'], /private/);
+        assert.match(preview.headers['cache-control'], /no-store/);
+        assert.equal(preview.headers.etag, '"1"');
+        assert.equal(preview.body.data.projectVersion, 1);
+        assert.equal(preview.body.data.project.version, 1);
+        assert.equal(preview.body.data.months.length, 12);
+        assert.deepEqual(preview.body.data.months.map((month) => month.monthNumber), Array.from({ length: 12 }, (_, index) => index + 1));
+        assert(preview.body.data.months.every((month) => month.images.length === 0 && month.caption === null));
+        assert.deepEqual(preview.body.data.specialDates, []);
+        assert.deepEqual(preview.body.data.readiness, {
+          previewReady: true,
+          arReady: false,
+          orderReady: false,
+          issues: { preview: [], ar: ['AR_SETUP_REQUIRED'], order: ['CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED'] },
+        });
+        assert.equal(JSON.stringify(preview.body).includes('AR_NOT_CONFIGURED'), false);
+        assert.equal(JSON.stringify(preview.body).includes('FINALIZATION_'), false);
+        await api
+          .get(`${base}/preview`)
+          .set('Cookie', third.cookie)
+          .expect(404);
+        await api
+          .get(`/api/v1/projects/${randomUUID()}/preview`)
+          .set('Cookie', owner.cookie)
+          .expect(404);
         await api
           .get(`${base}/ar/config`)
           .set('Cookie', third.cookie)
@@ -182,7 +214,7 @@ await withDisposablePostgres(async ({ url }) => {
           .get(`/api/v1/projects/${randomUUID()}/ar/config`)
           .set('Cookie', owner.cookie)
           .expect(404);
-        // Proposed DTO/issues are not silently published by P01.
+        // Readiness remains an internal P01 query; only mapped issues are public on Preview.
         await api
           .get(`${base}/readiness`)
           .set('Cookie', owner.cookie)
@@ -425,6 +457,12 @@ await withDisposablePostgres(async ({ url }) => {
         const result = await evaluate();
         assert.equal(result.preview.ready, true);
         assert(result.finalization.issues.includes('FINALIZATION_NOT_WORKING'));
+        const preview = await api.get(`${base}/preview`).set('Cookie', owner.cookie).expect(200);
+        assert.equal(preview.body.data.project.status, 'ARCHIVED');
+        assert.equal(preview.body.data.projectVersion, result.projectVersion);
+        assert.equal(preview.body.data.readiness.previewReady, true);
+        assert.equal(preview.body.data.readiness.orderReady, false);
+        assert(preview.body.data.readiness.issues.order.includes('PROJECT_ARCHIVED'));
       },
     );
   } finally {

@@ -6,7 +6,7 @@ import { accountCookie } from '../../identity/domain/identity';
 import { ProjectOwnerService, type ProjectBrowserContext } from '../application/project-owner';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
 import { ARCurrentResponseDto, ARConfigResponseDto, ARWriteDto, EventWriteDto, MonthPatchDto, SpecialDateResponseDto, SpecialDatesResponseDto } from './personalization-dto';
-import { MonthResponseDto, ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectResponseDto, ErrorResponseDto } from './dto';
+import { MonthResponseDto, ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectPreviewDataDto, ProjectPreviewResponseDto, ProjectResponseDto, ErrorResponseDto } from './dto';
 
 // Local copies of the identity controller's transport decorators so Project
 // mutations read the same way in the generated contract as the account command.
@@ -72,6 +72,17 @@ export class ProjectController {
     const view = await this.service.months(this.id(id), this.auth(req));
     res.setHeader('ETag', `"${view.projectVersion}"`);
     res.status(200).json({ data: ProjectMonthsDataDto.from(view.projectVersion, view.months) });
+  }
+
+  @Get(':id/preview') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectPreview', summary: 'Read one owner-authorized saved Project snapshot and public readiness.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiResponse({ status: 200, type: ProjectPreviewResponseDto, headers: etagHeader() })
+  async preview(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const view = await this.service.preview(this.id(id), this.auth(req));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('ETag', `"${view.projectVersion}"`);
+    res.status(200).json({ data: ProjectPreviewDataDto.from(view) });
   }
 
   private revision(res: Response, status: number, data: { projectVersion: number }) {

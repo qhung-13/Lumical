@@ -39,6 +39,7 @@ import {
   type ProjectMonthRecord,
   type ProjectRecord,
   type SpecialDateRecord,
+  type ARPreviewRecord,
 } from './project-repository';
 
 // The authentication boundary's request shape. Identity owns cookies, CSRF and
@@ -346,6 +347,28 @@ export class ProjectOwnerService {
       if (!project) throw new ProjectError('NOT_FOUND');
       assertProjectOwner(actor, project);
       return { config: await this.repository.arConfig(project, context), projectVersion: project.version };
+    });
+  }
+
+  async arPreview(id: string, browser: ProjectBrowserContext): Promise<ARPreviewRecord> {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      return this.repository.arPreview(project, context);
+    });
+  }
+
+  async arTarget(id: string, targetId: string, browser: ProjectBrowserContext): Promise<Uint8Array> {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      const preview = await this.repository.arPreview(project, context);
+      const target = preview.target;
+      if (!target || target.targetId !== targetId || target.bytes === null)
+        throw new ProjectError('NOT_FOUND');
+      return target.bytes;
     });
   }
 

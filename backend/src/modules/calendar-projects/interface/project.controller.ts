@@ -6,7 +6,7 @@ import { accountCookie } from '../../identity/domain/identity';
 import { ProjectOwnerService, type ProjectBrowserContext } from '../application/project-owner';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
 import { ARCurrentResponseDto, ARConfigResponseDto, ARWriteDto, EventWriteDto, MonthPatchDto, SpecialDateResponseDto, SpecialDatesResponseDto } from './personalization-dto';
-import { MonthResponseDto, ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectPreviewDataDto, ProjectPreviewResponseDto, ProjectResponseDto, ErrorResponseDto } from './dto';
+import { ARPreviewDataDto, ARPreviewResponseDto, MonthResponseDto, ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectPreviewDataDto, ProjectPreviewResponseDto, ProjectResponseDto, ErrorResponseDto } from './dto';
 
 // Local copies of the identity controller's transport decorators so Project
 // mutations read the same way in the generated contract as the account command.
@@ -96,6 +96,31 @@ export class ProjectController {
   @ApiResponse({ status: 200, type: ARCurrentResponseDto, headers: etagHeader() })
   async arConfig(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
     this.revision(res, 200, await this.service.arConfig(this.id(id), this.auth(req)));
+  }
+
+  @Get(':id/ar/preview') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectARPreview', summary: 'Read the owner-authorized target and reveal fallback preview.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiResponse({ status: 200, type: ARPreviewResponseDto, headers: etagHeader() })
+  async arPreview(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const data = await this.service.arPreview(this.id(id), this.auth(req));
+    res.setHeader('Cache-Control', 'private, no-store');
+    this.revision(res, 200, ARPreviewDataDto.from(data));
+  }
+
+  @Get(':id/ar/target/:targetId') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectARTarget', summary: 'Download one current owner-authorized prepared target.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiParam({ name: 'targetId', format: 'uuid' })
+  @ApiResponse({ status: 200, content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } })
+  async arTarget(@Param('id') id: string, @Param('targetId') targetId: string, @Req() req: Request, @Res() res: Response) {
+    const bytes = await this.service.arTarget(this.id(id), this.id(targetId), this.auth(req));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Length', bytes.byteLength);
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.status(200).send(Buffer.from(bytes));
   }
 
   private removed(res: Response, projectVersion: number) {

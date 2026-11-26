@@ -28,6 +28,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
   const id = useId();
   const client = useQueryClient();
   const current = useQuery({ queryKey: projectKeys.ar(actorId, projectId), queryFn: ({ signal }) => api.ar(projectId, signal), retry: false });
+  const arPreview = useQuery({ queryKey: projectKeys.arPreview(actorId, projectId), queryFn: ({ signal }) => api.arPreview(projectId, signal), retry: false });
   const [draft, setDraft] = useState<Draft>();
   const [intent, setIntent] = useState<Intent>();
   const [items, setItems] = useState<OwnedMedia[]>([]);
@@ -95,6 +96,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
       client.setQueryData(projectKeys.ar(actorId, projectId), result);
       setIntent(undefined); setDraft(undefined); setNotice(copy.saved);
       await refresh();
+      await client.invalidateQueries({ queryKey: projectKeys.arPreview(actorId, projectId) });
     } catch (failure) {
       if (failure instanceof ProjectApiError && failure.status === 412) {
         setIntent(undefined); setNeedsReview(true); setError(copy.conflict); await refresh();
@@ -128,6 +130,15 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
     {current.data && <>
       <p className={styles.notice} role="status">{!config ? copy.empty : config.status === 'PREPARING' ? copy.preparing : config.status === 'READY' ? copy.ready : copy.unavailable}</p>
       {config && (persistedMedia.isError || (persistedMedia.data && persistedMedia.data.status !== 'READY')) && <p role="alert">{copy.mediaError}</p>}
+      {arPreview.isError && <p role="alert">{copy.failed}</p>}
+      {arPreview.data && <section aria-labelledby={`${id}-preview`} className={styles.notice}>
+        <h3 id={`${id}-preview`}>Owner preview</h3>
+        {arPreview.data.target?.available && arPreview.data.reveal?.contentPath ? <>
+          <p role="status">Prepared target is available for this saved revision.</p>
+          <p>Camera recognition can reveal the selected content. If camera access is unavailable, use the readable fallback below.</p>
+        </> : <p role="status">Target preparation is not ready for this saved revision.</p>}
+        {arPreview.data.reveal && <p>Fallback: {arPreview.data.config?.readableText ?? 'No readable reveal text saved.'}</p>}
+      </section>}
       {config && <section aria-labelledby={`${id}-current`}>
         <h3 id={`${id}-current`}>{copy.current}</h3>
         <dl className={styles.savedConfig}>

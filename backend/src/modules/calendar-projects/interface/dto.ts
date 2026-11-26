@@ -3,8 +3,8 @@ import {
   ApiPropertyOptional,
   type ApiPropertyOptions,
 } from '@nestjs/swagger';
-import { MonthImageDto } from './personalization-dto';
-import type { ProjectMonthRecord } from '../application/project-repository';
+import { ARCurrentConfigDto, MonthImageDto } from './personalization-dto';
+import type { ARPreviewRecord, ProjectMonthRecord } from '../application/project-repository';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
 import type { ProjectDetailView, ProjectPreviewView } from '../application/project-owner';
 import type { PublicPreviewIssue } from '../domain/public-preview-readiness';
@@ -255,6 +255,50 @@ export class ProjectPreviewDataDto {
 
 export class ProjectPreviewResponseDto {
   @ApiProperty({ type: ProjectPreviewDataDto }) data: ProjectPreviewDataDto;
+}
+
+export class ARPreviewTargetDto {
+  @ApiProperty({ type: String, format: 'uuid' }) artifactId: string;
+  @ApiProperty({ type: String, format: 'uuid' }) targetId: string;
+  @ApiProperty({ type: Number }) sourceRevision: number;
+  @ApiProperty({ enum: ['PREPARING', 'READY', 'UNAVAILABLE'] }) status: string;
+  @ApiProperty({ type: Boolean, description: 'Whether the owner may load the prepared target bytes.' }) available: boolean;
+  @ApiProperty({ type: String }) contentPath: string;
+}
+
+export class ARPreviewRevealDto {
+  @ApiProperty({ type: String, format: 'uuid' }) assetId: string;
+  @ApiProperty({ enum: ['IMAGE', 'VIDEO', 'AUDIO'] }) category: string;
+  @ApiProperty({ type: Number }) contentVersion: number;
+  @ApiProperty({ enum: ['PENDING', 'READY', 'UNAVAILABLE'] }) status: string;
+  @ApiProperty({ type: String, nullable: true }) contentPath: string | null;
+}
+
+export class ARPreviewDataDto {
+  @ApiProperty({ type: Number }) projectVersion: number;
+  @ApiProperty({ type: ARCurrentConfigDto, nullable: true }) config: ARCurrentConfigDto | null;
+  @ApiProperty({ type: ARPreviewTargetDto, nullable: true }) target: ARPreviewTargetDto | null;
+  @ApiProperty({ type: ARPreviewRevealDto, nullable: true }) reveal: ARPreviewRevealDto | null;
+
+  static from(view: ARPreviewRecord): ARPreviewDataDto {
+    return {
+      projectVersion: view.projectVersion,
+      config: view.config,
+      target: view.target ? {
+        artifactId: view.target.artifactId,
+        targetId: view.target.targetId,
+        sourceRevision: view.target.sourceRevision,
+        status: view.target.status,
+        available: view.target.bytes !== null,
+        contentPath: view.target.bytes !== null ? `/api/v1/projects/{projectId}/ar/target/${view.target.targetId}` : '',
+      } : null,
+      reveal: view.reveal,
+    };
+  }
+}
+
+export class ARPreviewResponseDto {
+  @ApiProperty({ type: ARPreviewDataDto }) data: ARPreviewDataDto;
 }
 
 export class FieldErrorDto {

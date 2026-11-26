@@ -16,6 +16,24 @@ export type ProjectPage = operations['listProjects']['responses'][200]['content'
 export type ProjectListQuery = NonNullable<operations['listProjects']['parameters']['query']>;
 export type ARWrite = operations['writeProjectAR']['requestBody']['content']['application/json'];
 export type ARRevision = operations['getProjectARConfig']['responses'][200]['content']['application/json']['data'];
+export interface ARPreview {
+  projectVersion: number;
+  config: { monthNumber: number; revealAssetId: string; readableText: string; status: 'NOT_CONFIGURED' | 'PREPARING' | 'READY' | 'UNAVAILABLE' } | null;
+  target: { artifactId: string; targetId: string; sourceRevision: number; status: 'PREPARING' | 'READY' | 'UNAVAILABLE'; available: boolean; contentPath: string } | null;
+  reveal: { assetId: string; category: 'IMAGE' | 'VIDEO' | 'AUDIO'; contentVersion: number; status: 'PENDING' | 'READY' | 'UNAVAILABLE'; contentPath: string | null } | null;
+}
+
+function parseARPreview(value: unknown): ARPreview {
+  const data = record(record(value).data);
+  if (!Number.isSafeInteger(data.projectVersion) || Number(data.projectVersion) < 1) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  const config = data.config === null ? null : record(data.config);
+  if (config && (!Number.isInteger(config.monthNumber) || Number(config.monthNumber) < 1 || Number(config.monthNumber) > 12 || typeof config.revealAssetId !== 'string' || !uuid.test(config.revealAssetId) || typeof config.readableText !== 'string')) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  const target = data.target === null ? null : record(data.target);
+  if (target && (typeof target.artifactId !== 'string' || !uuid.test(target.artifactId) || typeof target.targetId !== 'string' || !uuid.test(target.targetId) || typeof target.sourceRevision !== 'number' || !['PREPARING', 'READY', 'UNAVAILABLE'].includes(String(target.status)) || typeof target.available !== 'boolean' || typeof target.contentPath !== 'string')) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  const reveal = data.reveal === null ? null : record(data.reveal);
+  if (reveal && (typeof reveal.assetId !== 'string' || !uuid.test(reveal.assetId) || !['IMAGE', 'VIDEO', 'AUDIO'].includes(String(reveal.category)) || typeof reveal.contentVersion !== 'number' || !['PENDING', 'READY', 'UNAVAILABLE'].includes(String(reveal.status)) || !(reveal.contentPath === null || typeof reveal.contentPath === 'string'))) throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
+  return data as unknown as ARPreview;
+}
 
 function parseAR(value: unknown): ARRevision {
   const data = record(record(value).data);
@@ -196,6 +214,7 @@ export function projectApi(options: ProjectApiOptions) {
   }
   return {
     ar: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/ar/config`, 'GET', parseAR, signal),
+    arPreview: (id: string, signal?: AbortSignal) => request(`/projects/${encodeURIComponent(id)}/ar/preview`, 'GET', parseARPreview, signal),
     saveAR: (id: string, body: ARWrite, key: string, version: number) => request(`/projects/${encodeURIComponent(id)}/ar`, 'PUT', value => {
       const data = record(record(value).data);
       if (data.status !== 'PREPARING') throw new ProjectApiError('PROVIDER_UNAVAILABLE', 502);
@@ -258,6 +277,7 @@ export const projectKeys = {
   months: (actorId: string, id: string) => [...projectKeys.all(actorId), 'months', id] as const,
   specialDates: (actorId: string, id: string) => [...projectKeys.all(actorId), 'special-dates', id] as const,
   ar: (actorId: string, id: string) => [...projectKeys.all(actorId), 'ar', id] as const,
+  arPreview: (actorId: string, id: string) => [...projectKeys.all(actorId), 'ar-preview', id] as const,
 };
 const retryTransient = (count: number, error: Error) => error instanceof ProjectApiError && error.status >= 500 && count < 2;
 export function projectListOptions(actorId: string, query: ProjectListQuery, api: ProjectApi, enabled = true) {

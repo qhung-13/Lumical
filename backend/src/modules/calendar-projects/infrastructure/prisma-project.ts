@@ -294,6 +294,40 @@ export class PrismaProjectRepository extends ProjectRepository {
       readableText: row.readableText, status: row.preparationStatus } : null;
   }
 
+  async arPreview(project: ProjectRecord, context: TransactionContext) {
+    const client = this.client(context);
+    const experience = await client.projectARExperience.findUnique({
+      where: { projectId_ownerId: { projectId: project.id, ownerId: project.ownerId } },
+      select: {
+        monthNumber: true, revealAssetId: true, readableText: true,
+        preparationStatus: true, sourceRevision: true,
+        artifact: { select: { id: true, targetId: true, sourceRevision: true, status: true, artifactBytes: true } },
+      },
+    });
+    if (!experience) return { projectVersion: project.version, config: null, target: null, reveal: null };
+    const asset = await client.mediaAsset.findFirst({
+      where: { id: experience.revealAssetId, ownerId: project.ownerId, deletedAt: null },
+      select: { id: true, category: true, contentVersion: true, status: true },
+    });
+    const target = experience.artifact ? {
+      artifactId: experience.artifact.id,
+      targetId: experience.artifact.targetId,
+      sourceRevision: experience.artifact.sourceRevision,
+      status: experience.artifact.status,
+      bytes: experience.artifact.status === 'READY' && experience.artifact.sourceRevision === project.version
+        ? experience.artifact.artifactBytes : null,
+      contentType: 'application/octet-stream',
+    } : null;
+    return {
+      projectVersion: project.version,
+      config: { monthNumber: experience.monthNumber, revealAssetId: experience.revealAssetId,
+        readableText: experience.readableText, status: experience.preparationStatus },
+      target,
+      reveal: asset ? { assetId: asset.id, category: asset.category, contentVersion: asset.contentVersion,
+        status: asset.status, contentPath: asset.status === 'READY' ? `/api/v1/media/${asset.id}/content` : null } : null,
+    };
+  }
+
   private async cancelARPreparation(client: Prisma.TransactionClient, projectId: string, now?: Date) {
     await client.jobRecord.updateMany({
       where: { kind: 'AR_PREPARE', objectId: projectId, condition: 'PENDING' },

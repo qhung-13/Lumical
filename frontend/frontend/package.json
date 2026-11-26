@@ -1,0 +1,9 @@
+{
+  "name": "@lumical/frontend-root-shim",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Compatibility shim: the Vercel project currently uses Root Directory `frontend/` together with Build Command `pnpm --dir frontend build`, which resolves to `frontend/frontend` and fails with ENOENT. This shim makes that exact command succeed by delegating to the real frontend build in the parent directory. If Root Directory is ever changed back to the repo root, the real `frontend/package.json` is used and this shim is ignored.",
+  "scripts": {
+    "build": "pnpm --dir .. build"
+  }
+}

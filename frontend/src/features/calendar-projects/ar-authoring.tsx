@@ -130,7 +130,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
     {current.data && <>
       <p className={styles.notice} role="status">{!config ? copy.empty : config.status === 'PREPARING' ? copy.preparing : config.status === 'READY' ? copy.ready : copy.unavailable}</p>
       {config && (persistedMedia.isError || (persistedMedia.data && persistedMedia.data.status !== 'READY')) && <p role="alert">{copy.mediaError}</p>}
-      {arPreview.isError && <p role="alert">{copy.failed}</p>}
+      {arPreview.isError && <p role="alert">{copy.previewFailed}</p>}
       {arPreview.data && <section aria-labelledby={`${id}-preview`} className={styles.notice}>
         <h3 id={`${id}-preview`}>Owner preview</h3>
         {arPreview.data.target?.available && arPreview.data.reveal?.contentPath ? <>

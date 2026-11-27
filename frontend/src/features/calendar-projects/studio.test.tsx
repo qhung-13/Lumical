@@ -83,6 +83,7 @@ function renderStudio(options: { status?: 'WORKING' | 'ARCHIVED'; monthVersion?:
       return json({ error: { code: 'PROVIDER_UNAVAILABLE' } }, 503);
     }
     if (url.endsWith(`/projects/${projectId}/ar/config`) && method === 'GET') return json({ data: { config: arConfig, projectVersion: currentVersion } });
+    if (url.endsWith(`/projects/${projectId}/ar/preview`) && method === 'GET') return json({ data: { config: arConfig, projectVersion: currentVersion, target: null, reveal: null } });
     if (url.endsWith(`/projects/${projectId}/ar`) && method === 'PUT') {
       const key = new Headers(init?.headers).get('Idempotency-Key')!;
       const replay = arIntents.get(key);
@@ -822,6 +823,7 @@ describe('guided Studio shell', () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async input => {
       const url = String(input);
       if (url.endsWith(`/projects/${projectId}/ar/config`)) return json({ data: { config: null, projectVersion: 3 } });
+      if (url.endsWith(`/projects/${projectId}/ar/preview`)) return json({ data: { config: null, projectVersion: 3, target: null, reveal: null } });
       if (url.endsWith('/auth/session')) return json({ data: { authenticated: true,
         principal: { id: ownerId, email: 'owner@example.test', role: 'USER', accountStatus: 'ACTIVE' }, csrfToken: 'c'.repeat(64) } });
       if (url.endsWith(`/projects/${projectId}/special-dates`)) return json({ data: { events: [], projectVersion: 3 } });

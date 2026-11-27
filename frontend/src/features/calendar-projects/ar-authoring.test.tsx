@@ -14,6 +14,7 @@ const ready: OwnedMedia = { id: assetId, category: 'IMAGE', status: 'READY', ver
 function setup(options: { category?: OwnedMedia['category']; config?: ARRevision['config']; archived?: boolean; locale?: 'vi' | 'en' } = {}) {
   let revision: ARRevision = { config: options.config ?? null, projectVersion: 3 };
   const ar = vi.fn().mockImplementation(async () => revision);
+  const arPreview = vi.fn().mockImplementation(async () => ({ ...revision, target: null, reveal: null }));
   const saveAR = vi.fn().mockImplementation(async (_id, body) => {
     revision = { config: { ...body, status: 'PREPARING' }, projectVersion: 4 }; return revision;
   });
@@ -22,11 +23,11 @@ function setup(options: { category?: OwnedMedia['category']; config?: ARRevision
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const props = { actorId: 'owner', projectId: 'project', projectVersion: 3,
     projectStatus: options.archived ? 'ARCHIVED' as const : 'WORKING' as const, mutationReady: true,
-    api: { ar, saveAR, deleteAR } as unknown as ProjectApi, media: { status } as unknown as MediaApi,
+    api: { ar, arPreview, saveAR, deleteAR } as unknown as ProjectApi, media: { status } as unknown as MediaApi,
     availableMedia: [{ ...ready, category: options.category ?? 'IMAGE' }], onDirtyChange: vi.fn<(dirty: boolean) => void>() };
   const tree = () => <QueryClientProvider client={client}><PreferencesProvider initial={{ locale: options.locale ?? 'en', theme: 'light' }}><ARAuthoring {...props} /></PreferencesProvider></QueryClientProvider>;
   const view = render(tree());
-  return { ...view, props, ar, saveAR, deleteAR, status, client,
+  return { ...view, props, ar, arPreview, saveAR, deleteAR, status, client,
     setRevision: (next: ARRevision) => { revision = next; }, rerenderProps: () => view.rerender(tree()) };
 }
 async function draft(label = 'Meaningful image message') {
@@ -39,6 +40,19 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new Event('close')); };
 });
 describe('one owner AR reveal authoring', () => {
+  it('reports preview read failures separately without claiming a save failed', async () => {
+    const app = setup();
+    await screen.findByLabelText('Reveal Month');
+    app.arPreview.mockRejectedValue(new Error('preview unavailable'));
+    await act(async () => app.client.invalidateQueries({ queryKey: projectKeys.arPreview('owner', 'project') }));
+    expect(await screen.findByText(/Could not load the owner preview/)).toBeVisible();
+    expect(screen.queryByText(/Your draft is preserved/)).not.toBeInTheDocument();
+    expect(app.saveAR).not.toHaveBeenCalled();
+    app.arPreview.mockResolvedValue({ config: null, projectVersion: 3, target: null, reveal: null });
+    await userEvent.click(screen.getByRole('button', { name: 'Reload AR configuration' }));
+    await waitFor(() => expect(screen.queryByText(/Could not load the owner preview/)).not.toBeInTheDocument());
+  });
+
   it('reports dirty changes, clears an exact revert, and releases the host guard on unmount', async () => {
     const app = setup();
     await screen.findByLabelText('Reveal Month');

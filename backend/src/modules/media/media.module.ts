@@ -42,7 +42,7 @@ import { DeleteMediaController } from './interface/delete-media.controller';
     OwnerMediaController,
     DeleteMediaController,
   ],
-  exports: [MediaCleanup, OwnerMediaRepository, MediaContent],
+  exports: [OwnerMedia, MediaCleanup, OwnerMediaRepository, MediaContent],
   providers: [
     UploadIntake,
     FinalizeMedia,

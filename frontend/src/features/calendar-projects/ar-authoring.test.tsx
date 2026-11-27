@@ -187,6 +187,14 @@ describe('one owner AR reveal authoring', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove configuration' }));
     await waitFor(() => expect(app.deleteAR).toHaveBeenCalledWith('project', 3));
   });
+  it('localizes saved owner preview and media category without English status placeholders', async () => {
+    setup({ locale: 'vi', config: { monthNumber: 1, revealAssetId: assetId, readableText: 'Kỷ niệm đã lưu', status: 'READY' } });
+    await screen.findByDisplayValue('Kỷ niệm đã lưu');
+    expect(await screen.findByRole('heading', { name: 'Xem trước của chủ sở hữu' })).toBeVisible();
+    expect(await screen.findByRole('option', { name: `Ảnh · ${assetId}` })).toBeInTheDocument();
+    expect(screen.getByText(/Trạng thái mục tiêu: Sẵn sàng/)).toBeVisible();
+    expect(screen.queryByText(/Owner preview|Fallback:|No readable reveal text saved|READY|PREPARING|UNAVAILABLE/)).not.toBeInTheDocument();
+  });
   it('locks archived projects and supports Vietnamese', async () => {
     setup({ archived: true, locale: 'vi' });
     expect(await screen.findByLabelText('Tháng có AR')).toBeDisabled();

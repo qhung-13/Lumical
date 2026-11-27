@@ -338,6 +338,7 @@ model ProjectARExperience {
   ownerId           String            @map("owner_id") @db.Uuid
   monthNumber       Int               @map("month_number") @db.SmallInt
   revealAssetId     String            @map("reveal_asset_id") @db.Uuid
+  revealContentVersion Int?          @map("reveal_content_version")
   readableText      String            @map("readable_text")
   sourceRevision    Int               @map("source_revision")
   preparationStatus ARReadiness       @default(NOT_CONFIGURED) @map("preparation_status")

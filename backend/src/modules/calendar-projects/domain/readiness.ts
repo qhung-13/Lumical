@@ -126,7 +126,7 @@ const positiveInteger = (value: number) =>
   Number.isSafeInteger(value) && value > 0;
 const digest = (value: string) => /^[a-f0-9]{64}$/i.test(value);
 
-function usable(
+export function usable(
   media: ReadinessMedia | null,
   ownerId: string,
 ): media is ReadinessMedia {

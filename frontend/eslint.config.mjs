@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Third-party AR runtime bundles; lint application adapters, not vendor output.
+    "public/ar-runtime/vendor/**",
     // Generated Playwright output (reports/traces from local e2e runs).
     "playwright-report/**",
     "test-results/**",

@@ -11,6 +11,7 @@ import { StudioRevealUpload } from '../media/media-upload';
 import { arAuthoringCopy } from '../../i18n/ar-authoring';
 import { studioCopy } from '../../i18n/studio';
 import styles from './special-dates.module.css';
+import { OwnerARPreview } from '../ar/owner-preview';
 
 interface Props {
   actorId: string; projectId: string; projectVersion: number;
@@ -131,14 +132,9 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
       <p className={styles.notice} role="status">{!config ? copy.empty : config.status === 'PREPARING' ? copy.preparing : config.status === 'READY' ? copy.ready : copy.unavailable}</p>
       {config && (persistedMedia.isError || (persistedMedia.data && persistedMedia.data.status !== 'READY')) && <p role="alert">{copy.mediaError}</p>}
       {arPreview.isError && <p role="alert">{copy.previewFailed}</p>}
-      {arPreview.data && <section aria-labelledby={`${id}-preview`} className={styles.notice}>
-        <h3 id={`${id}-preview`}>Owner preview</h3>
-        {arPreview.data.target?.available && arPreview.data.reveal?.contentPath ? <>
-          <p role="status">Prepared target is available for this saved revision.</p>
-          <p>Camera recognition can reveal the selected content. If camera access is unavailable, use the readable fallback below.</p>
-        </> : <p role="status">Target preparation is not ready for this saved revision.</p>}
-        {arPreview.data.reveal && <p>Fallback: {arPreview.data.config?.readableText ?? 'No readable reveal text saved.'}</p>}
-      </section>}
+      {arPreview.data && <OwnerARPreview actorId={actorId} projectId={projectId} projectVersion={projectVersion}
+        blocked={dirty || busy || needsReview || staleDraft || !versionMatches || !mutationReady || arPreview.isFetching || arPreview.isError}
+        preview={arPreview.data} api={api} />}
       {config && <section aria-labelledby={`${id}-current`}>
         <h3 id={`${id}-current`}>{copy.current}</h3>
         <dl className={styles.savedConfig}>
@@ -161,7 +157,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
           <select id={`${id}-asset`} value={body.revealAssetId} disabled={editingLocked} onChange={event => edit({ revealAssetId: event.target.value })}>
             <option value="">{copy.choose}</option>
             {body.revealAssetId && !chosen && <option value={body.revealAssetId}>{body.revealAssetId}</option>}
-            {candidates.map(item => <option key={item.id} value={item.id}>{item.category} · {item.id}</option>)}
+            {candidates.map(item => <option key={item.id} value={item.id}>{copy.category[item.category]} · {item.id}</option>)}
           </select></div>
         <div className={styles.field}><label htmlFor={`${id}-text`}>{copy.text[chosen?.category ?? 'IMAGE']}</label>
           <textarea id={`${id}-text`} value={body.readableText} disabled={editingLocked} onChange={event => edit({ readableText: event.target.value })} /></div>

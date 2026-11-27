@@ -10,13 +10,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { IdentityPolicy } from '../../identity/application/ports';
 import { accountCookie } from '../../identity/domain/identity';
 import { ErrorResponseDto } from '../../calendar-projects/interface/dto';
-import { mediaUnavailable, OwnerMedia } from '../application/owner-media';
-import { beforeMediaDeadline } from './media-request-deadline';
+import { OwnerMedia } from '../application/owner-media';
+import { streamPrivateMedia } from './private-media-stream';
 
 class OwnedMediaDto {
   @ApiProperty({ type: String, format: 'uuid' }) id: string;
@@ -144,60 +142,9 @@ export class OwnerMediaController {
   }
 
   private async stream(req: Request, res: Response, id: string) {
-    this.privacy(res);
-    const controller = new AbortController();
-    const abort = () => controller.abort();
-    req.once('aborted', abort);
-    res.once('close', abort);
-    try {
-      if (req.aborted || res.destroyed) return;
-      const result = await beforeMediaDeadline(
-        controller.signal,
-        () => mediaUnavailable(true),
-        (signal) => this.service.content(
-          this.auth(req),
-          id,
-          req.method === 'HEAD' ? 'HEAD' : 'GET',
-          req.get('If-Range') ? undefined : req.get('Range'),
-          signal,
-        ),
-      );
-      if (controller.signal.aborted) return;
-      res.setHeader('Accept-Ranges', 'bytes');
-      if (result.kind === 'RANGE_NOT_SATISFIABLE') {
-        res.setHeader('Content-Range', `bytes */${result.totalBytes}`);
-        res.status(416).end();
-        return;
-      }
-      res.status(result.status);
-      res.setHeader('Content-Type', result.contentType);
-      res.setHeader('Content-Length', result.contentLength);
-      res.setHeader('Content-Disposition', 'inline');
-      if (result.contentRange)
-        res.setHeader(
-          'Content-Range',
-          `bytes ${result.contentRange.start}-${result.contentRange.end}/${result.totalBytes}`,
-        );
-      if (req.method === 'HEAD') {
-        res.end();
-        return;
-      }
-      // pipeline applies backpressure and closes both ends on disconnect/error.
-      // Never serialize a provider error or URL into an already-started stream.
-      try {
-        res.flushHeaders();
-        await pipeline(Readable.from(result.body!), res, {
-          signal: controller.signal,
-        });
-      } catch {
-        if (!res.destroyed) res.destroy();
-      }
-    } catch (error) {
-      if (!controller.signal.aborted) throw error;
-    } finally {
-      controller.abort();
-      req.off('aborted', abort);
-      res.off('close', abort);
-    }
+    return streamPrivateMedia(req, res, (signal) => this.service.content(
+      this.auth(req), id, req.method === 'HEAD' ? 'HEAD' : 'GET',
+      req.get('If-Range') ? undefined : req.get('Range'), signal,
+    ));
   }
 }

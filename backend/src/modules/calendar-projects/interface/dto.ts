@@ -280,7 +280,10 @@ export class ARPreviewDataDto {
   @ApiProperty({ type: ARPreviewTargetDto, nullable: true }) target: ARPreviewTargetDto | null;
   @ApiProperty({ type: ARPreviewRevealDto, nullable: true }) reveal: ARPreviewRevealDto | null;
 
-  static from(view: ARPreviewRecord): ARPreviewDataDto {
+  static from(view: ARPreviewRecord, projectId: string): ARPreviewDataDto {
+    const available = view.config?.status === 'READY' &&
+      view.target?.status === 'READY' && view.target.sourceRevision === view.projectVersion &&
+      !!view.target.bytes?.byteLength && view.reveal?.status === 'READY' && !!view.reveal.contentPath;
     return {
       projectVersion: view.projectVersion,
       config: view.config,
@@ -289,8 +292,8 @@ export class ARPreviewDataDto {
         targetId: view.target.targetId,
         sourceRevision: view.target.sourceRevision,
         status: view.target.status,
-        available: view.target.bytes !== null,
-        contentPath: view.target.bytes !== null ? `/api/v1/projects/{projectId}/ar/target/${view.target.targetId}` : '',
+        available,
+        contentPath: available ? `/api/v1/projects/${projectId}/ar/targets/${view.target.targetId}/artifact?projectVersion=${view.projectVersion}` : '',
       } : null,
       reveal: view.reveal,
     };

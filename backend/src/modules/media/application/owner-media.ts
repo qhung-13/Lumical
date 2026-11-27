@@ -105,9 +105,11 @@ export class OwnerMedia {
     method: 'GET' | 'HEAD',
     header: string | undefined,
     signal: AbortSignal,
+    scopeCheck?: () => Promise<void>,
   ): Promise<
     PrivateContent | { kind: 'RANGE_NOT_SATISFIABLE'; totalBytes: number }
   > {
+    await scopeCheck?.();
     const asset = await this.owned(auth, id, signal);
     signal.throwIfAborted();
     if (
@@ -169,6 +171,8 @@ export class OwnerMedia {
       current.contentVersion !== asset.contentVersion
     )
       throw mediaUnavailable();
+    await scopeCheck?.();
+    signal.throwIfAborted();
     return result;
   }
 }

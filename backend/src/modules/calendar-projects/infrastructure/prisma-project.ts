@@ -313,7 +313,7 @@ export class PrismaProjectRepository extends ProjectRepository {
       artifactId: experience.artifact.id,
       targetId: experience.artifact.targetId,
       sourceRevision: experience.artifact.sourceRevision,
-      status: experience.artifact.status,
+      status: experience.artifact.status === 'NOT_CONFIGURED' ? 'UNAVAILABLE' as const : experience.artifact.status,
       bytes: experience.artifact.status === 'READY' && experience.artifact.sourceRevision === project.version
         ? experience.artifact.artifactBytes : null,
       contentType: 'application/octet-stream',

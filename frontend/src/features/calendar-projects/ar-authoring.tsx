@@ -11,6 +11,7 @@ import { StudioRevealUpload } from '../media/media-upload';
 import { arAuthoringCopy } from '../../i18n/ar-authoring';
 import { studioCopy } from '../../i18n/studio';
 import styles from './special-dates.module.css';
+import { OwnerARPreview } from '../ar/owner-preview';
 
 interface Props {
   actorId: string; projectId: string; projectVersion: number;
@@ -28,6 +29,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
   const id = useId();
   const client = useQueryClient();
   const current = useQuery({ queryKey: projectKeys.ar(actorId, projectId), queryFn: ({ signal }) => api.ar(projectId, signal), retry: false });
+  const arPreview = useQuery({ queryKey: projectKeys.arPreview(actorId, projectId), queryFn: ({ signal }) => api.arPreview(projectId, signal), retry: false });
   const [draft, setDraft] = useState<Draft>();
   const [intent, setIntent] = useState<Intent>();
   const [items, setItems] = useState<OwnedMedia[]>([]);
@@ -95,6 +97,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
       client.setQueryData(projectKeys.ar(actorId, projectId), result);
       setIntent(undefined); setDraft(undefined); setNotice(copy.saved);
       await refresh();
+      await client.invalidateQueries({ queryKey: projectKeys.arPreview(actorId, projectId) });
     } catch (failure) {
       if (failure instanceof ProjectApiError && failure.status === 412) {
         setIntent(undefined); setNeedsReview(true); setError(copy.conflict); await refresh();
@@ -128,6 +131,10 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
     {current.data && <>
       <p className={styles.notice} role="status">{!config ? copy.empty : config.status === 'PREPARING' ? copy.preparing : config.status === 'READY' ? copy.ready : copy.unavailable}</p>
       {config && (persistedMedia.isError || (persistedMedia.data && persistedMedia.data.status !== 'READY')) && <p role="alert">{copy.mediaError}</p>}
+      {arPreview.isError && <p role="alert">{copy.previewFailed}</p>}
+      {arPreview.data && <OwnerARPreview actorId={actorId} projectId={projectId} projectVersion={projectVersion}
+        blocked={dirty || busy || needsReview || staleDraft || !versionMatches || !mutationReady || arPreview.isFetching || arPreview.isError}
+        preview={arPreview.data} api={api} />}
       {config && <section aria-labelledby={`${id}-current`}>
         <h3 id={`${id}-current`}>{copy.current}</h3>
         <dl className={styles.savedConfig}>
@@ -150,7 +157,7 @@ export function ARAuthoring({ actorId, projectId, projectVersion, projectStatus,
           <select id={`${id}-asset`} value={body.revealAssetId} disabled={editingLocked} onChange={event => edit({ revealAssetId: event.target.value })}>
             <option value="">{copy.choose}</option>
             {body.revealAssetId && !chosen && <option value={body.revealAssetId}>{body.revealAssetId}</option>}
-            {candidates.map(item => <option key={item.id} value={item.id}>{item.category} · {item.id}</option>)}
+            {candidates.map(item => <option key={item.id} value={item.id}>{copy.category[item.category]} · {item.id}</option>)}
           </select></div>
         <div className={styles.field}><label htmlFor={`${id}-text`}>{copy.text[chosen?.category ?? 'IMAGE']}</label>
           <textarea id={`${id}-text`} value={body.readableText} disabled={editingLocked} onChange={event => edit({ readableText: event.target.value })} /></div>

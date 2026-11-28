@@ -2,7 +2,7 @@
 // exercise fail-closed policy; they are never genuine preparation acceptance.
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -90,13 +90,14 @@ await withDisposablePostgres(async ({ url }) => {
   const targetImage = await readFile(
     new URL('../../spikes/ar/fixtures/targets/version-a.png', import.meta.url),
   );
+  let clockNow = now;
   let fetchBarrier;
   let failFetch = false;
   let app;
   try {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(Clock)
-      .useValue({ now: () => now })
+      .useValue({ now: () => clockNow })
       .overrideProvider(MediaContent)
       .useValue({
         async fetch() {
@@ -253,7 +254,7 @@ await withDisposablePostgres(async ({ url }) => {
       },
     );
 
-    const image = await mediaFixture(db, owner.id, 'READY');
+    const image = await mediaFixture(db, owner.id, 'READY', { verifiedBytes: targetImage.length });
     await api
       .put(`${base}/months/1`)
       .set('Cookie', owner.cookie)
@@ -292,6 +293,162 @@ await withDisposablePostgres(async ({ url }) => {
         assert.equal(result.ar.ready, false);
       },
     );
+    await check('P04 API: pinned fallback before preparation, safe negatives and provider race checks', async () => {
+      const fallbackPath = `${base}/ar/reveal?projectVersion=3`;
+      const contentPath = `${base}/ar/reveal/content?projectVersion=3`;
+      const fallback = await api.get(fallbackPath).set('Cookie', owner.cookie).expect(200);
+      assert.equal(fallback.body.data.reveal.contentPath, contentPath);
+      assert.equal(fallback.body.data.config.readableText, 'A meaningful memory');
+      assert.equal(fallback.body.data.target, null);
+      const content = await api.get(contentPath).set('Cookie', owner.cookie).expect(200);
+      assert.match(content.headers['cache-control'], /private, no-store/);
+      assert.equal(content.headers['x-content-type-options'], 'nosniff');
+      assert.equal(Number(content.headers['content-length']), targetImage.length);
+      await api.get(contentPath).expect(401);
+      const outsider = await register('reveal-outsider');
+      await api.get(fallbackPath).set('Cookie', outsider.cookie).expect(404);
+      await api.get(contentPath).set('Cookie', outsider.cookie).expect(404);
+      await api.get(fallbackPath).set('Cookie', other.cookie).expect(401);
+      const missingVersion = await api.get(`${base}/ar/reveal`).set('Cookie', owner.cookie).expect(422);
+      assert.equal(missingVersion.body.error.code, 'VALIDATION_FAILED');
+      await api.get(`${base}/ar/reveal?projectVersion=2`).set('Cookie', owner.cookie).expect(412);
+      await api.get(`${fallbackPath}&targetId=${randomUUID()}`).set('Cookie', owner.cookie).expect(404);
+      await api.get(`${contentPath}&targetId=${randomUUID()}`).set('Cookie', owner.cookie).expect(404);
+      for (const value of ['0', '-1', '3.0', '9007199254740992', '3&projectVersion=3']) {
+        const invalidVersion = await api.get(`${base}/ar/reveal?projectVersion=${value}`).set('Cookie', owner.cookie).expect(422);
+        assert.equal(invalidVersion.body.error.code, 'VALIDATION_FAILED');
+      }
+      await db.query('UPDATE lumical.project_ar_experiences SET reveal_content_version=NULL WHERE project_id=$1', [project]);
+      await api.get(fallbackPath).set('Cookie', owner.cookie).expect(404);
+      await db.query('UPDATE lumical.project_ar_experiences SET reveal_content_version=(SELECT content_version FROM lumical.media_assets WHERE id=$2) WHERE project_id=$1', [project, image]);
+      // Verified media identity is immutable: retain and assert the DB guard.
+      await assert.rejects(
+        db.query('UPDATE lumical.media_assets SET content_version=content_version+1 WHERE id=$1', [image]),
+        { code: '23514' },
+      );
+      // Exercise a mismatched configuration pin without mutating verified media.
+      await db.query('UPDATE lumical.project_ar_experiences SET reveal_content_version=reveal_content_version+1 WHERE project_id=$1', [project]);
+      try {
+        await api.get(fallbackPath).set('Cookie', owner.cookie).expect(404);
+        await api.get(contentPath).set('Cookie', owner.cookie).expect(404);
+      } finally {
+        await db.query('UPDATE lumical.project_ar_experiences SET reveal_content_version=(SELECT content_version FROM lumical.media_assets WHERE id=$2) WHERE project_id=$1', [project, image]);
+      }
+      const entered = barrier();
+      const resume = barrier();
+      fetchBarrier = { entered, resume };
+      const reading = api.get(contentPath).set('Cookie', owner.cookie).then(response => response);
+      try {
+        await entered.promise;
+        await db.query('UPDATE lumical.calendar_projects SET version=version+1 WHERE id=$1', [project]);
+      } finally {
+        fetchBarrier = undefined;
+        resume.release();
+      }
+      const raced = await reading;
+      assert.equal(raced.status, 412, JSON.stringify(raced.body));
+      assert.equal(raced.body.error.code, 'VERSION_CONFLICT');
+      await db.query('UPDATE lumical.calendar_projects SET version=version-1 WHERE id=$1', [project]);
+    });
+    await check('P04 DB/API: verified target-bound resolution, corruption fails closed with same fallback', async () => {
+      // Synthetic verifier fixture only; not real recognizer/device acceptance.
+      const artifactId = randomUUID();
+      const targetId = randomUUID();
+      const bytes = Buffer.from('synthetic-verifier-fixture');
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      const version = (await db.query('SELECT content_version FROM lumical.media_assets WHERE id=$1', [image])).rows[0].content_version;
+      const metadata = {
+        compiler: 'mind-ar@1.2.5/tfjs@4.22.0/cpu/sharp@0.35.5',
+        transform: 'primary-month-image/auto-orient/fit-1024/white-srgb/v1',
+        monthNumber: 1, sourceAssetId: image, sourceContentVersion: version,
+        revealAssetId: image, revealContentVersion: version,
+        sourceDigest: 'a'.repeat(64), pixelDigest: 'b'.repeat(64),
+      };
+      const insert = async (id, target, meta, artifactBytes = bytes) => db.query(
+        `INSERT INTO lumical.ar_target_artifacts
+        (id,project_id,owner_id,source_revision,target_id,status,artifact_reference,prepared_at,adapter_metadata,artifact_bytes)
+        VALUES($1,$2,$3,3,$4,'READY',$5,now(),$6,$7)`,
+        [id, project, owner.id, target, `db:ar:${id}:${digest}`, meta, artifactBytes],
+      );
+      await insert(artifactId, targetId, metadata);
+      const bind = (id) => db.query("UPDATE lumical.project_ar_experiences SET preparation_status='READY',target_artifact_id=$2 WHERE project_id=$1", [project, id]);
+      await bind(artifactId);
+      const revealPath = `${base}/ar/reveal?projectVersion=3&targetId=${targetId}`;
+      const response = await api.get(revealPath).set('Cookie', owner.cookie).expect(200);
+      const fallback = await api.get(`${base}/ar/reveal?projectVersion=3`).set('Cookie', owner.cookie).expect(200);
+      assert.deepEqual(response.body.data.config, fallback.body.data.config);
+      assert.equal(response.body.data.reveal.contentVersion, version);
+      assert.equal(response.body.data.reveal.contentPath, `${base}/ar/reveal/content?projectVersion=3&targetId=${targetId}`);
+      await api.get(response.body.data.reveal.contentPath).set('Cookie', owner.cookie).expect(200);
+      assert.equal(response.body.data.target.contentPath, `${base}/ar/targets/${targetId}/artifact?projectVersion=3`);
+      const download = await api.get(response.body.data.target.contentPath).set('Cookie', owner.cookie).expect(200);
+      assert.deepEqual(download.body, bytes);
+      const artifactPath = `${base}/ar/targets/${targetId}/artifact`;
+      const partial = await api.get(artifactPath).set('Cookie', owner.cookie).set('Range', 'bytes=1-3').expect(206);
+      assert.deepEqual(partial.body, bytes.subarray(1, 4));
+      assert.equal(partial.headers['content-range'], `bytes 1-3/${bytes.length}`);
+      assert.equal(partial.headers['cache-control'], 'private, no-store');
+      assert.equal(partial.headers['x-content-type-options'], 'nosniff');
+      await api.get(artifactPath).set('Cookie', owner.cookie).set('Range', 'bytes=999999-').expect(416);
+      await api.get(artifactPath).expect(401);
+      const artifactOutsider = await register('artifact-outsider');
+      await api.get(artifactPath).set('Cookie', artifactOutsider.cookie).expect(404);
+      await api.get(`${base}/ar/targets/${randomUUID()}/artifact`).set('Cookie', owner.cookie).expect(404);
+      for (const status of ['PREPARING', 'UNAVAILABLE']) {
+        await db.query('UPDATE lumical.project_ar_experiences SET preparation_status=$2 WHERE project_id=$1', [project, status]);
+        const unavailable = await api.get(`${base}/ar/preview`).set('Cookie', owner.cookie).expect(200);
+        assert.equal(unavailable.body.data.target.available, false);
+        assert.equal(unavailable.body.data.target.contentPath, '');
+        await api.get(artifactPath).set('Cookie', owner.cookie).expect(404);
+      }
+      await bind(artifactId);
+      await db.query('UPDATE lumical.project_ar_experiences SET source_revision=2 WHERE project_id=$1', [project]);
+      await api.get(artifactPath).set('Cookie', owner.cookie).expect(404);
+      await db.query('UPDATE lumical.project_ar_experiences SET source_revision=3 WHERE project_id=$1', [project]);
+      // Runtime cannot rewrite prepared bytes, and INSERT also enforces the
+      // byte/reference digest. Assert that guard instead of bypassing it.
+      const corruptId = randomUUID();
+      const corruptTarget = randomUUID();
+      await assert.rejects(
+        insert(corruptId, corruptTarget, metadata, Buffer.from('corrupt')),
+        { code: '23514' },
+      );
+      // A separate byte-consistent row with invalid provenance can reach the
+      // application verifier and must still fail closed without losing fallback.
+      await insert(corruptId, corruptTarget, { ...metadata, sourceDigest: 'invalid' });
+      await bind(corruptId);
+      try {
+        await api.get(`${base}/ar/targets/${corruptTarget}/artifact`).set('Cookie', owner.cookie).expect(404);
+        await api.get(`${base}/ar/reveal?projectVersion=3&targetId=${corruptTarget}`).set('Cookie', owner.cookie).expect(404);
+        const stillFallback = await api.get(`${base}/ar/reveal?projectVersion=3`).set('Cookie', owner.cookie).expect(200);
+        assert.deepEqual(stillFallback.body.data.config, fallback.body.data.config);
+        assert.deepEqual(stillFallback.body.data.reveal, fallback.body.data.reveal);
+      } finally {
+        await bind(artifactId);
+      }
+
+      await api.get(`${base}/ar/targets/${targetId}/artifact?projectVersion=2`).set('Cookie', owner.cookie).expect(412);
+      for (const change of [
+        { compiler: 'untrusted' }, { sourceContentVersion: version + 1 },
+        { revealContentVersion: version + 1 }, { pixelDigest: 'invalid' },
+      ]) {
+        const badId = randomUUID();
+        const badTarget = randomUUID();
+        await insert(badId, badTarget, { ...metadata, ...change });
+        await bind(badId);
+        const preview = await api.get(`${base}/ar/preview`).set('Cookie', owner.cookie).expect(200);
+        assert.equal(preview.body.data.target.available, false);
+        await api.get(`${base}/ar/targets/${badTarget}/artifact?projectVersion=3`).set('Cookie', owner.cookie).expect(404);
+        await api.get(`${base}/ar/reveal?projectVersion=3&targetId=${badTarget}`).set('Cookie', owner.cookie).expect(404);
+        const stillFallback = await api.get(`${base}/ar/reveal?projectVersion=3`).set('Cookie', owner.cookie).expect(200);
+        assert.deepEqual(stillFallback.body.data.config, fallback.body.data.config);
+        assert.deepEqual(stillFallback.body.data.reveal, fallback.body.data.reveal);
+      }
+      await bind(null);
+      await api.get(`${base}/ar/targets/${targetId}/artifact`).set('Cookie', owner.cookie).expect(404);
+      await api.get(`${base}/ar/reveal?projectVersion=3`).set('Cookie', owner.cookie).expect(200);
+      await api.get(revealPath).set('Cookie', owner.cookie).expect(404);
+    });
     const artifact = randomUUID();
     await db.query(
       `INSERT INTO lumical.ar_target_artifacts
@@ -567,10 +724,19 @@ await withDisposablePostgres(async ({ url }) => {
           attempts: 1,
           safe_error_code: 'AR_PREPARATION_RETRY',
         });
-        await db.query(
-          'UPDATE lumical.job_records SET due_at=now() WHERE operation_identity=$1',
-          [`AR_PREPARE:${currentProject}:${revision}`],
-        );
+        // Poll at the persisted retry boundary using the application's Clock,
+        // not PostgreSQL/host wall time (which may be ahead of the worker).
+        const retryDueAt = (
+          await db.query(
+            'SELECT due_at FROM lumical.job_records WHERE operation_identity=$1',
+            [`AR_PREPARE:${currentProject}:${revision}`],
+          )
+        ).rows[0].due_at;
+        assert.equal(retryDueAt.getTime(), clockNow.getTime() + 15_000);
+        clockNow = new Date(retryDueAt.getTime() - 1);
+        assert.equal(await worker.runBatch(1, signal), 0);
+        assert.equal((await jobState(revision)).attempts, 1);
+        clockNow = retryDueAt;
 
         const entered = barrier();
         const resume = barrier();

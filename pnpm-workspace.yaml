@@ -5,6 +5,8 @@ allowBuilds:
   '@scarf/scarf': false
   '@parcel/watcher': true
   '@prisma/engines': true
+  # core-js postinstall only prints a funding message; no generated runtime artifacts.
+  core-js: false
   esbuild: true
   prisma: true
   unrs-resolver: true

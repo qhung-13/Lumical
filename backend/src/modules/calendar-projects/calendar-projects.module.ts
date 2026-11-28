@@ -1,3 +1,4 @@
+import { OwnerARContent } from './application/owner-ar-content';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../platform/database/database.module';
 import { IdentityModule } from '../identity/identity.module';
@@ -26,6 +27,7 @@ import { PrismaPreparationJobs } from './infrastructure/prisma-preparation-jobs'
   providers: [
     CreateProject,
     ProjectOwnerService,
+    OwnerARContent,
     PrepareTarget,
     { provide: PreparationJobs, useClass: PrismaPreparationJobs },
     { provide: TargetCompiler, useClass: MindARTargetCompiler },

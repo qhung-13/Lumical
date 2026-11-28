@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { projectApi, projectDetailOptions, projectKeys, projectListOptions, projectPreviewOptions, projectSpecialDatesOptions, ProjectApiError, type Project, type ProjectPreview } from './projects';
+import { projectApi, projectDetailOptions, projectKeys, projectListOptions, projectPreviewOptions, projectSpecialDatesOptions, ProjectApiError, type ARPreview, type Project, type ProjectPreview } from './projects';
 
 const project: Project = { id: '11111111-1111-4111-8111-111111111111', title: 'For Mom', year: 2026, recipientName: 'Mom',
   status: 'WORKING', version: 1, stylePresetId: 'classic', baseline: { name: { vi: 'Mẫu', en: 'Design' }, layout: { version: 1, type: 'PHOTO_FOCUS', monthCount: 12, maxImagesPerMonth: 4 } },
@@ -23,6 +23,73 @@ const keys: string[] = [];
 afterEach(() => { keys.length = 0; });
 
 describe('Project HTTP API and private query contract', () => {
+  const targetId = '22222222-2222-4222-8222-222222222222';
+  const targetPath = `/api/v1/projects/${project.id}/ar/targets/${targetId}/artifact?projectVersion=3`;
+  const revealPath = `/api/v1/projects/${project.id}/ar/reveal/content?projectVersion=3`;
+  const arPreview: ARPreview = { projectVersion: 3,
+    config: { monthNumber: 1, revealAssetId: project.id, readableText: 'Saved message', status: 'READY' },
+    target: { artifactId: project.id, targetId, sourceRevision: 3, status: 'READY', available: true, contentPath: targetPath },
+    reveal: { assetId: project.id, category: 'IMAGE', contentVersion: 1, status: 'READY', contentPath: revealPath } };
+  it('reads version-scoped owner reveal descriptors with and without recognized target identity', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => response({ data: arPreview }));
+    const api = projectApi({ csrf: () => undefined, fetcher });
+    const signal = new AbortController().signal;
+    expect(await api.arPreview(project.id, signal)).toEqual(arPreview);
+    expect(await api.arReveal(project.id, 3, undefined, signal)).toEqual(arPreview);
+    expect(await api.arReveal(project.id, 3, targetId, signal)).toEqual(arPreview);
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      `/api/v1/projects/${project.id}/ar/preview`, `/api/v1/projects/${project.id}/ar/reveal?projectVersion=3`,
+      `/api/v1/projects/${project.id}/ar/reveal?projectVersion=3&targetId=${targetId}`,
+    ]);
+    for (const [, init] of fetcher.mock.calls) expect(init).toMatchObject({ method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+  });
+  it.each([
+    { projectVersion: 0 }, { config: { ...arPreview.config, status: 'UNKNOWN' } },
+    { target: { ...arPreview.target, sourceRevision: 0 } }, { target: { ...arPreview.target, sourceRevision: 1.5 } },
+    { reveal: { ...arPreview.reveal, contentVersion: 0 } }, { reveal: { ...arPreview.reveal, category: 'HTML' } },
+  ])('rejects malformed owner preview/reveal descriptors %j', async patch => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => response({ data: { ...arPreview, ...patch } }));
+    const api = projectApi({ csrf: () => undefined, fetcher });
+    await expect(api.arPreview(project.id)).rejects.toMatchObject({ status: 502 });
+    await expect(api.arReveal(project.id, 3)).rejects.toMatchObject({ status: 502 });
+  });
+  it.each([targetPath, revealPath, `${revealPath}&targetId=${targetId}`])('fetches private owner bytes without caching or redirects: %s', async path => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('private bytes', { headers: { 'Content-Type': 'application/octet-stream' } }));
+    const result = await projectApi({ csrf: () => undefined, fetcher }).arBytes(path, new AbortController().signal);
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(result);
+    });
+    expect(text).toBe('private bytes');
+    expect(fetcher).toHaveBeenCalledWith(path, expect.objectContaining({ credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: expect.any(AbortSignal) }));
+  });
+  it.each([
+    `https://example.test${targetPath}`, `//example.test${revealPath}`,
+    `/api/v1/projects/${project.id}/ar/target/${targetId}?projectVersion=3`,
+    targetPath.replace('?projectVersion=3', ''), targetPath.replace('projectVersion=3', 'projectVersion=0'),
+    `${revealPath}&unexpected=1`, `/api/v1/media/${project.id}/content`,
+  ])('rejects an unreviewed private content route before fetch: %s', async path => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(projectApi({ csrf: () => undefined, fetcher }).arBytes(path, new AbortController().signal)).rejects.toMatchObject({ code: 'INVALID_CONTENT_PATH', status: 502 });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('refreshes unauthorized sessions and preserves owner content denial codes', async () => {
+    const unauthorized = vi.fn();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ error: { code: 'AUTHENTICATION_REQUIRED' } }, 401));
+    await expect(projectApi({ csrf: () => undefined, fetcher, unauthorized }).arBytes(targetPath, new AbortController().signal)).rejects.toMatchObject({ status: 401, code: 'AUTHENTICATION_REQUIRED' });
+    expect(unauthorized).toHaveBeenCalledTimes(1);
+  });
+  it.each(['epoch', 'abort'])('discards owner bytes arriving after %s changes', async kind => {
+    let epoch = 1; const controller = new AbortController();
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => {
+      if (kind === 'epoch') epoch++; else controller.abort();
+      return new Response('private bytes');
+    });
+    await expect(projectApi({ csrf: () => undefined, fetcher, epoch: () => epoch }).arBytes(targetPath, controller.signal)).rejects.toMatchObject({ code: 'STALE_RESPONSE', status: 0 });
+  });
+
   it('reads only the owner AR projection and sends version, CSRF and a stable intent on writes', async () => {
     const body = { monthNumber: 12, revealAssetId: project.id, readableText: 'A meaningful message' };
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ data: { config: { ...body, status: 'UNAVAILABLE' }, projectVersion: 5 } }))

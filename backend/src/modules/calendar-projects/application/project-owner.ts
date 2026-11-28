@@ -39,6 +39,7 @@ import {
   type ProjectMonthRecord,
   type ProjectRecord,
   type SpecialDateRecord,
+  type ARPreviewRecord,
 } from './project-repository';
 
 // The authentication boundary's request shape. Identity owns cookies, CSRF and
@@ -346,6 +347,50 @@ export class ProjectOwnerService {
       if (!project) throw new ProjectError('NOT_FOUND');
       assertProjectOwner(actor, project);
       return { config: await this.repository.arConfig(project, context), projectVersion: project.version };
+    });
+  }
+
+  async arPreview(id: string, browser: ProjectBrowserContext): Promise<ARPreviewRecord> {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      return this.repository.arPreview(project, context);
+    });
+  }
+
+  async arReveal(id: string, version: number, targetId: string | undefined, browser: ProjectBrowserContext): Promise<ARPreviewRecord> {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      if (!Number.isSafeInteger(version) || version < 1) throw new ProjectError('VALIDATION_FAILED');
+      assertProjectVersion(project, version);
+      const preview = await this.repository.arPreview(project, context);
+      if (!preview.config || preview.reveal?.status !== 'READY' || !preview.reveal.contentPath ||
+          (targetId !== undefined && (preview.config.status !== 'READY' ||
+            preview.target?.status !== 'READY' || preview.target.sourceRevision !== project.version ||
+            !preview.target.bytes?.byteLength || preview.target.targetId !== targetId)))
+        throw new ProjectError('NOT_FOUND');
+      if (targetId === undefined) return preview;
+      return { ...preview, reveal: { ...preview.reveal,
+        contentPath: preview.reveal.contentPath + `&targetId=${targetId}` } };
+    });
+  }
+
+  async arTarget(id: string, targetId: string, browser: ProjectBrowserContext, version?: number): Promise<Uint8Array> {
+    return this.run(browser, false, async (actor, context) => {
+      const project = await this.repository.find(actor.id, id, context);
+      if (!project) throw new ProjectError('NOT_FOUND');
+      assertProjectOwner(actor, project);
+      if (version !== undefined) assertProjectVersion(project, version);
+      const preview = await this.repository.arPreview(project, context);
+      const target = preview.target;
+      if (preview.config?.status !== 'READY' || preview.reveal?.status !== 'READY' ||
+          !preview.reveal.contentPath || !target || target.status !== 'READY' ||
+          target.sourceRevision !== project.version || target.targetId !== targetId || !target.bytes?.byteLength)
+        throw new ProjectError('NOT_FOUND');
+      return target.bytes;
     });
   }
 

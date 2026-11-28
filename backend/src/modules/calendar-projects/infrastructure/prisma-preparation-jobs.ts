@@ -7,6 +7,7 @@ import {
 } from '../../../platform/database/application/transactions';
 import type { Prisma } from '../../../platform/database/infrastructure/generated/client';
 import { PrismaTransactions } from '../../../platform/database/infrastructure/prisma-transactions';
+import { Clock } from '../../identity/application/ports';
 import { OwnerMediaRepository } from '../../media/application/owner-media';
 import { MEDIA_LIMITS } from '../../media/domain/media';
 import {
@@ -26,6 +27,7 @@ export class PrismaPreparationJobs extends PreparationJobs {
   constructor(
     @Inject(Transactions) private readonly transactions: PrismaTransactions,
     @Inject(OwnerMediaRepository) private readonly media: OwnerMediaRepository,
+    @Inject(Clock) private readonly clock: Clock,
   ) {
     super();
   }
@@ -49,7 +51,7 @@ export class PrismaPreparationJobs extends PreparationJobs {
 
   claim() {
     return this.atomic(async (db) => {
-      const now = new Date();
+      const now = this.clock.now();
       const [job] = await db.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM lumical.job_records
         WHERE kind = ${AR_PREPARE} AND condition = 'PENDING' AND due_at <= ${now}
@@ -134,6 +136,7 @@ export class PrismaPreparationJobs extends PreparationJobs {
       !source.contentType ||
       !reveal ||
       reveal.status !== 'READY' ||
+      ar.revealContentVersion !== reveal.contentVersion ||
       !reveal.storageKey ||
       !reveal.verifiedBytes ||
       !reveal.contentType
@@ -158,7 +161,7 @@ export class PrismaPreparationJobs extends PreparationJobs {
     await this.atomic(async (db, context) => {
       // Owner edits and publication take the same root lock before touching AR or jobs.
       await db.$queryRaw`SELECT id FROM lumical.calendar_projects WHERE id = ${claim.objectId}::uuid FOR UPDATE`;
-      const now = new Date();
+      const now = this.clock.now();
       const lease = await db.jobRecord.updateMany({
         where: {
           id: claim.id,

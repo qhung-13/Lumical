@@ -1,3 +1,6 @@
+import { ReadinessRepository } from '../application/readiness-repository';
+import { usable } from '../domain/readiness';
+import type { ARPreviewRecord } from '../application/project-repository';
 import { Inject, Injectable } from '@nestjs/common';
 import type { TransactionContext } from '../../../platform/database/application/transactions';
 import { Transactions } from '../../../platform/database/application/transactions';
@@ -5,6 +8,7 @@ import { Prisma } from '../../../platform/database/infrastructure/generated/clie
 import { PrismaTransactions } from '../../../platform/database/infrastructure/prisma-transactions';
 import type { ARWrite, EventWrite, MonthPatch } from '../domain/personalization';
 import { ProjectError } from '../domain/project';
+import { arWrite } from '../domain/personalization';
 import type { ProjectOrderHistory, ProjectStatus } from '../domain/project';
 import type {
   ProjectIdentityValues,
@@ -51,6 +55,7 @@ function toRecord(row: ProjectRow): ProjectRecord {
 export class PrismaProjectRepository extends ProjectRepository {
   constructor(
     @Inject(Transactions) private readonly transactions: PrismaTransactions,
+    @Inject(ReadinessRepository) private readonly readiness: ReadinessRepository,
   ) {
     super();
   }
@@ -268,7 +273,8 @@ export class PrismaProjectRepository extends ProjectRepository {
     if (!month) throw new ProjectError('NOT_FOUND');
 
     const projectVersion = await this.advanceVersion(project, now, context);
-    const data = { ...input, sourceRevision: projectVersion, preparationStatus: 'PREPARING' as const, targetArtifactId: null };
+    const reveal = await client.mediaAsset.findFirstOrThrow({ where: { id: input.revealAssetId, ownerId }, select: { contentVersion: true } });
+    const data = { ...input, revealContentVersion: reveal.contentVersion, sourceRevision: projectVersion, preparationStatus: 'PREPARING' as const, targetArtifactId: null };
     const config = await client.projectARExperience.upsert({
       where: { projectId_ownerId: { projectId, ownerId } },
       create: { ...data, projectId, ownerId }, update: data, select: { id: true },
@@ -292,6 +298,42 @@ export class PrismaProjectRepository extends ProjectRepository {
     });
     return row ? { monthNumber: row.monthNumber, revealAssetId: row.revealAssetId,
       readableText: row.readableText, status: row.preparationStatus } : null;
+  }
+
+  async arPreview(project: ProjectRecord, context: TransactionContext): Promise<ARPreviewRecord> {
+    const client = this.client(context);
+    // Reuse the readiness verifier, including compiler provenance, source and
+    // reveal versions, cleanup intent and the complete artifact digest.
+    const snapshot = await this.readiness.read(project, context);
+    const ar = snapshot.ar;
+    if (!ar) return { projectVersion: project.version, config: null, target: null, reveal: null };
+    const row = await client.projectARExperience.findUniqueOrThrow({
+      where: { projectId_ownerId: { projectId: project.id, ownerId: project.ownerId } },
+      select: { revealContentVersion: true, artifact: { select: { id: true, artifactBytes: true } } },
+    });
+    let validConfig = true;
+    try { arWrite({ monthNumber: ar.monthNumber, revealAssetId: ar.revealAssetId, readableText: ar.readableText }); }
+    catch { validConfig = false; }
+    const bound = validConfig && ar.sourceRevision === project.version &&
+      usable(ar.reveal, project.ownerId) && row.revealContentVersion === ar.reveal.contentVersion;
+    const verified = bound && ar.status === 'READY' && ar.target?.status === 'READY' &&
+      ar.target.projectId === project.id && ar.target.ownerId === project.ownerId &&
+      ar.target.sourceRevision === project.version && !!ar.target.proof;
+    return {
+      projectVersion: project.version,
+      config: { monthNumber: ar.monthNumber, revealAssetId: ar.revealAssetId,
+        readableText: ar.readableText, status: ar.status },
+      target: ar.target && row.artifact ? {
+        artifactId: row.artifact.id, targetId: ar.target.targetId,
+        sourceRevision: ar.target.sourceRevision,
+        status: verified ? 'READY' : 'UNAVAILABLE',
+        bytes: verified ? row.artifact.artifactBytes : null,
+        contentType: 'application/octet-stream',
+      } : null,
+      reveal: ar.reveal ? { assetId: ar.reveal.id, category: ar.reveal.category,
+        contentVersion: ar.reveal.contentVersion, status: bound ? 'READY' : 'UNAVAILABLE',
+        contentPath: bound ? `/api/v1/projects/${project.id}/ar/reveal/content?projectVersion=${project.version}` : null } : null,
+    };
   }
 
   private async cancelARPreparation(client: Prisma.TransactionClient, projectId: string, now?: Date) {

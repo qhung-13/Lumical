@@ -6,7 +6,7 @@ import {
 import { PrismaTransactions } from '../../../platform/database/infrastructure/prisma-transactions';
 import { ReadinessRepository } from '../application/readiness-repository';
 import type { ProjectRecord } from '../application/project-repository';
-import type { ReadinessMedia, ReadinessSnapshot } from '../domain/readiness';
+import { usable, type ReadinessMedia, type ReadinessSnapshot } from '../domain/readiness';
 import { sha256 } from '../application/prepare-target';
 import { MINDAR_COMPILER, SOURCE_TRANSFORM } from './mindar-compiler';
 
@@ -34,7 +34,7 @@ export class PrismaReadinessRepository extends ReadinessRepository {
         projectMonthMedia_month: {
           where: { ownerId, projectId },
           orderBy: { position: 'asc' },
-          select: { assetId: true },
+          select: { assetId: true, crop: true },
         },
       },
     });
@@ -43,6 +43,7 @@ export class PrismaReadinessRepository extends ReadinessRepository {
       select: {
         monthNumber: true,
         revealAssetId: true,
+        revealContentVersion: true,
         readableText: true,
         sourceRevision: true,
         preparationStatus: true,
@@ -128,6 +129,11 @@ export class PrismaReadinessRepository extends ReadinessRepository {
       !Array.isArray(metadata) &&
       metadata.compiler === MINDAR_COMPILER &&
       metadata.transform === SOURCE_TRANSFORM &&
+      months.find(month => month.monthNumber === ar.monthNumber)?.projectMonthMedia_month[0]?.crop === null &&
+      source?.category === 'IMAGE' &&
+      usable(source, ownerId) &&
+      usable(reveal || null, ownerId) &&
+      ar.revealContentVersion === reveal?.contentVersion &&
       source?.status === 'READY' &&
       source.verified &&
       source.hasStorage &&

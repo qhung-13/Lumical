@@ -1,0 +1,28 @@
+export const ownerARCopy = {
+  en: {
+    heading: 'Owner preview', intro: 'Scan the designated saved Month image. Recognition is not authorization: the server checks your access again before every reveal.',
+    start: 'Start camera', stop: 'Stop camera', fallback: 'View without camera',
+    idle: 'Camera is off. Camera-free viewing shows the same authorized content.', loading: 'Loading the saved target and starting the camera…',
+    scanning: 'Point the camera at the saved Month image.', recognized: 'Target recognized. Checking owner access…', revealed: 'Authorized content loaded.',
+    denied: 'Camera access was denied. Allow camera access in browser settings and retry, or view without camera.',
+    unsupported: 'Camera scanning needs HTTPS and a browser with camera support. Try another browser or view without camera.',
+    failed: 'The preview could not load. Check access and connection, then retry. You can also view without camera.',
+    unavailable: 'Target preparation is not ready for this saved revision. Camera-free viewing is independent of recognition.',
+    blocked: 'Save or discard edits and refresh the current Project revision before previewing.',
+    mediaFailed: 'Media playback is unavailable. The saved readable text remains available below.',
+    readable: 'Readable reveal', camera: 'Camera view',
+  },
+  vi: {
+    heading: 'Xem trước của chủ sở hữu', intro: 'Quét ảnh tháng đã lưu được chỉ định. Nhận diện không phải cấp quyền: máy chủ kiểm tra quyền truy cập trước mỗi lần hiển thị.',
+    start: 'Bật camera', stop: 'Tắt camera', fallback: 'Xem không cần camera',
+    idle: 'Camera đang tắt. Chế độ không camera hiển thị cùng nội dung được cấp quyền.', loading: 'Đang tải mục tiêu đã lưu và bật camera…',
+    scanning: 'Hướng camera vào ảnh tháng đã lưu.', recognized: 'Đã nhận diện mục tiêu. Đang kiểm tra quyền chủ sở hữu…', revealed: 'Đã tải nội dung được cấp quyền.',
+    denied: 'Quyền camera bị từ chối. Cho phép camera trong cài đặt trình duyệt rồi thử lại, hoặc xem không cần camera.',
+    unsupported: 'Cần HTTPS và trình duyệt hỗ trợ camera để quét. Thử trình duyệt khác hoặc xem không cần camera.',
+    failed: 'Chưa tải được bản xem trước. Kiểm tra quyền truy cập và kết nối rồi thử lại, hoặc xem không cần camera.',
+    unavailable: 'Mục tiêu chưa sẵn sàng cho phiên bản đã lưu này. Xem không cần camera không phụ thuộc nhận diện.',
+    blocked: 'Lưu hoặc bỏ thay đổi và tải lại phiên bản dự án hiện tại trước khi xem trước.',
+    mediaFailed: 'Không thể phát nội dung. Văn bản đã lưu vẫn có thể đọc bên dưới.',
+    readable: 'Nội dung văn bản', camera: 'Khung camera',
+  },
+} as const;

@@ -64,7 +64,7 @@ for (const locale of ['en', 'vi'] as const) test(`owner AR save/reopen/remove an
   await expect(panel.getByLabel(copy.text)).toHaveValue('A meaningful family message');
   const save = panel.getByRole('button', { name: copy.save, exact: true });
   await save.focus(); await page.keyboard.press('Enter');
-  await expect(panel.getByText(/PREPARING/)).toBeVisible();
+  await expect(panel.getByText(translations.preparing, { exact: true })).toBeVisible();
   await page.reload(); await expect(panel.getByLabel(copy.text)).toHaveValue('A meaningful family message');
   // 320px plus doubled text exercises reflow; this is not a claim of manual browser zoom acceptance.
   await page.addStyleTag({ content: 'html { font-size: 200%; }' });

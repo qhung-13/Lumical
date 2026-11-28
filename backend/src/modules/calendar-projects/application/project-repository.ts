@@ -37,6 +37,26 @@ export interface ARConfigRecord extends ARWrite {
   readonly status: 'NOT_CONFIGURED' | 'PREPARING' | 'READY' | 'UNAVAILABLE';
 }
 
+export interface ARPreviewRecord {
+  readonly projectVersion: number;
+  readonly config: ARConfigRecord | null;
+  readonly target: {
+    readonly artifactId: string;
+    readonly targetId: string;
+    readonly sourceRevision: number;
+    readonly status: 'PREPARING' | 'READY' | 'UNAVAILABLE';
+    readonly bytes: Uint8Array | null;
+    readonly contentType: string;
+  } | null;
+  readonly reveal: {
+    readonly assetId: string;
+    readonly category: 'IMAGE' | 'VIDEO' | 'AUDIO';
+    readonly contentVersion: number;
+    readonly status: 'PENDING' | 'READY' | 'UNAVAILABLE';
+    readonly contentPath: string | null;
+  } | null;
+}
+
 export interface ProjectIntent {
   readonly actorId: string;
   readonly operation: 'SPECIAL_DATE_CREATE' | 'PROJECT_AR_WRITE';
@@ -123,6 +143,8 @@ export abstract class ProjectRepository {
   ): Promise<ProjectIntentResult>;
 
   abstract arConfig(project: ProjectRecord, context: TransactionContext): Promise<ARConfigRecord | null>;
+
+  abstract arPreview(project: ProjectRecord, context: TransactionContext): Promise<ARPreviewRecord>;
 
   abstract deleteAR(project: ProjectRecord, now: Date, context: TransactionContext): Promise<boolean>;
 

@@ -1,3 +1,6 @@
+import { parseMediaRange, resolveMediaRange } from '../../media/application/media-range';
+import { OwnerARContent } from '../application/owner-ar-content';
+import { streamPrivateMedia } from '../../media/interface/private-media-stream';
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req, Res, applyDecorators } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiHeader, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
@@ -6,7 +9,7 @@ import { accountCookie } from '../../identity/domain/identity';
 import { ProjectOwnerService, type ProjectBrowserContext } from '../application/project-owner';
 import { PROJECT_STATUSES, type ProjectView } from '../domain/project';
 import { ARCurrentResponseDto, ARConfigResponseDto, ARWriteDto, EventWriteDto, MonthPatchDto, SpecialDateResponseDto, SpecialDatesResponseDto } from './personalization-dto';
-import { MonthResponseDto, ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectPreviewDataDto, ProjectPreviewResponseDto, ProjectResponseDto, ErrorResponseDto } from './dto';
+import { ARPreviewDataDto, ARPreviewResponseDto, MonthResponseDto, ProjectCreateDto, ProjectDataDto, ProjectDeleteDto, ProjectDetailDataDto, ProjectDetailResponseDto, ProjectListResponseDto, ProjectMonthsDataDto, ProjectMonthsResponseDto, ProjectPatchDto, ProjectPreviewDataDto, ProjectPreviewResponseDto, ProjectResponseDto, ErrorResponseDto } from './dto';
 
 // Local copies of the identity controller's transport decorators so Project
 // mutations read the same way in the generated contract as the account command.
@@ -23,13 +26,14 @@ export class ProjectController {
   constructor(
     @Inject(ProjectOwnerService) private readonly service: ProjectOwnerService,
     @Inject(IdentityPolicy) private readonly policy: IdentityPolicy,
+    @Inject(OwnerARContent) private readonly arContent: OwnerARContent,
   ) {}
 
   // The transport owns only request/response; every rule below belongs to an
   // application command or to the domain.
   private id(value: string): string {
     if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value)) throw new BadRequestException();
-    return value;
+    return value.toLowerCase();
   }
   private auth(req: Request): ProjectBrowserContext {
     // Identity owns the cookie contract; Projects resolve the same single cookie.
@@ -96,6 +100,90 @@ export class ProjectController {
   @ApiResponse({ status: 200, type: ARCurrentResponseDto, headers: etagHeader() })
   async arConfig(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
     this.revision(res, 200, await this.service.arConfig(this.id(id), this.auth(req)));
+  }
+
+  @Get(':id/ar/preview') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectARPreview', summary: 'Read the owner-authorized target and reveal fallback preview.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiResponse({ status: 200, type: ARPreviewResponseDto, headers: etagHeader() })
+  async arPreview(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const data = await this.service.arPreview(this.id(id), this.auth(req));
+    res.setHeader('Cache-Control', 'private, no-store');
+    this.revision(res, 200, ARPreviewDataDto.from(data, this.id(id)));
+  }
+
+  private arQuery(raw: Request['query'], required = true) {
+    const value = raw.projectVersion;
+    if (value === undefined && !required) return { version: undefined, targetId: undefined };
+    if (typeof value !== 'string' || !/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(Number(value)))
+      throw new BadRequestException();
+    if (raw.targetId !== undefined && typeof raw.targetId !== 'string') throw new BadRequestException();
+    return { version: Number(value), targetId: raw.targetId === undefined ? undefined : this.id(raw.targetId).toLowerCase() };
+  }
+
+  @Get(':id/ar/reveal') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectARReveal', summary: 'Resolve the saved owner reveal; targetId binds recognition, omitted selects camera-free fallback.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiQuery({ name: 'projectVersion', required: true, schema: { type: 'integer', minimum: 1 } })
+  @ApiQuery({ name: 'targetId', required: false, format: 'uuid', type: String })
+  @ApiResponse({ status: 200, type: ARPreviewResponseDto, headers: etagHeader() })
+  async arReveal(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const query = this.arQuery(req.query);
+    const view = await this.service.arReveal(this.id(id), query.version!, query.targetId, this.auth(req));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.vary('Cookie');
+    this.revision(res, 200, ARPreviewDataDto.from(view, this.id(id)));
+  }
+
+  @Get(':id/ar/reveal/content') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectARRevealContent', summary: 'Stream the same pinned reveal with owner/project/version/target rechecks around private provider I/O.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiQuery({ name: 'projectVersion', required: true, schema: { type: 'integer', minimum: 1 } })
+  @ApiQuery({ name: 'targetId', required: false, format: 'uuid', type: String })
+  @ApiHeader({ name: 'Range', required: false })
+  @ApiResponse({ status: 200, content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } })
+  @ApiResponse({ status: 206, description: 'Verified single byte range.' })
+  @ApiResponse({ status: 416, description: 'Unsatisfiable single byte range.' })
+  async arRevealContent(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const query = this.arQuery(req.query);
+    await streamPrivateMedia(req, res, signal => this.arContent.content(
+      this.id(id), query.version!, query.targetId, this.auth(req),
+      req.method === 'HEAD' ? 'HEAD' : 'GET', req.get('If-Range') ? undefined : req.get('Range'), signal,
+    ));
+  }
+
+  @Get(':id/ar/targets/:targetId/artifact') @ApiCookieAuth() @errors()
+  @ApiOperation({ operationId: 'getProjectARTarget', summary: 'Download one current owner-authorized prepared target.' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiParam({ name: 'targetId', format: 'uuid' })
+  @ApiQuery({ name: 'projectVersion', required: false, schema: { type: 'integer', minimum: 1 }, description: 'Optional pinned preview revision; otherwise resolves the current target.' })
+  @ApiResponse({ status: 200, content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } })
+  @ApiHeader({ name: 'Range', required: false })
+  @ApiResponse({ status: 206, description: 'Verified single byte range.' })
+  @ApiResponse({ status: 416, description: 'Unsatisfiable single byte range.' })
+  async arTarget(@Param('id') id: string, @Param('targetId') targetId: string, @Req() req: Request, @Res() res: Response) {
+    const bytes = await this.service.arTarget(this.id(id), this.id(targetId).toLowerCase(), this.auth(req), this.arQuery(req.query, false).version);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.vary('Cookie');
+    res.setHeader('Accept-Ranges', 'bytes');
+    let selected;
+    try {
+      const range = req.method === 'HEAD' || req.get('If-Range') ? undefined : parseMediaRange(req.get('Range'));
+      selected = range ? resolveMediaRange(range, bytes.byteLength) : undefined;
+    } catch {
+      res.setHeader('Content-Range', `bytes */${bytes.byteLength}`);
+      res.status(416).end();
+      return;
+    }
+    const body = selected ? bytes.subarray(selected.start, selected.end + 1) : bytes;
+    if (selected) res.setHeader('Content-Range', `bytes ${selected.start}-${selected.end}/${bytes.byteLength}`);
+    res.setHeader('Content-Length', body.byteLength);
+    res.status(selected ? 206 : 200);
+    if (req.method === 'HEAD') res.end();
+    else res.send(Buffer.from(body));
   }
 
   private removed(res: Response, projectVersion: number) {

@@ -23,7 +23,8 @@ concurrency:
 jobs:
   verify:
     name: verify
-    runs-on: ubuntu-latest
+    # Pin the OS: ubuntu-latest upgrades can change apt repositories and browser dependencies.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -61,7 +62,8 @@ jobs:
 
   docker-build:
     name: docker-build
-    runs-on: ubuntu-latest
+    # Pin the OS: ubuntu-latest upgrades can change apt repositories and browser dependencies.
+    runs-on: ubuntu-24.04
     needs: verify
 
     steps:

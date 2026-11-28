@@ -1,9 +1,12 @@
 'use client';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { Button } from '../../design-system/primitives/button';
 import type { SavedCalendarPreview, SavedPreviewMonth } from './saved-calendar-preview-model';
 import { savedCalendarPreviewCopy, savedCalendarPreviewMonthNames, savedCalendarPreviewWeekdayLabels, savedCalendarPreviewWeekdays, type PublicPreviewIssueCode } from './saved-calendar-preview-copy';
 import styles from './saved-calendar-preview.module.css';
+import { finalizationHandoffHref } from './finalization-handoff';
 
 function daysInMonth(year: number, month: number) { return new Date(year, month, 0).getDate(); }
 function firstWeekday(year: number, month: number) { return (new Date(year, month - 1, 1).getDay() + 6) % 7; }
@@ -38,8 +41,20 @@ function MonthCalendar({ data, snapshot, locale }: { data: SavedPreviewMonth; sn
   </article>;
 }
 
-export function SavedCalendarPreview({ snapshot, locale }: { snapshot: SavedCalendarPreview; locale: 'en' | 'vi' }) {
+export function SavedCalendarPreview({ snapshot, locale, actorId, canReview = true }: { snapshot: SavedCalendarPreview; locale: 'en' | 'vi'; actorId: string; canReview?: boolean }) {
+  const router = useRouter();
   const text = savedCalendarPreviewCopy[locale]; const [mode, setMode] = useState<'year' | 'month'>('year'); const [selected, setSelected] = useState(1);
+  const [review, setReview] = useState({ actorId, projectId: snapshot.projectId, projectVersion: snapshot.projectVersion, acknowledged: false, invalidated: false });
+  const reviewScopeMatches = review.actorId === actorId && review.projectId === snapshot.projectId && review.projectVersion === snapshot.projectVersion;
+  if (!reviewScopeMatches) {
+    setReview({ actorId, projectId: snapshot.projectId, projectVersion: snapshot.projectVersion, acknowledged: false,
+      invalidated: review.invalidated || review.acknowledged });
+  }
+  const currentReview = reviewScopeMatches && review.acknowledged;
+  const staleReview = review.invalidated || (review.acknowledged && !reviewScopeMatches);
+  const handoffHref = snapshot.status === 'WORKING' && currentReview && snapshot.readiness.finalizationContentReady
+    ? finalizationHandoffHref(snapshot.projectId, snapshot.projectVersion)
+    : null;
   const ordered = useMemo(() => [...snapshot.months].sort((a, b) => a.monthNumber - b.monthNumber), [snapshot.months]);
   const displayed = mode === 'year' ? ordered : ordered.filter(item => item.monthNumber === selected);
   return <section className={styles.page} aria-label={text.preview}>
@@ -67,6 +82,19 @@ export function SavedCalendarPreview({ snapshot, locale }: { snapshot: SavedCale
         <p>{section.ready ? text.projectChecksPassed : text.projectChecksRemain}</p>
         {section.issues.length > 0 && <ul>{section.issues.map(code => <li key={code}>{text.issue[code as PublicPreviewIssueCode]}</li>)}</ul>}
       </div>)}
+    </section>
+    <section className={styles.review} aria-labelledby="preview-review-title">
+      <h2 id="preview-review-title">{text.reviewHeading}</h2>
+      <p role="status">{currentReview ? text.reviewConfirmed(snapshot.projectVersion) : staleReview ? text.reviewStale : text.reviewPending}</p>
+      {snapshot.status === 'WORKING' && <Button variant="primary" disabled={!canReview} onClick={() => setReview({ actorId, projectId: snapshot.projectId, projectVersion: snapshot.projectVersion, acknowledged: true, invalidated: false })}>
+        {text.reviewAction(snapshot.projectVersion)}
+      </Button>}
+      <div className={styles.handoff}>
+        <Button disabled={!handoffHref} aria-describedby="finalization-readiness-status"
+          onClick={() => { if (handoffHref) router.push(handoffHref); }}>{text.finalizeHandoff}</Button>
+        <p id="finalization-readiness-status">{handoffHref ? text.finalizeReady : !snapshot.readiness.finalizationContentReady
+          ? text.finalizationNotReady : !currentReview ? text.finalizationReviewRequired : text.finalizationNotReady}</p>
+      </div>
     </section>
     <details className={styles.readable}><summary>{text.readable}</summary><ol>{ordered.map(item => <li key={item.monthNumber}><h2>{savedCalendarPreviewMonthNames[locale][item.monthNumber - 1]} {snapshot.year}</h2>
       <p>{item.caption?.trim() || text.noCaption}</p><ul>{item.images.length ? item.images.map((image, index) => <li key={`${image.assetId}-${index}`}>{image.altText || text.unavailablePhoto}</li>) : <li>{text.noImage}</li>}

@@ -131,7 +131,8 @@ function parseProjectPreview(value: unknown): ProjectPreview {
   const issues = record(readiness.issues);
   if (!Number.isSafeInteger(data.projectVersion) || Number(data.projectVersion) < 1 ||
       !validProject(project) || project.version !== data.projectVersion ||
-      typeof readiness.previewReady !== 'boolean' || typeof readiness.arReady !== 'boolean' || typeof readiness.orderReady !== 'boolean' ||
+      typeof readiness.previewReady !== 'boolean' || typeof readiness.arReady !== 'boolean' ||
+      typeof readiness.finalizationContentReady !== 'boolean' || typeof readiness.orderReady !== 'boolean' ||
       !Array.isArray(issues.preview) || !Array.isArray(issues.ar) || !Array.isArray(issues.order) ||
       [issues.preview, issues.ar, issues.order].some(list => list.some(code => typeof code !== 'string' || !publicPreviewIssueCodes.has(code))) ||
       !Array.isArray(data.months) || data.months.length !== 12 || !Array.isArray(data.specialDates)) {

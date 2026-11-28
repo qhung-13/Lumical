@@ -7530,6 +7530,10 @@
             "type": "boolean",
             "description": "Whether verified AR preparation is currently available."
           },
+          "finalizationContentReady": {
+            "type": "boolean",
+            "description": "Authoritative Finalization content eligibility for the saved revision, excluding owner review acknowledgement. This is not permission to create a Finalization version."
+          },
           "orderReady": {
             "type": "boolean",
             "description": "Compatibility alias for content/finalization preparation only; never checkout permission."
@@ -7541,6 +7545,7 @@
         "required": [
           "previewReady",
           "arReady",
+          "finalizationContentReady",
           "orderReady",
           "issues"
         ]

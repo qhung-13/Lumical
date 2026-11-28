@@ -193,6 +193,7 @@ export class ProjectPreviewReadinessIssuesDto {
 export class ProjectPreviewReadinessDto {
   @ApiProperty({ description: 'Whether the saved calendar structure can be previewed.' }) previewReady: boolean;
   @ApiProperty({ description: 'Whether verified AR preparation is currently available.' }) arReady: boolean;
+  @ApiProperty({ description: 'Authoritative Finalization content eligibility for the saved revision, excluding owner review acknowledgement. This is not permission to create a Finalization version.' }) finalizationContentReady: boolean;
   @ApiProperty({ description: 'Compatibility alias for content/finalization preparation only; never checkout permission.' }) orderReady: boolean;
   @ApiProperty({ type: ProjectPreviewReadinessIssuesDto }) issues: ProjectPreviewReadinessIssuesDto;
 }
@@ -242,6 +243,7 @@ export class ProjectPreviewDataDto {
       readiness: {
         previewReady: view.readiness.previewReady,
         arReady: view.readiness.arReady,
+        finalizationContentReady: view.readiness.finalizationContentReady,
         orderReady: view.readiness.orderReady,
         issues: {
           preview: [...view.readiness.issues.preview],

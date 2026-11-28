@@ -20,6 +20,7 @@ export interface SavedPreviewMonth {
 }
 
 export interface SavedCalendarPreview {
+  projectId: string;
   projectVersion: number;
   year: number;
   title: string;
@@ -51,7 +52,7 @@ export function createSavedCalendarPreview(
     throw new PreviewSnapshotError();
   }
   return {
-    projectVersion: project.version, year: project.year, title: project.title, recipientName: project.recipientName, status: project.status,
+    projectId: project.id, projectVersion: project.version, year: project.year, title: project.title, recipientName: project.recipientName, status: project.status,
     stylePresetId: project.stylePresetId, layout: project.baseline.layout.type,
     months: months.months.map(month => ({ ...month, images: month.images.map(image => ({ ...image })) })),
     events: specialDates.events.map(event => ({ ...event })),

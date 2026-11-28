@@ -77,7 +77,7 @@ describe('internal Project readiness query', () => {
       project: { id: 'project', version: 3, title: 'Memories', baseline: { layout: { type: 'COLLAGE' } } },
       months: { length: 12 },
       specialDates: [],
-      readiness: { previewReady: true, arReady: false, orderReady: false,
+      readiness: { previewReady: true, arReady: false, finalizationContentReady: false, orderReady: false,
         issues: { preview: [], ar: ['AR_SETUP_REQUIRED'], order: ['CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED'] } },
     });
     expect(auth).toHaveBeenCalledWith(browser, false, expect.any(Function));

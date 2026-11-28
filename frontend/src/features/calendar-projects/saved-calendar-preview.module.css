@@ -30,6 +30,11 @@
 .eventList { padding-inline-start: 1.1rem; }
 .readable { margin-block-start: 1.25rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
 .readiness { margin-block-start: 1.25rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface-subtle); }
+.review { margin-block-start: 1.25rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
+.review h2 { margin-block: 0 .5rem; }
+.review > p { color: var(--color-text-secondary); }
+.handoff { margin-block-start: 1rem; padding-block-start: .85rem; border-block-start: 1px solid var(--color-border); }
+.handoff p { max-width: 70ch; color: var(--color-text-secondary); }
 .readiness h2, .readiness h3 { margin-block: 0 .5rem; }
 .readiness > p { color: var(--color-text-secondary); }
 .readinessGroup { padding-block: .65rem; border-block-start: 1px solid var(--color-border); }

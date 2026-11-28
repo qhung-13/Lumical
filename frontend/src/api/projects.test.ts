@@ -15,7 +15,7 @@ const detail: Project & { deletionEligible: boolean; stylePresets: typeof captur
 const preview: ProjectPreview = { projectVersion: 1, project: { ...project, year: 2028 }, months: Array.from({ length: 12 }, (_, index) => ({
   monthNumber: index + 1, caption: null, images: [],
 })), specialDates: [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', date: '2028-02-29', title: 'Birthday', note: null }],
-readiness: { previewReady: true, arReady: false, orderReady: false, issues: {
+readiness: { previewReady: true, arReady: false, finalizationContentReady: false, orderReady: false, issues: {
   preview: [], ar: ['AR_SETUP_REQUIRED'], order: ['CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED'],
 } } };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -187,6 +187,7 @@ describe('Project HTTP API and private query contract', () => {
   });
   it.each([
     (value: ProjectPreview) => ({ ...value, projectVersion: 2 }),
+    (value: ProjectPreview) => ({ ...value, readiness: { ...value.readiness, finalizationContentReady: undefined } as unknown as ProjectPreview['readiness'] }),
     (value: ProjectPreview) => ({ ...value, readiness: { ...value.readiness, issues: { ...value.readiness.issues, preview: ['PREVIEW_INVALID_PROJECT'] } } as unknown as ProjectPreview['readiness'] }),
     (value: ProjectPreview) => ({ ...value, months: value.months.slice(1) }),
     (value: ProjectPreview) => ({ ...value, specialDates: [{ ...value.specialDates[0], date: '2029-02-29' }] }),

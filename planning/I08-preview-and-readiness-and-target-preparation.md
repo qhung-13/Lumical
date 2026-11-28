@@ -218,7 +218,7 @@ MEMBER_3 owns implementation; MEMBER_4 verifies through I08-P06. Failure to pres
 
 <a id="i08-p05"></a>
 
-### I08-P05 — Current-preview review and checkout handoff
+### I08-P05 — Current-preview review and Finalization handoff
 
 - Owner: MEMBER_2
 - Reviewer: LEAD
@@ -226,23 +226,24 @@ MEMBER_3 owns implementation; MEMBER_4 verifies through I08-P06. Failure to pres
 - Depends on: [I08-P03](I08-preview-and-readiness-and-target-preparation.md#i08-p03); [I08-P04](I08-preview-and-readiness-and-target-preparation.md#i08-p04) Inherited item hard gates: [I07](I07-studio-personalization.md); [I03](I03-early-ar-technology-spike.md)
 - Can run in parallel with: No independent task within this item is named; eligible external tracks remain listed in Dependencies.
 
-**Purpose:** Tie owner review to a specific eligible saved version.
+**Purpose:** Tie owner review to the exact saved Project revision before the revised I09 Finalization handoff.
 
-**Scope:** Current preview acknowledgement/navigation and invalidation after content changes; typed readiness CTA.
+**Scope:** Current saved-preview acknowledgement and invalidation after content changes; typed handoff route carrying the reviewed revision.
 
 **Expected areas/files/modules:** Preview feature and future checkout integration boundary. These are implementation areas, not a prescription of new filenames.
 
-**Implementation notes:** Store only safe UI review state; I09 backend must enforce reviewedProjectVersion. Readiness is not an Order.
+**Implementation notes:** Store only UI acknowledgement bound to the authenticated actor, Project ID and displayed `projectVersion`; do not silently advance it. The revised handoff is `/projects/{projectId}/finalize?reviewedProjectVersion={version}`. I09 backend remains authoritative. `orderReady` is not Finalization authorization. Do not perform the Finalization mutation or create an Order, Payment or recipient Grant in P05.
 
 **Acceptance criteria:**
 
 - [ ] Review records the currently displayed revision.
-- [ ] Any edit invalidates stale review.
-- [ ] Only authoritative eligible state offers checkout continuation.
+- [ ] Any newer saved Project revision invalidates the acknowledgement and requires review again.
+- [ ] Handoff carries the exact acknowledged revision and depends on a separately reviewed authoritative Finalization-readiness signal.
+- [ ] A 412 refreshes the Preview and requires explicit review again; no blind retry.
 
-**Tests required:** Component stale-version/refresh and API reviewed-version integration fixtures.
+**Tests required:** Component current/stale review, actor/revision binding, 412 refresh guidance and exact handoff route fixtures.
 
-**Out of scope:** Placing Orders before I09.
+**Out of scope:** Finalization mutation, immutable-version creation, Order/Checkout/Payment/Sharing, recipient Grant and the CR-S05 confirmation/retry/durable-result UI.
 
 **Review focus:** Correct reviewed revision and honest handoff.
 

@@ -43,6 +43,8 @@ const publicCode: Record<ReadinessIssue, PublicPreviewIssue> = {
 export interface PublicPreviewReadiness {
   readonly previewReady: boolean;
   readonly arReady: boolean;
+  /** Content eligibility only; owner must separately acknowledge this revision. */
+  readonly finalizationContentReady: boolean;
   /** Compatibility field. This is content/finalization preparation, not checkout permission. */
   readonly orderReady: boolean;
   readonly issues: {
@@ -60,6 +62,7 @@ export function publicPreviewReadiness(value: ProjectReadiness): PublicPreviewRe
   return {
     previewReady: value.preview.ready,
     arReady: value.ar.ready,
+    finalizationContentReady: value.finalizationContent.ready,
     orderReady: value.finalization.ready,
     issues: {
       preview: mapIssues(value.preview.issues),

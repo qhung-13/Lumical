@@ -1,5 +1,6 @@
 import {
   arReadiness,
+  finalizationContentReadiness,
   finalizationReadiness,
   previewReadiness,
   projectReadiness,
@@ -99,6 +100,7 @@ describe('version-bound readiness policies (synthetic evidence)', () => {
       'FINALIZATION_AR_REQUIRED',
       'FINALIZATION_REVIEW_REQUIRED',
     ]);
+    expect(result.finalizationContent.issues).not.toContain('FINALIZATION_REVIEW_REQUIRED');
   });
 
   it('R02: one Ready image, zero dates and eleven empty Months satisfy completeness; old saved year is valid', () => {
@@ -106,6 +108,7 @@ describe('version-bound readiness policies (synthetic evidence)', () => {
       projectVersion: 7,
       preview: { ready: true, issues: [] },
       ar: { ready: true, issues: [], preparation: 'VERIFIED' },
+      finalizationContent: { ready: true, issues: [] },
       finalization: { ready: true, issues: [] },
     });
   });
@@ -118,6 +121,13 @@ describe('version-bound readiness policies (synthetic evidence)', () => {
     });
     expect(result.preview.ready).toBe(true);
     expect(result.finalization.issues).toEqual(['FINALIZATION_NOT_WORKING']);
+  });
+
+  it('exposes content eligibility before review without changing full readiness', () => {
+    const result = projectReadiness({ ...complete(), review: null });
+    expect(finalizationContentReadiness({ ...complete(), review: null })).toEqual({ ready: true, issues: [] });
+    expect(result.finalizationContent).toEqual({ ready: true, issues: [] });
+    expect(result.finalization).toEqual({ ready: false, issues: ['FINALIZATION_REVIEW_REQUIRED'] });
   });
 
   it.each([

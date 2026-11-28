@@ -833,6 +833,8 @@ export interface components {
             previewReady: boolean;
             /** @description Whether verified AR preparation is currently available. */
             arReady: boolean;
+            /** @description Authoritative Finalization content eligibility for the saved revision, excluding owner review acknowledgement. This is not permission to create a Finalization version. */
+            finalizationContentReady: boolean;
             /** @description Compatibility alias for content/finalization preparation only; never checkout permission. */
             orderReady: boolean;
             issues: components["schemas"]["ProjectPreviewReadinessIssuesDto"];

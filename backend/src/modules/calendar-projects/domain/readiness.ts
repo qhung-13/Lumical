@@ -115,6 +115,7 @@ export interface ProjectReadiness {
       | 'UNVERIFIED'
       | 'VERIFIED';
   };
+  readonly finalizationContent: PolicyReadiness;
   readonly finalization: PolicyReadiness;
 }
 
@@ -293,8 +294,9 @@ export function arReadiness(
   return { ...policy(issues), preparation };
 }
 
-// BR-RDY-003. Shared content/review criteria only: no Order, Payment or Sharing inputs.
-export function finalizationReadiness(
+// BR-RDY-003 content eligibility is authoritative, but deliberately excludes
+// owner review evidence so the owner can review this exact revision first.
+export function finalizationContentReadiness(
   snapshot: ReadinessSnapshot,
 ): PolicyReadiness {
   const preview = previewReadiness(snapshot);
@@ -313,6 +315,14 @@ export function finalizationReadiness(
   )
     issues.push('FINALIZATION_PERSONAL_IMAGE_REQUIRED');
   if (!ar.ready) issues.push('FINALIZATION_AR_REQUIRED');
+  return policy(issues);
+}
+
+// BR-RDY-003. Full readiness adds version-bound owner review to content eligibility.
+export function finalizationReadiness(
+  snapshot: ReadinessSnapshot,
+): PolicyReadiness {
+  const issues = [...finalizationContentReadiness(snapshot).issues];
   if (!snapshot.review) issues.push('FINALIZATION_REVIEW_REQUIRED');
   else if (!currentReview(snapshot, snapshot.review))
     issues.push('FINALIZATION_REVIEW_STALE');
@@ -328,6 +338,7 @@ export function projectReadiness(
     projectVersion: snapshot.project.version,
     preview,
     ar,
+    finalizationContent: finalizationContentReadiness(snapshot),
     finalization: finalizationReadiness(snapshot),
   };
 }

@@ -53,7 +53,7 @@ test('a Preview VERSION_CONFLICT offers refresh and requires review of the refre
   await page.goto(`/projects/${id}/preview`);
   await expect(page.getByText(/Project changed while this Preview was open/i)).toBeVisible();
   await page.getByRole('button', { name: 'Refresh saved Preview' }).click();
-  await expect(page.getByText('Saved revision 8')).toBeVisible();
+  await expect(page.getByText('Saved revision 8', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'I reviewed saved revision 8' })).toBeVisible();
   expect(finalizationPosts).toEqual([]);
 });

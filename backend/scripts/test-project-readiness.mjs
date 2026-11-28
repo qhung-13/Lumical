@@ -225,6 +225,7 @@ await withDisposablePostgres(async ({ url }) => {
         assert.deepEqual(preview.body.data.readiness, {
           previewReady: true,
           arReady: false,
+          finalizationContentReady: false,
           orderReady: false,
           issues: { preview: [], ar: ['AR_SETUP_REQUIRED'], order: ['CALENDAR_IMAGE_REQUIRED', 'AR_REQUIREMENTS_INCOMPLETE', 'PROJECT_REVIEW_REQUIRED'] },
         });
